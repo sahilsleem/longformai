@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Generated render output
+server/exports/
+*.mp4
+*.wav
+*.mp3
+
+# Model caches / downloaded weights
+models/
+*.safetensors
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+*.token
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
