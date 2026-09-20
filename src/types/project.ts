@@ -326,6 +326,17 @@ export interface DraftProvenance {
   textureModifier?: number;             // Step 45: Visual texture & surface quality score modifier [-0.008, +0.008]
   textureReason?: string;               // Step 45: Deterministic visual texture explanation
   textureMatchScore?: number;           // Step 45: Normalized visual texture compatibility score [0.0, 1.0]
+  rawVisualIntelligence?: number;       // Step 46: Unbounded raw sum of Steps 28–45 micro-intelligence modifiers
+  boundedVisualIntelligence?: number;   // Step 46: Aggregate visual intelligence modifier clamped to [-0.050, +0.050]
+  visualIntelligenceBudget?: number;    // Step 46: Global visual intelligence budget constant (0.050)
+  semanticRankingProtectionApplied?: boolean; // Step 47: True if semantic safety band preserved candidate over lower semantic candidate
+  semanticRankingProtectionReason?: string;   // Step 47: Explanation of ranking protection invariant
+  candidateConfidenceScore?: number;          // Step 48: Bounded confidence score [0, 1] derived from selection margin
+  candidateConfidenceLevel?: 'HIGH' | 'MODERATE' | 'LOW'; // Step 48: Confidence tier (HIGH ≥ 0.050 margin, MODERATE ≥ 0.020, LOW < 0.020)
+  selectionMargin?: number;                   // Step 48: adjustedScore gap between selected and runner-up (or selectedScore if single candidate)
+  semanticMargin?: number;                    // Step 48: rawScore gap between selected and runner-up (or selectedScore if single candidate)
+  semanticSeparation?: 'CLEAR' | 'CLOSE' | 'NONE'; // Step 48: Semantic clarity label (CLEAR ≥ 0.100, CLOSE > 0, NONE ≤ 0)
+  visualInfluence?: 'NEUTRAL' | 'SUPPORTING' | 'OPPOSING'; // Step 48: Direction of bounded visual intelligence contribution
   isManuallyEdited?: boolean;     // False initially, true once user modifies timing/duration/framing
   assignedAt?: number;
 }

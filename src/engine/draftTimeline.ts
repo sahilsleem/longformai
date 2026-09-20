@@ -214,6 +214,16 @@ export interface DraftStats {
   textureAgnosticSelections?: number;
   textureBonuses?: number;
   texturePenalties?: number;
+  visualBudgetAdjustments?: number;
+  visualBudgetClampedBonuses?: number;
+  visualBudgetClampedPenalties?: number;
+  visualIntelligenceBudgetUsed?: number;
+  semanticProtectionAdjustments?: number;
+  semanticRankingSafetyBandUsed?: number;
+  highConfidenceSelections?: number;    // Step 48: Segments where selectionMargin >= 0.050
+  moderateConfidenceSelections?: number; // Step 48: Segments where 0.020 <= selectionMargin < 0.050
+  lowConfidenceSelections?: number;     // Step 48: Segments where selectionMargin < 0.020
+  averageSelectionMargin?: number;      // Step 48: Mean selectionMargin across all assigned segments
   quickPacingSelections?: number;
   normalPacingSelections?: number;
   lingeringPacingSelections?: number;
@@ -232,6 +242,20 @@ export interface DraftResult {
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.30;
 export const DEFAULT_REUSE_PENALTY = 0.08;
 export const DEFAULT_CONTINUITY_PREFERENCE = 0.03;
+
+/**
+ * Step 46: Global Visual Intelligence Budget constant.
+ * Bounds the aggregate additive influence of Steps 28–45 micro-intelligence layers to [-0.050, +0.050].
+ * Preserves individual layer sensitivity while strictly preventing cumulative score runaway.
+ */
+export const GLOBAL_VISUAL_INTELLIGENCE_BUDGET = 0.050;
+
+/**
+ * Step 47: Semantic Ranking Safety Band constant.
+ * Guarantees that when candidate A has a raw semantic similarity at least 0.100 higher than candidate B,
+ * the bounded visual subsystem cannot cause B to outrank A.
+ */
+export const VISUAL_RANKING_SEMANTIC_SAFETY_BAND = 0.100;
 
 // Generic filler words to discount when evaluating semantic strength
 const GENERIC_STOPWORDS = new Set([
@@ -8822,6 +8846,219 @@ export function calculateTextureModifier(
 }
 
 /**
+ * Step 46: Clamps aggregate raw visual intelligence to [-GLOBAL_VISUAL_INTELLIGENCE_BUDGET, +GLOBAL_VISUAL_INTELLIGENCE_BUDGET].
+ * Ensures semantic match remains the dominant foundation during candidate selection.
+ */
+export function clampGlobalVisualIntelligence(value: number): number {
+  const rounded = Math.round(value * 1000) / 1000;
+  if (rounded === 0 || Object.is(rounded, -0)) return 0;
+  return Math.max(
+    -GLOBAL_VISUAL_INTELLIGENCE_BUDGET,
+    Math.min(GLOBAL_VISUAL_INTELLIGENCE_BUDGET, rounded)
+  );
+}
+
+/**
+ * Step 46: Aggregates all 18 micro-intelligence visual modifiers from Steps 28–45 and clamps within the global visual budget.
+ * Preserves individual layer calculations while bounding their combined additive headroom.
+ */
+export function calculateAggregateVisualIntelligence(modifiers: {
+  framingModifier: number;
+  atmosphericModifier: number;
+  motionModifier: number;
+  settingModifier: number;
+  densityModifier: number;
+  angleModifier: number;
+  timeModifier: number;
+  weatherModifier: number;
+  depthModifier: number;
+  temporalRateModifier: number;
+  mediumModifier: number;
+  compositionModifier: number;
+  lightingModifier: number;
+  povModifier: number;
+  chromaticModifier: number;
+  trajectoryModifier: number;
+  lensModifier: number;
+  textureModifier: number;
+}): {
+  rawVisualIntelligence: number;
+  boundedVisualIntelligence: number;
+  visualIntelligenceBudget: number;
+  isClamped: boolean;
+} {
+  const rawVisualIntelligence = Math.round(
+    (modifiers.framingModifier +
+      modifiers.atmosphericModifier +
+      modifiers.motionModifier +
+      modifiers.settingModifier +
+      modifiers.densityModifier +
+      modifiers.angleModifier +
+      modifiers.timeModifier +
+      modifiers.weatherModifier +
+      modifiers.depthModifier +
+      modifiers.temporalRateModifier +
+      modifiers.mediumModifier +
+      modifiers.compositionModifier +
+      modifiers.lightingModifier +
+      modifiers.povModifier +
+      modifiers.chromaticModifier +
+      modifiers.trajectoryModifier +
+      modifiers.lensModifier +
+      modifiers.textureModifier) *
+      1000
+  ) / 1000;
+
+  const boundedVisualIntelligence = clampGlobalVisualIntelligence(rawVisualIntelligence);
+  const isClamped = boundedVisualIntelligence !== rawVisualIntelligence;
+
+  return {
+    rawVisualIntelligence,
+    boundedVisualIntelligence,
+    visualIntelligenceBudget: GLOBAL_VISUAL_INTELLIGENCE_BUDGET,
+    isClamped,
+  };
+}
+
+/**
+ * Step 47: Compares two scored candidates applying the Semantic Ranking Safety Band.
+ * When semantic separation is >= VISUAL_RANKING_SEMANTIC_SAFETY_BAND (0.100),
+ * preserves semantic dominance by ensuring the higher semantic candidate cannot be overtaken
+ * solely by visual intelligence modifiers.
+ * For candidates with semantic separation < 0.100, standard adjustedScore ranking applies.
+ */
+export function compareCandidatesWithSemanticProtection(
+  a: { rawScore: number; adjustedScore: number; boundedVisualIntelligence?: number },
+  b: { rawScore: number; adjustedScore: number; boundedVisualIntelligence?: number },
+  safetyBand: number = VISUAL_RANKING_SEMANTIC_SAFETY_BAND
+): number {
+  const semanticDiff = Math.round((a.rawScore - b.rawScore) * 1000) / 1000;
+
+  // If candidate A has a semantic score >= safetyBand higher than B
+  if (semanticDiff >= safetyBand) {
+    const nonVisualA = Math.round((a.adjustedScore - (a.boundedVisualIntelligence || 0)) * 1000) / 1000;
+    const nonVisualB = Math.round((b.adjustedScore - (b.boundedVisualIntelligence || 0)) * 1000) / 1000;
+    if (nonVisualA >= nonVisualB) {
+      return -1; // A ranks ahead of B
+    }
+  }
+
+  // Symmetrically, if candidate B has a semantic score >= safetyBand higher than A
+  if (-semanticDiff >= safetyBand) {
+    const nonVisualA = Math.round((a.adjustedScore - (a.boundedVisualIntelligence || 0)) * 1000) / 1000;
+    const nonVisualB = Math.round((b.adjustedScore - (b.boundedVisualIntelligence || 0)) * 1000) / 1000;
+    if (nonVisualB >= nonVisualA) {
+      return 1; // B ranks ahead of A
+    }
+  }
+
+  // Standard ranking by adjustedScore descending
+  const scoreDiff = b.adjustedScore - a.adjustedScore;
+  if (Math.abs(scoreDiff) > 0.0001) {
+    return scoreDiff;
+  }
+  // Tie-breaker: raw semantic score descending
+  return b.rawScore - a.rawScore;
+}
+
+/**
+ * Step 48: Candidate Confidence & Selection Margin Intelligence.
+ *
+ * A pure, deterministic helper that evaluates how confidently the system
+ * selected the top-ranked candidate over the runner-up.  It is strictly
+ * observational: it never alters any score, never re-ranks candidates,
+ * and never skips any existing logic.
+ *
+ * @param selected  - The top candidate after Step 47 protection (scoredCandidates[0]).
+ * @param runnerUp  - The second candidate, if one exists (scoredCandidates[1]).
+ * @returns         - A compact confidence structure with all Step 48 provenance fields.
+ */
+export function calculateCandidateConfidence(
+  selected: { rawScore: number; adjustedScore: number; boundedVisualIntelligence?: number },
+  runnerUp?: { rawScore: number; adjustedScore: number }
+): {
+  candidateConfidenceScore: number;
+  candidateConfidenceLevel: 'HIGH' | 'MODERATE' | 'LOW';
+  selectionMargin: number;
+  semanticMargin: number;
+  semanticSeparation: 'CLEAR' | 'CLOSE' | 'NONE';
+  visualInfluence: 'NEUTRAL' | 'SUPPORTING' | 'OPPOSING';
+} {
+  // Selection margin: composite score gap (or selected score when running unopposed)
+  const selectionMargin: number =
+    runnerUp !== undefined
+      ? Math.round((selected.adjustedScore - runnerUp.adjustedScore) * 1000) / 1000
+      : Math.round(selected.adjustedScore * 1000) / 1000;
+
+  // Semantic margin: raw semantic score gap (or selected raw score when running unopposed)
+  const semanticMargin: number =
+    runnerUp !== undefined
+      ? Math.round((selected.rawScore - runnerUp.rawScore) * 1000) / 1000
+      : Math.round(selected.rawScore * 1000) / 1000;
+
+  // Confidence score: normalised selection margin, bounded to [0, 1]
+  const candidateConfidenceScore: number =
+    Math.round(Math.min(1, Math.max(0, selectionMargin / 0.1)) * 1000) / 1000;
+
+  // Confidence level thresholds (selection margin based)
+  const candidateConfidenceLevel: 'HIGH' | 'MODERATE' | 'LOW' =
+    selectionMargin >= 0.05 ? 'HIGH' : selectionMargin >= 0.02 ? 'MODERATE' : 'LOW';
+
+  // Semantic separation label
+  const semanticSeparation: 'CLEAR' | 'CLOSE' | 'NONE' =
+    semanticMargin >= 0.1 ? 'CLEAR' : semanticMargin > 0 ? 'CLOSE' : 'NONE';
+
+  // Visual influence direction from bounded visual intelligence contribution
+  const bvi = selected.boundedVisualIntelligence ?? 0;
+  const visualInfluence: 'NEUTRAL' | 'SUPPORTING' | 'OPPOSING' =
+    bvi === 0 ? 'NEUTRAL' : bvi > 0 ? 'SUPPORTING' : 'OPPOSING';
+
+  return {
+    candidateConfidenceScore,
+    candidateConfidenceLevel,
+    selectionMargin,
+    semanticMargin,
+    semanticSeparation,
+    visualInfluence,
+  };
+}
+
+/**
+ * Step 47: Applies semantic ranking protection to a list of scored candidates.
+ * Sorts candidates using compareCandidatesWithSemanticProtection and sets protection metadata flags.
+ */
+export function applySemanticRankingProtection<T extends {
+  rawScore: number;
+  adjustedScore: number;
+  boundedVisualIntelligence?: number;
+  semanticRankingProtectionApplied?: boolean;
+  semanticRankingProtectionReason?: string;
+}>(
+  candidates: T[],
+  safetyBand: number = VISUAL_RANKING_SEMANTIC_SAFETY_BAND
+): T[] {
+  if (candidates.length <= 1) return candidates;
+
+  const sorted = [...candidates].sort((a, b) =>
+    compareCandidatesWithSemanticProtection(a, b, safetyBand)
+  );
+
+  // Check if protection altered the top candidate relative to unprotected adjustedScore sorting
+  const rawTopByAdjusted = [...candidates].sort((a, b) => {
+    const diff = b.adjustedScore - a.adjustedScore;
+    return Math.abs(diff) > 0.0001 ? diff : b.rawScore - a.rawScore;
+  })[0];
+
+  const protectedTop = sorted[0];
+  if (protectedTop && rawTopByAdjusted && protectedTop !== rawTopByAdjusted) {
+    protectedTop.semanticRankingProtectionApplied = true;
+    protectedTop.semanticRankingProtectionReason = `Semantic ranking protection preserved top candidate (raw score: ${protectedTop.rawScore.toFixed(2)}) ahead of candidate with lower semantic match (raw score: ${rawTopByAdjusted.rawScore.toFixed(2)}) across >= ${safetyBand.toFixed(2)} safety band.`;
+  }
+
+  return sorted;
+}
+
+/**
  * Step 19: Comprehensive Shot-to-Shot Transition & Continuity Intelligence.
  * Evaluates candidate relative to the immediately preceding shot:
  * 1. Thematic concept & tag continuity (+0.018 to +0.030)
@@ -9422,7 +9659,7 @@ export async function generateDraftTimeline(
       }
 
       // 3. Multi-Signal Deterministic Scoring (Step 13, 16, 19, 20, 21, 22, 23 & 24)
-      const scoredCandidates = matchResult.candidates
+      const rawScoredCandidates = matchResult.candidates
         .filter((c) => c.score >= similarityThreshold)
         .map((c) => {
           const asset = validAnalyzedMedia.find((m) => m.id === c.mediaId);
@@ -9748,7 +9985,29 @@ export async function generateDraftTimeline(
             currentBeatInfo.narrationBeatType
           );
 
-          // N. Final Composite Score (Semantic is dominant, modifiers capped)
+          // HH. Step 46: Global Visual Intelligence Budget & Aggregate Clamping
+          const visualAggregate = calculateAggregateVisualIntelligence({
+            framingModifier: framingIntel.modifier,
+            atmosphericModifier: atmosphericIntel.modifier,
+            motionModifier: motionIntel.modifier,
+            settingModifier: settingIntel.modifier,
+            densityModifier: densityIntel.modifier,
+            angleModifier: angleIntel.modifier,
+            timeModifier: timeIntel.modifier,
+            weatherModifier: weatherIntel.modifier,
+            depthModifier: depthIntel.modifier,
+            temporalRateModifier: temporalRateIntel.modifier,
+            mediumModifier: mediumIntel.modifier,
+            compositionModifier: compositionIntel.modifier,
+            lightingModifier: lightingIntel.modifier,
+            povModifier: povIntel.modifier,
+            chromaticModifier: chromaticIntel.modifier,
+            trajectoryModifier: trajectoryIntel.modifier,
+            lensModifier: lensIntel.modifier,
+            textureModifier: textureIntel.modifier,
+          });
+
+          // N. Final Composite Score (Semantic is dominant, visual micro-modifiers bounded by Step 46 budget)
           const adjustedScore = Math.round(
             (attenuatedSemantic +
               typeBonus +
@@ -9763,24 +10022,7 @@ export async function generateDraftTimeline(
               emphasisImpactIntel.modifier +
               contrastIntel.modifier +
               subjectContinuityIntel.modifier +
-              framingIntel.modifier +
-              atmosphericIntel.modifier +
-              motionIntel.modifier +
-              settingIntel.modifier +
-              densityIntel.modifier +
-              angleIntel.modifier +
-              timeIntel.modifier +
-              weatherIntel.modifier +
-              depthIntel.modifier +
-              temporalRateIntel.modifier +
-              mediumIntel.modifier +
-              compositionIntel.modifier +
-              lightingIntel.modifier +
-              povIntel.modifier +
-              chromaticIntel.modifier +
-              trajectoryIntel.modifier +
-              lensIntel.modifier +
-              textureIntel.modifier -
+              visualAggregate.boundedVisualIntelligence -
               calculatedReusePenalty -
               transitionIntel.repetitionPenalty) *
               1000
@@ -9917,12 +10159,23 @@ export async function generateDraftTimeline(
             textureModifier: textureIntel.modifier,
             textureReason: textureIntel.reason,
             textureMatchScore: textureIntel.textureMatchScore,
+            rawVisualIntelligence: visualAggregate.rawVisualIntelligence,
+            boundedVisualIntelligence: visualAggregate.boundedVisualIntelligence,
+            visualIntelligenceBudget: visualAggregate.visualIntelligenceBudget,
+            semanticRankingProtectionApplied: undefined as boolean | undefined,
+            semanticRankingProtectionReason: undefined as string | undefined,
           };
         })
-        .filter((c): c is NonNullable<typeof c> => c !== null)
-        .sort((a, b) => b.adjustedScore - a.adjustedScore);
+        .filter((c): c is NonNullable<typeof c> => c !== null);
+
+      const scoredCandidates = applySemanticRankingProtection(rawScoredCandidates);
 
       const bestCandidate = scoredCandidates[0];
+
+      // Step 48: Candidate Confidence & Selection Margin Intelligence (observational only)
+      const candidateConfidence = bestCandidate
+        ? calculateCandidateConfidence(bestCandidate, scoredCandidates[1])
+        : null;
 
       // If no candidate satisfies the threshold after evaluation, leave segment unassigned
       if (!bestCandidate || bestCandidate.adjustedScore < similarityThreshold * 0.6) {
@@ -10126,6 +10379,17 @@ export async function generateDraftTimeline(
           textureModifier: bestCandidate.textureModifier,
           textureReason: bestCandidate.textureReason,
           textureMatchScore: bestCandidate.textureMatchScore,
+          rawVisualIntelligence: bestCandidate.rawVisualIntelligence,
+          boundedVisualIntelligence: bestCandidate.boundedVisualIntelligence,
+          visualIntelligenceBudget: bestCandidate.visualIntelligenceBudget,
+          semanticRankingProtectionApplied: bestCandidate.semanticRankingProtectionApplied,
+          semanticRankingProtectionReason: bestCandidate.semanticRankingProtectionReason,
+          candidateConfidenceScore: candidateConfidence?.candidateConfidenceScore,
+          candidateConfidenceLevel: candidateConfidence?.candidateConfidenceLevel,
+          selectionMargin: candidateConfidence?.selectionMargin,
+          semanticMargin: candidateConfidence?.semanticMargin,
+          semanticSeparation: candidateConfidence?.semanticSeparation,
+          visualInfluence: candidateConfidence?.visualInfluence,
           isManuallyEdited: false,
           assignedAt: Date.now(),
         },
@@ -10369,10 +10633,41 @@ export async function generateDraftTimeline(
   let textureAgnosticSelectionsCount = 0;
   let textureBonusesCount = 0;
   let texturePenaltiesCount = 0;
+  let visualBudgetAdjustmentsCount = 0;
+  let visualBudgetClampedBonusesCount = 0;
+  let visualBudgetClampedPenaltiesCount = 0;
+  let semanticProtectionAdjustmentsCount = 0;
+  let highConfidenceSelectionsCount = 0;
+  let moderateConfidenceSelectionsCount = 0;
+  let lowConfidenceSelectionsCount = 0;
+  let totalSelectionMarginSum = 0;
   let quickPacingSelectionsCount = 0;
   let normalPacingSelectionsCount = 0;
   let lingeringPacingSelectionsCount = 0;
   for (const item of timelineItems) {
+    if (item.provenance?.semanticRankingProtectionApplied) {
+      semanticProtectionAdjustmentsCount++;
+    }
+    // Step 48: confidence counters
+    const confLevel = item.provenance?.candidateConfidenceLevel;
+    if (confLevel === 'HIGH') highConfidenceSelectionsCount++;
+    else if (confLevel === 'MODERATE') moderateConfidenceSelectionsCount++;
+    else lowConfidenceSelectionsCount++;
+    const sm = item.provenance?.selectionMargin;
+    if (typeof sm === 'number') {
+      totalSelectionMarginSum += sm;
+    }
+    const rawVis = item.provenance?.rawVisualIntelligence ?? 0;
+    const boundedVis = item.provenance?.boundedVisualIntelligence ?? 0;
+    if (Math.abs(boundedVis) > 0.0001) {
+      visualBudgetAdjustmentsCount++;
+    }
+    if (rawVis > GLOBAL_VISUAL_INTELLIGENCE_BUDGET + 0.0001) {
+      visualBudgetClampedBonusesCount++;
+    }
+    if (rawVis < -GLOBAL_VISUAL_INTELLIGENCE_BUDGET - 0.0001) {
+      visualBudgetClampedPenaltiesCount++;
+    }
     const pMod = item.provenance?.pacingModifier ?? 0;
     if (Math.abs(pMod) > 0.0001) {
       pacingAdjustmentsCount++;
@@ -10872,6 +11167,19 @@ export async function generateDraftTimeline(
       textureAgnosticSelections: textureAgnosticSelectionsCount,
       textureBonuses: textureBonusesCount,
       texturePenalties: texturePenaltiesCount,
+      visualBudgetAdjustments: visualBudgetAdjustmentsCount,
+      visualBudgetClampedBonuses: visualBudgetClampedBonusesCount,
+      visualBudgetClampedPenalties: visualBudgetClampedPenaltiesCount,
+      visualIntelligenceBudgetUsed: GLOBAL_VISUAL_INTELLIGENCE_BUDGET,
+      semanticProtectionAdjustments: semanticProtectionAdjustmentsCount,
+      semanticRankingSafetyBandUsed: VISUAL_RANKING_SEMANTIC_SAFETY_BAND,
+      highConfidenceSelections: highConfidenceSelectionsCount,
+      moderateConfidenceSelections: moderateConfidenceSelectionsCount,
+      lowConfidenceSelections: lowConfidenceSelectionsCount,
+      averageSelectionMargin:
+        assignedSegments > 0
+          ? Math.round((totalSelectionMarginSum / assignedSegments) * 1000) / 1000
+          : undefined,
       quickPacingSelections: quickPacingSelectionsCount,
       normalPacingSelections: normalPacingSelectionsCount,
       lingeringPacingSelections: lingeringPacingSelectionsCount,
