@@ -1,20 +1,23 @@
 """
 LongFormAI - Vision Worker Offline & Honesty Test Suite
-Verifies genuine BLIP captioning, cache verification, and offline execution.
+Verifies genuine BLIP captioning, cache verification, and offline execution using pure Python standard library.
 """
 import io
+import json
 import time
-import requests
 import base64
+import urllib.request
+import urllib.error
 from PIL import Image, ImageDraw
 
 SERVER_URL = "http://127.0.0.1:8766"
 
+
 def create_synthetic_test_image(pattern: str = "landscape") -> str:
     """Generates a simple synthetic PIL image and returns base64 data URL."""
-    img = Image.new("RGB", (320, 240), color=(135, 206, 235)) # Sky blue
+    img = Image.new("RGB", (320, 240), color=(135, 206, 235))  # Sky blue
     draw = ImageDraw.Draw(img)
-    
+
     if pattern == "beach":
         # Yellow sand below
         draw.rectangle([0, 160, 320, 240], fill=(238, 214, 175))
@@ -33,45 +36,55 @@ def create_synthetic_test_image(pattern: str = "landscape") -> str:
     b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
     return f"data:image/jpeg;base64,{b64}"
 
+
 def test_health():
     print("[1/3] Testing /health endpoint...")
     try:
-        res = requests.get(f"{SERVER_URL}/health", timeout=5)
-        print("  Status code:", res.status_code)
-        data = res.json()
-        print("  Health response:", data)
-        assert res.status_code == 200
-        assert "model_cached" in data
-        assert "model_loaded" in data
-        assert "state" in data
-        print("  [PASS] Health endpoint structure verified.")
+        req = urllib.request.Request(f"{SERVER_URL}/health")
+        with urllib.request.urlopen(req, timeout=5) as res:
+            print("  Status code:", res.status)
+            data = json.loads(res.read().decode("utf-8"))
+            print("  Health response:", data)
+            assert res.status == 200
+            assert "model_cached" in data
+            assert "model_loaded" in data
+            assert "state" in data
+            print("  [PASS] Health endpoint structure verified.")
     except Exception as e:
         print("  [FAIL] Health check failed:", e)
+
 
 def test_single_frame_inference():
     print("\n[2/3] Testing genuine frame captioning inference...")
     data_url = create_synthetic_test_image("beach")
     try:
         start = time.time()
-        res = requests.post(f"{SERVER_URL}/analyze-frame", json={
-            "imageData": data_url,
-            "time": 0.0
-        }, timeout=30)
-        elapsed = time.time() - start
-        print(f"  Status code: {res.status_code} (in {elapsed:.2f}s)")
-        if res.status_code == 200:
-            result = res.json()
-            print("  Inference result:", result)
-            print("  Description:", result.get("description"))
-            print("  Tags:", result.get("tags"))
-            assert result.get("description"), "Description should not be empty on success"
-            print("  [PASS] Frame inference passed.")
-        elif res.status_code == 503:
-            print("  Expected 503 if model not yet cached/loaded:", res.json())
-        else:
-            print("  Unexpected status code:", res.status_code, res.text)
+        payload = json.dumps({"imageData": data_url, "time": 0.0}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{SERVER_URL}/analyze-frame",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as res:
+                elapsed = time.time() - start
+                print(f"  Status code: {res.status} (in {elapsed:.2f}s)")
+                result = json.loads(res.read().decode("utf-8"))
+                print("  Inference result:", result)
+                print("  Description:", result.get("description"))
+                print("  Tags:", result.get("tags"))
+                assert result.get("description"), "Description should not be empty on success"
+                print("  [PASS] Frame inference passed.")
+        except urllib.error.HTTPError as he:
+            if he.code == 503:
+                data = json.loads(he.read().decode("utf-8"))
+                print("  Expected 503 if model not yet cached/loaded:", data)
+            else:
+                print(f"  HTTP Error {he.code}:", he.read().decode("utf-8"))
     except Exception as e:
         print("  Frame inference error:", e)
+
 
 def test_media_analysis():
     print("\n[3/3] Testing media batch keyframe semantics...")
@@ -79,28 +92,38 @@ def test_media_analysis():
     frame2 = create_synthetic_test_image("house")
     try:
         start = time.time()
-        res = requests.post(f"{SERVER_URL}/analyze-media", json={
+        payload = json.dumps({
             "isVideo": True,
             "duration": 5.0,
             "keyframes": [
                 {"time": 0.0, "imageData": frame1},
                 {"time": 2.5, "imageData": frame2}
             ]
-        }, timeout=30)
-        elapsed = time.time() - start
-        print(f"  Status code: {res.status_code} (in {elapsed:.2f}s)")
-        if res.status_code == 200:
-            result = res.json()
-            print("  Overall Description:", result.get("description"))
-            print("  Tags:", result.get("tags"))
-            print("  Keyframe Descriptions:", result.get("keyframeDescriptions"))
-            print("  [PASS] Media semantics passed.")
-        elif res.status_code == 503:
-            print("  Expected 503 if model not yet cached/loaded:", res.json())
-        else:
-            print("  Unexpected status code:", res.status_code, res.text)
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{SERVER_URL}/analyze-media",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as res:
+                elapsed = time.time() - start
+                print(f"  Status code: {res.status} (in {elapsed:.2f}s)")
+                result = json.loads(res.read().decode("utf-8"))
+                print("  Overall Description:", result.get("description"))
+                print("  Tags:", result.get("tags"))
+                print("  Keyframe Descriptions:", result.get("keyframeDescriptions"))
+                print("  [PASS] Media semantics passed.")
+        except urllib.error.HTTPError as he:
+            if he.code == 503:
+                data = json.loads(he.read().decode("utf-8"))
+                print("  Expected 503 if model not yet cached/loaded:", data)
+            else:
+                print(f"  HTTP Error {he.code}:", he.read().decode("utf-8"))
     except Exception as e:
         print("  Media analysis error:", e)
+
 
 if __name__ == "__main__":
     test_health()

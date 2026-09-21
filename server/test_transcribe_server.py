@@ -167,6 +167,16 @@ class TestStdlibHttpServerEndpoints(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
 
+    def test_root_test_page(self):
+        req = urllib.request.Request(f"{self.base_url}/")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertIn("text/html", resp.headers.get("Content-Type", ""))
+            content = resp.read().decode("utf-8")
+            self.assertIn("LongFormAI Transcription Test", content)
+            self.assertIn("input type=\"file\"", content)
+            self.assertIn("Transcribe Audio", content)
+
     def test_health_endpoint(self):
         req = urllib.request.Request(f"{self.base_url}/health")
         with urllib.request.urlopen(req) as resp:

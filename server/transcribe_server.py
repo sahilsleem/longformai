@@ -32,6 +32,293 @@ CONFIG = {
     "device": DEFAULT_DEVICE,
 }
 
+TEST_PAGE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LongFormAI Transcription Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 16px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .url-badge {
+      display: inline-block;
+      background: #334155;
+      color: #94a3b8;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+      margin-top: 12px;
+    }
+    label:first-of-type { margin-top: 0; }
+    input[type="file"], select, input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      color: #f8fafc;
+      font-size: 0.95rem;
+    }
+    input[type="file"]::file-selector-button {
+      background: #38bdf8;
+      border: none;
+      color: #0f172a;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button {
+      width: 100%;
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.2s;
+    }
+    button:hover:not(:disabled) { background: #1d4ed8; }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+    .status-box {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .status-box.loading {
+      background: #0369a1;
+      color: #e0f2fe;
+    }
+    .status-box.error {
+      background: #7f1d1d;
+      border: 1px solid #b91c1c;
+      color: #fecaca;
+    }
+    .status-box.success {
+      background: #064e3b;
+      border: 1px solid #059669;
+      color: #d1fae5;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .meta-item {
+      background: #0f172a;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .meta-item span {
+      display: block;
+      color: #94a3b8;
+      font-size: 0.75rem;
+    }
+    .segment {
+      background: #0f172a;
+      border-left: 3px solid #38bdf8;
+      padding: 10px;
+      margin-top: 8px;
+      border-radius: 0 6px 6px 0;
+    }
+    .seg-time {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #38bdf8;
+      margin-bottom: 4px;
+    }
+    .seg-text {
+      font-size: 0.95rem;
+      color: #f1f5f9;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>LongFormAI Transcription Test</h1>
+    <div class="url-badge" id="workerUrlBadge">Worker: checking...</div>
+
+    <div class="card">
+      <form id="transcribeForm">
+        <label for="audioFile">Audio File (e.g. sample.m4a, .mp3, .wav):</label>
+        <input type="file" id="audioFile" name="file" accept="audio/*" required>
+
+        <label for="modelSize">Model Size:</label>
+        <select id="modelSize" name="model_size">
+          <option value="base" selected>base (Default)</option>
+          <option value="tiny">tiny (Fastest)</option>
+          <option value="small">small</option>
+          <option value="medium">medium</option>
+        </select>
+
+        <label for="language">Language (Optional):</label>
+        <input type="text" id="language" name="language" placeholder="auto (or en, es, fr...)" value="auto">
+
+        <button type="submit" id="submitBtn">Transcribe Audio</button>
+      </form>
+
+      <div id="statusBox" class="status-box hidden"></div>
+    </div>
+
+    <div id="resultsCard" class="card hidden">
+      <h2 style="font-size: 1.1rem; color: #38bdf8; margin-bottom: 8px;">Results</h2>
+      <div class="meta-grid">
+        <div class="meta-item"><span>HTTP Status</span><strong id="resHttp">-</strong></div>
+        <div class="meta-item"><span>Result Status</span><strong id="resStatus">-</strong></div>
+        <div class="meta-item"><span>Model</span><strong id="resModel">-</strong></div>
+        <div class="meta-item"><span>Language</span><strong id="resLang">-</strong></div>
+        <div class="meta-item" style="grid-column: span 2;"><span>Duration</span><strong id="resDuration">-</strong></div>
+      </div>
+
+      <h3 style="font-size: 0.95rem; color: #cbd5e1; margin-top: 16px; margin-bottom: 6px;">Segments (<span id="segCount">0</span>)</h3>
+      <div id="segmentsList"></div>
+    </div>
+  </div>
+
+  <script>
+    const workerUrl = window.location.origin;
+    document.getElementById('workerUrlBadge').textContent = 'Worker: ' + workerUrl;
+
+    const form = document.getElementById('transcribeForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const statusBox = document.getElementById('statusBox');
+    const resultsCard = document.getElementById('resultsCard');
+    const segmentsList = document.getElementById('segmentsList');
+
+    function formatTime(secs) {
+      const m = Math.floor(secs / 60);
+      const s = (secs % 60).toFixed(2);
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById('audioFile');
+      if (!fileInput.files || !fileInput.files[0]) {
+        alert('Please select an audio file.');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const modelSize = document.getElementById('modelSize').value;
+      const language = document.getElementById('language').value.trim();
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('model_size', modelSize);
+      if (language && language !== 'auto') {
+        formData.append('language', language);
+      }
+
+      submitBtn.disabled = true;
+      statusBox.className = 'status-box loading';
+      statusBox.textContent = `Uploading "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB) and transcribing with whisper.cpp...`;
+      statusBox.classList.remove('hidden');
+      resultsCard.classList.add('hidden');
+      segmentsList.innerHTML = '';
+
+      const startTime = performance.now();
+
+      try {
+        const res = await fetch(`${workerUrl}/transcribe`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+        const data = await res.json();
+
+        if (!res.ok) {
+          statusBox.className = 'status-box error';
+          statusBox.textContent = `Transcription failed (HTTP ${res.status}): ${data.detail || JSON.stringify(data)}`;
+          submitBtn.disabled = false;
+          return;
+        }
+
+        statusBox.className = 'status-box success';
+        statusBox.textContent = `Transcription completed successfully in ${elapsed}s!`;
+
+        document.getElementById('resHttp').textContent = `${res.status} OK`;
+        document.getElementById('resStatus').textContent = data.status;
+        document.getElementById('resModel').textContent = data.model;
+        document.getElementById('resLang').textContent = data.language;
+        document.getElementById('resDuration').textContent = `${data.duration}s (${formatTime(data.duration)})`;
+
+        const segments = data.segments || [];
+        document.getElementById('segCount').textContent = segments.length;
+
+        if (segments.length === 0) {
+          segmentsList.innerHTML = '<div style="color: #94a3b8; font-size: 0.85rem; padding: 8px;">No speech detected in audio.</div>';
+        } else {
+          segments.forEach((seg) => {
+            const segEl = document.createElement('div');
+            segEl.className = 'segment';
+            const timeSpan = `${formatTime(seg.start)} -> ${formatTime(seg.end)} [${seg.id}]`;
+            const conf = seg.confidence !== null && seg.confidence !== undefined ? ` (conf: ${seg.confidence})` : '';
+            segEl.innerHTML = `<div class="seg-time">${timeSpan}${conf}</div><div class="seg-text">${seg.text}</div>`;
+            segmentsList.appendChild(segEl);
+          });
+        }
+
+        resultsCard.classList.remove('hidden');
+      } catch (err) {
+        statusBox.className = 'status-box error';
+        statusBox.textContent = `Network / Request Error: ${err.message}`;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+"""
+
 
 class BinaryNotFoundError(Exception):
     """Raised when whisper-cli binary cannot be found."""
@@ -365,7 +652,6 @@ def parse_multipart_body(body: bytes, content_type_header: str) -> Tuple[Dict[st
 
     parts = body.split(boundary_bytes)
     for part in parts:
-        # Strip trailing/leading boundary artifacts
         part = part.strip(b"\r\n")
         if not part or part == b"--":
             continue
@@ -414,8 +700,18 @@ class TranscriptionRequestHandler(BaseHTTPRequestHandler):
     Standard library HTTP request handler for the transcription worker.
     """
     def log_message(self, format, *args):
-        # Override to suppress default stdout spam unless desired
         pass
+
+    def send_html_response(self, status_code: int, html_str: str):
+        body = html_str.encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.end_headers()
+        self.wfile.write(body)
 
     def send_json_response(self, status_code: int, data: Dict[str, Any]):
         body = json.dumps(data, indent=2).encode("utf-8")
@@ -438,7 +734,9 @@ class TranscriptionRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
-        if parsed_url.path == "/health":
+        if parsed_url.path in ("/", "/index.html"):
+            self.send_html_response(200, TEST_PAGE_HTML)
+        elif parsed_url.path == "/health":
             bin_path = resolve_binary_path()
             model_path = resolve_model_path()
             bin_ok = bool(bin_path and os.path.isfile(bin_path))
@@ -548,6 +846,7 @@ def main():
     print("=" * 60)
     print(f" Engine:          whisper.cpp (native)")
     print(f" Server Runtime:  Python stdlib ThreadedHTTPServer")
+    print(f" Test Page:       http://{args.host}:{args.port}/")
     print(f" Binary Path:     {resolved_bin or CONFIG['bin_path']} {'[OK]' if resolved_bin else '[NOT FOUND]'}")
     print(f" Model Path:      {resolved_model or CONFIG['model_path']} {'[OK]' if resolved_model else '[NOT FOUND]'}")
     print(f" Threads:         {CONFIG['threads']}")

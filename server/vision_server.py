@@ -1,57 +1,60 @@
 """
 LongFormAI (Project Hail Mary) - Local Semantic Vision Worker
-Analyzes representative image/video frames locally using vision models (Salesforce/BLIP).
-Zero cloud APIs, zero external requests.
-Supports complete offline inference once model is cached locally.
-No fake heuristics or fallback text when model is unavailable.
+Uses native ONNX Runtime BLIP model locally with zero cloud APIs or external services.
+Pure Python standard library HTTP server - zero third-party framework dependencies (no FastAPI, no Pydantic, no Uvicorn, no Transformers).
+Optimized for Termux / Android / ARM64 / CPU / XNNPACK execution on OnePlus Nord CE 2 Lite.
 """
 
 import os
 import io
+import sys
+import json
 import re
 import base64
 import argparse
 import threading
-from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import uvicorn
+import urllib.parse
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+from typing import Optional, List, Dict, Any, Tuple
+
 from PIL import Image
 
 try:
-    from huggingface_hub import try_to_load_from_cache
+    import numpy as np
 except ImportError:
-    try_to_load_from_cache = None
+    np = None
 
-app = FastAPI(
-    title="LongFormAI Local Vision Worker",
-    version="1.1.0",
-    description="Local semantic visual analysis worker with offline support and strict honesty"
-)
+try:
+    import onnxruntime as ort
+except ImportError:
+    ort = None
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# Global Configuration
-DEFAULT_MODEL_NAME = "Salesforce/blip-image-captioning-base"
+# Configuration Defaults
+DEFAULT_MODEL_DIR = os.getenv("BLIP_MODEL_DIR", "~/models/blip")
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8766
 DEFAULT_DEVICE = "cpu"
 
-# Runtime State
-VISION_MODEL = None
-VISION_PROCESSOR = None
-MODEL_LOCK = threading.Lock()
-MODEL_STATE = {
-    "state": "uninitialized",  # "ready", "loading", "model_not_installed", "error"
-    "error": None,
-    "cached": False,
-    "loaded": False,
+CONFIG = {
+    "model_dir": DEFAULT_MODEL_DIR,
+    "device": DEFAULT_DEVICE,
+    "model_name": "Salesforce/blip-image-captioning-base",
 }
+
+# Image Preprocessing Constants for BLIP
+BLIP_IMAGE_SIZE = (384, 384)
+BLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
+BLIP_STD = [0.26862954, 0.26130258, 0.27577711]
+
+# Special Token IDs for BLIP
+PAD_TOKEN_ID = 0
+UNK_TOKEN_ID = 100
+CLS_TOKEN_ID = 101
+SEP_TOKEN_ID = 102
+EOS_TOKEN_ID = 2
+DEFAULT_BOS_TOKEN_ID = 30522  # Standard BLIP prompt start token ID
 
 STOP_WORDS = {
     "a", "an", "the", "and", "or", "in", "on", "at", "to", "for", "with", "by", "of", "from",
@@ -59,78 +62,293 @@ STOP_WORDS = {
     "there", "this", "that", "these", "those", "it", "its", "shows", "showing", "view", "image", "picture", "photo"
 }
 
-
-def check_is_cached(model_name: str = DEFAULT_MODEL_NAME) -> bool:
-    """Checks if the required model weights exist in the local HuggingFace cache."""
-    if try_to_load_from_cache is None:
-        return False
-    try:
-        weight_path = try_to_load_from_cache(model_name, "pytorch_model.bin")
-        config_path = try_to_load_from_cache(model_name, "config.json")
-        return weight_path is not None and config_path is not None
-    except Exception:
-        return False
+GENERIC_STOPWORDS = {
+    "scene", "image", "video", "person", "background", "photo", "clip", "view", "footage", "shot",
+    "the", "a", "of", "in", "on", "and", "frame"
+}
 
 
-def extract_tags_from_text(text: str, max_tags: int = 6) -> List[str]:
-    """Extract clean semantic keywords from generated caption."""
-    words = re.findall(r'[a-zA-Z]{3,}', text.lower())
-    filtered = [w for w in words if w not in STOP_WORDS]
-    seen = set()
-    tags = []
-    for w in filtered:
-        if w not in seen:
-            seen.add(w)
-            tags.append(w)
-        if len(tags) >= max_tags:
-            break
-    return tags
+def expand_path(p: str) -> str:
+    """Expands ~ and environment variables, returning absolute path."""
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(p)))
 
 
-def load_vision_model(model_name: str = DEFAULT_MODEL_NAME, device: str = DEFAULT_DEVICE):
-    """Loads model from local cache or offline storage."""
-    global VISION_MODEL, VISION_PROCESSOR, MODEL_STATE
-    with MODEL_LOCK:
-        if VISION_MODEL is not None and VISION_PROCESSOR is not None:
-            MODEL_STATE["state"] = "ready"
-            MODEL_STATE["loaded"] = True
-            MODEL_STATE["cached"] = True
-            return
+def resolve_model_dir(custom_dir: Optional[str] = None) -> Optional[str]:
+    """Finds the BLIP ONNX model directory."""
+    candidates = []
+    if custom_dir:
+        candidates.append(custom_dir)
+    if CONFIG["model_dir"]:
+        candidates.append(CONFIG["model_dir"])
 
-        is_cached = check_is_cached(model_name)
-        MODEL_STATE["cached"] = is_cached
+    candidates.extend([
+        "~/models/blip",
+        "models/blip",
+        "/data/data/com.termux/files/home/models/blip",
+    ])
 
-        if not is_cached:
-            MODEL_STATE["state"] = "model_not_installed"
-            MODEL_STATE["loaded"] = False
-            MODEL_STATE["error"] = f"Model '{model_name}' is not cached locally. Run 'python server/download_model.py'."
-            print(f"[LongFormAI Vision Worker] Model '{model_name}' not found in local cache.")
-            return
+    for c in candidates:
+        exp = expand_path(c)
+        if os.path.isdir(exp):
+            split0 = os.path.join(exp, "split_0.onnx")
+            split1 = os.path.join(exp, "split_1.onnx")
+            if os.path.isfile(split0) and os.path.isfile(split1):
+                return exp
+    return None
 
-        try:
-            MODEL_STATE["state"] = "loading"
-            print(f"[LongFormAI Vision Worker] Loading '{model_name}' from local cache on {device} (100% offline)...")
-            from transformers import BlipProcessor, BlipForConditionalGeneration
 
-            processor = BlipProcessor.from_pretrained(model_name, local_files_only=True)
-            model = BlipForConditionalGeneration.from_pretrained(model_name, local_files_only=True).to(device)
-            model.eval()
+def check_model_files_status(model_dir: Optional[str]) -> Tuple[bool, Optional[str]]:
+    """Checks if all required model files are present."""
+    if not model_dir:
+        return False, "Model directory not found. Expected split_0.onnx and split_1.onnx in ~/models/blip."
 
-            VISION_PROCESSOR = processor
-            VISION_MODEL = model
-            MODEL_STATE["state"] = "ready"
-            MODEL_STATE["loaded"] = True
-            MODEL_STATE["error"] = None
-            print(f"[LongFormAI Vision Worker] Vision model '{model_name}' loaded successfully and ready for offline inference.")
-        except Exception as e:
-            MODEL_STATE["state"] = "error"
-            MODEL_STATE["loaded"] = False
-            MODEL_STATE["error"] = str(e)
-            print(f"[LongFormAI Vision Worker Error] Failed to load BLIP model: {e}")
+    exp_dir = expand_path(model_dir)
+    if not os.path.isdir(exp_dir):
+        return False, f"Directory does not exist: {exp_dir}"
+
+    required_files = ["split_0.onnx", "split_1.onnx", "vocab.txt"]
+    missing = [f for f in required_files if not os.path.isfile(os.path.join(exp_dir, f))]
+    if missing:
+        return False, f"Missing required model files in {exp_dir}: {', '.join(missing)}"
+
+    return True, None
+
+
+class WordPieceTokenizer:
+    """Lightweight pure-Python WordPiece tokenizer for BLIP."""
+    def __init__(self):
+        self.vocab: Dict[str, int] = {}
+        self.inv_vocab: Dict[int, str] = {}
+        self.bos_token_id = DEFAULT_BOS_TOKEN_ID
+
+    def load_vocab(self, vocab_file: str, model_config_file: Optional[str] = None):
+        if not os.path.isfile(vocab_file):
+            raise FileNotFoundError(f"vocab.txt not found at {vocab_file}")
+
+        self.vocab = {}
+        self.inv_vocab = {}
+        with open(vocab_file, "r", encoding="utf-8") as f:
+            for idx, line in enumerate(f):
+                token = line.rstrip("\n\r")
+                self.vocab[token] = idx
+                self.inv_vocab[idx] = token
+
+        # Read bos_token_id from model_config.json if available
+        if model_config_file and os.path.isfile(model_config_file):
+            try:
+                with open(model_config_file, "r", encoding="utf-8") as cf:
+                    cfg = json.load(cf)
+                    if "text_config" in cfg and "bos_token_id" in cfg["text_config"]:
+                        self.bos_token_id = cfg["text_config"]["bos_token_id"]
+                    elif "bos_token_id" in cfg:
+                        self.bos_token_id = cfg["bos_token_id"]
+            except Exception:
+                pass
+
+    def decode(self, token_ids: List[int], skip_special_tokens: bool = True) -> str:
+        """Decodes token IDs to clean string text."""
+        words: List[str] = []
+        special_ids = {PAD_TOKEN_ID, UNK_TOKEN_ID, CLS_TOKEN_ID, SEP_TOKEN_ID, EOS_TOKEN_ID, self.bos_token_id}
+
+        for tid in token_ids:
+            if skip_special_tokens and tid in special_ids:
+                continue
+
+            token = self.inv_vocab.get(tid, "")
+            if not token:
+                continue
+
+            if token.startswith("##"):
+                if words:
+                    words[-1] = words[-1] + token[2:]
+                else:
+                    words.append(token[2:])
+            else:
+                words.append(token)
+
+        text = " ".join(words)
+        # Clean spacing around punctuation
+        text = re.sub(r'\s+([,.:;!?"\'])', r'\1', text)
+        return text.strip()
+
+
+def preprocess_image(pil_img: Image.Image) -> "np.ndarray":
+    """Preprocesses a PIL Image into a normalized float32 tensor of shape (1, 3, 384, 384)."""
+    if np is None:
+        raise RuntimeError("NumPy is required for ONNX image preprocessing.")
+
+    if pil_img.mode != "RGB":
+        pil_img = pil_img.convert("RGB")
+
+    # High quality resize to 384x384
+    resample = getattr(Image, "Resampling", Image).BICUBIC
+    img_resized = pil_img.resize(BLIP_IMAGE_SIZE, resample=resample)
+
+    # Convert to float32 [0, 1]
+    arr = np.array(img_resized, dtype=np.float32) / 255.0
+
+    # Normalize with BLIP mean and std
+    mean = np.array(BLIP_MEAN, dtype=np.float32)
+    std = np.array(BLIP_STD, dtype=np.float32)
+    norm = (arr - mean) / std
+
+    # Transpose HWC (384, 384, 3) to CHW (3, 384, 384) and add batch dim -> (1, 3, 384, 384)
+    tensor = np.transpose(norm, (2, 0, 1))[np.newaxis, :, :, :].astype(np.float32)
+    return tensor
+
+
+class OnnxBlipEngine:
+    """Self-contained ONNX Runtime BLIP inference engine."""
+    def __init__(self):
+        self.model_dir: Optional[str] = None
+        self.session_0: Optional[Any] = None  # vision encoder
+        self.session_1: Optional[Any] = None  # text decoder
+        self.tokenizer = WordPieceTokenizer()
+        self.selected_provider: str = "cpu"
+        self.loaded: bool = False
+        self.error: Optional[str] = None
+        self.lock = threading.Lock()
+
+    def get_providers(self) -> List[str]:
+        if ort is None:
+            return ["CPUExecutionProvider"]
+        available = ort.get_available_providers()
+        providers = []
+        if "XnnpackExecutionProvider" in available:
+            providers.append("XnnpackExecutionProvider")
+        if "CPUExecutionProvider" in available:
+            providers.append("CPUExecutionProvider")
+        return providers or ["CPUExecutionProvider"]
+
+    def load(self, model_dir_path: str, device: str = DEFAULT_DEVICE) -> bool:
+        with self.lock:
+            if self.loaded and self.session_0 is not None and self.session_1 is not None:
+                return True
+
+            if ort is None or np is None:
+                self.error = "onnxruntime and numpy packages are required for ONNX BLIP inference."
+                self.loaded = False
+                return False
+
+            exp_dir = expand_path(model_dir_path)
+            valid, err = check_model_files_status(exp_dir)
+            if not valid:
+                self.error = err
+                self.loaded = False
+                return False
+
+            try:
+                split0_path = os.path.join(exp_dir, "split_0.onnx")
+                split1_path = os.path.join(exp_dir, "split_1.onnx")
+                vocab_path = os.path.join(exp_dir, "vocab.txt")
+                config_path = os.path.join(exp_dir, "model_config.json")
+
+                # Load Tokenizer
+                self.tokenizer.load_vocab(vocab_path, config_path)
+
+                # Set up ONNX Sessions
+                providers = self.get_providers()
+                sess_options = ort.SessionOptions()
+                sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                sess_options.intra_op_num_threads = 4
+
+                self.session_0 = ort.InferenceSession(split0_path, sess_options=sess_options, providers=providers)
+                self.session_1 = ort.InferenceSession(split1_path, sess_options=sess_options, providers=providers)
+
+                self.selected_provider = self.session_0.get_providers()[0] if self.session_0.get_providers() else "CPUExecutionProvider"
+                self.model_dir = exp_dir
+                self.loaded = True
+                self.error = None
+                return True
+
+            except Exception as e:
+                self.loaded = False
+                self.error = str(e)
+                print(f"[LongFormAI Vision Worker Error] Failed to load ONNX BLIP sessions: {e}")
+                return False
+
+    def generate_caption(self, pil_img: Image.Image, max_length: int = 20) -> str:
+        """Runs two-stage BLIP inference on the image and returns a caption string."""
+        if not self.loaded or self.session_0 is None or self.session_1 is None:
+            raise RuntimeError(f"Vision model is not loaded: {self.error or 'Sessions uninitialized'}")
+
+        # 1. Vision Encoder (split_0.onnx)
+        pixel_values = preprocess_image(pil_img)
+        input_name_0 = self.session_0.get_inputs()[0].name
+        outputs_0 = self.session_0.run(None, {input_name_0: pixel_values})
+        
+        encoder_hidden_states = outputs_0[0]
+        if len(outputs_0) > 1:
+            encoder_attention_mask = outputs_0[1]
+        else:
+            encoder_attention_mask = np.array([1], dtype=np.int64)
+
+        # 2. Text Decoder (split_1.onnx)
+        current_input_ids = np.array([[self.tokenizer.bos_token_id]], dtype=np.int64)
+        generated_token_ids = []
+
+        sess1_inputs = {inp.name: inp for inp in self.session_1.get_inputs()}
+
+        for step in range(max_length):
+            input_feed = {}
+            for name, inp in sess1_inputs.items():
+                name_lower = name.lower()
+                if "encoder" in name_lower and ("mask" in name_lower or "attention" in name_lower):
+                    input_feed[name] = encoder_attention_mask
+                elif "encoder" in name_lower or "hidden" in name_lower:
+                    input_feed[name] = encoder_hidden_states
+                elif "input_ids" in name_lower:
+                    input_feed[name] = current_input_ids
+                elif "attention_mask" in name_lower:
+                    input_feed[name] = np.ones((1, current_input_ids.shape[1]), dtype=np.int64)
+                else:
+                    # Fallback assignment by matching dimensions
+                    inp_shape = inp.shape or []
+                    if len(inp_shape) == 3:
+                        input_feed[name] = encoder_hidden_states
+                    elif len(inp_shape) == 1:
+                        input_feed[name] = encoder_attention_mask
+                    else:
+                        input_feed[name] = current_input_ids
+
+            outputs_1 = self.session_1.run(None, input_feed)
+            logits = outputs_1[0]
+
+            # Safely extract last token logits across any dimensional structure (2D or 3D)
+            if logits.ndim == 3:
+                last_logits = logits[0, -1, :]
+            elif logits.ndim == 2:
+                last_logits = logits[-1, :]
+            elif logits.ndim == 1:
+                last_logits = logits
+            else:
+                last_logits = logits.reshape(-1, logits.shape[-1])[-1]
+
+            next_token_id = int(np.argmax(last_logits))
+
+            # Stop on EOS or SEP
+            if next_token_id in (EOS_TOKEN_ID, SEP_TOKEN_ID):
+                break
+
+            generated_token_ids.append(next_token_id)
+            current_input_ids = np.concatenate(
+                [current_input_ids, np.array([[next_token_id]], dtype=np.int64)],
+                axis=1
+            )
+
+        caption = self.tokenizer.decode(generated_token_ids, skip_special_tokens=True).strip()
+        if not caption:
+            caption = "Scene with no distinct subject."
+
+        return caption[0].upper() + caption[1:] if len(caption) > 1 else caption.capitalize()
+
+
+# Global Singleton Engine
+BLIP_ENGINE = OnnxBlipEngine()
 
 
 def decode_image(image_bytes_or_base64: str) -> Image.Image:
-    """Decodes data URL, base64 string, or raw image bytes into a PIL Image."""
+    """Decodes data URL or base64 string into a PIL Image."""
     if image_bytes_or_base64.startswith("data:image"):
         header, base64_str = image_bytes_or_base64.split(",", 1)
         image_data = base64.b64decode(base64_str)
@@ -149,8 +367,9 @@ def decode_image(image_bytes_or_base64: str) -> Image.Image:
 def compute_image_difference(img1: Image.Image, img2: Image.Image) -> float:
     """Computes normalized mean absolute pixel difference between two images."""
     try:
-        g1 = img1.convert("L").resize((64, 36), Image.Resampling.BILINEAR)
-        g2 = img2.convert("L").resize((64, 36), Image.Resampling.BILINEAR)
+        resample = getattr(Image, "Resampling", Image).BILINEAR
+        g1 = img1.convert("L").resize((64, 36), resample=resample)
+        g2 = img2.convert("L").resize((64, 36), resample=resample)
         b1 = g1.tobytes()
         b2 = g2.tobytes()
         total_diff = sum(abs(a - b) for a, b in zip(b1, b2))
@@ -159,113 +378,19 @@ def compute_image_difference(img1: Image.Image, img2: Image.Image) -> float:
         return 0.0
 
 
-def run_caption_inference(pil_img: Image.Image, device: str = DEFAULT_DEVICE) -> str:
-    """Runs genuine BLIP captioning inference on an image. Raises RuntimeError if model unavailable."""
-    if VISION_MODEL is None or VISION_PROCESSOR is None:
-        raise RuntimeError("Vision model is not loaded. Cannot run semantic captioning.")
-
-    inputs = VISION_PROCESSOR(pil_img, return_tensors="pt").to(device)
-    out = VISION_MODEL.generate(**inputs, max_new_tokens=40)
-    caption = VISION_PROCESSOR.decode(out[0], skip_special_tokens=True).strip()
-    return caption.capitalize() if caption else "Scene with no distinct subject."
-
-
-class FrameAnalysisRequest(BaseModel):
-    imageData: str
-    time: Optional[float] = 0.0
-
-
-class KeyframeItem(BaseModel):
-    time: float
-    imageData: str
-
-
-class MediaSemanticRequest(BaseModel):
-    isVideo: bool
-    duration: Optional[float] = 0.0
-    keyframes: List[KeyframeItem]
-
-
-class KeyframeSemantic(BaseModel):
-    time: float
-    description: str
-    tags: List[str]
-    isKeyMoment: Optional[bool] = False
-
-
-class VisualChangeSegment(BaseModel):
-    fromTime: float
-    toTime: float
-    differenceScore: float
-    description: str
-
-
-class MediaSemanticResponse(BaseModel):
-    status: str
-    description: str
-    tags: List[str]
-    keyframeDescriptions: List[KeyframeSemantic]
-    temporalSummary: Optional[str] = None
-    hasVisualChange: Optional[bool] = False
-    visualChanges: Optional[List[VisualChangeSegment]] = []
-    modelUsed: str
-
-
-@app.get("/health")
-def health():
-    is_cached = check_is_cached(DEFAULT_MODEL_NAME)
-    is_loaded = VISION_MODEL is not None and VISION_PROCESSOR is not None
-    state = "ready" if is_loaded else ("model_not_installed" if not is_cached else "cached_unloaded")
-    if MODEL_STATE["state"] in ["loading", "error"]:
-        state = MODEL_STATE["state"]
-
-    return {
-        "status": "ok",
-        "service": "LongFormAI Local Vision Worker",
-        "engine": "transformers-blip",
-        "model": DEFAULT_MODEL_NAME,
-        "device": DEFAULT_DEVICE,
-        "model_loaded": is_loaded,
-        "model_cached": is_cached,
-        "state": state,
-        "error": MODEL_STATE.get("error"),
-    }
-
-
-@app.post("/model/load")
-def load_model_endpoint():
-    """Triggers local model loading into memory."""
-    load_vision_model(DEFAULT_MODEL_NAME, DEFAULT_DEVICE)
-    return health()
-
-
-@app.post("/analyze-frame")
-async def analyze_single_frame(req: FrameAnalysisRequest):
-    if VISION_MODEL is None:
-        load_vision_model(DEFAULT_MODEL_NAME, DEFAULT_DEVICE)
-
-    if VISION_MODEL is None:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Semantic analysis unavailable: {MODEL_STATE.get('error') or 'Vision model not installed or loaded'}"
-        )
-
-    try:
-        img = decode_image(req.imageData)
-        description = run_caption_inference(img, DEFAULT_DEVICE)
-        tags = extract_tags_from_text(description)
-
-        return {
-            "status": "success",
-            "time": req.time,
-            "description": description,
-            "tags": tags
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Frame analysis failed: {str(e)}")
-
-
-GENERIC_STOPWORDS = {"scene", "image", "video", "person", "background", "photo", "clip", "view", "footage", "shot", "the", "a", "of", "in", "on", "and", "frame"}
+def extract_tags_from_text(text: str, max_tags: int = 6) -> List[str]:
+    """Extract clean semantic keywords from generated caption."""
+    words = re.findall(r'[a-zA-Z]{3,}', text.lower())
+    filtered = [w for w in words if w not in STOP_WORDS]
+    seen = set()
+    tags = []
+    for w in filtered:
+        if w not in seen:
+            seen.add(w)
+            tags.append(w)
+        if len(tags) >= max_tags:
+            break
+    return tags
 
 
 def aggregate_temporal_tags(all_tags_list: List[Any]) -> List[str]:
@@ -321,124 +446,551 @@ def build_temporal_summary(keyframe_descs: List[Any]) -> str:
         return f"Video sequence showing {'; '.join(combined_parts)}."
 
 
-@app.post("/analyze-media", response_model=MediaSemanticResponse)
-async def analyze_media_semantics(req: MediaSemanticRequest):
-    if not req.keyframes:
-        raise HTTPException(status_code=400, detail="No keyframes provided for semantic analysis.")
+def get_health_data() -> Dict[str, Any]:
+    resolved_dir = resolve_model_dir()
+    is_cached, _ = check_model_files_status(resolved_dir)
+    is_loaded = BLIP_ENGINE.loaded
 
-    if VISION_MODEL is None:
-        load_vision_model(DEFAULT_MODEL_NAME, DEFAULT_DEVICE)
+    state = "ready" if is_loaded else ("cached_unloaded" if is_cached else "model_not_installed")
+    if BLIP_ENGINE.error:
+        state = "error"
 
-    if VISION_MODEL is None:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Semantic analysis unavailable: {MODEL_STATE.get('error') or 'Vision model not installed or loaded'}"
-        )
+    return {
+        "status": "ok",
+        "service": "LongFormAI Local Vision Worker",
+        "engine": "onnx-blip",
+        "model": CONFIG["model_name"],
+        "device": CONFIG["device"],
+        "model_loaded": is_loaded,
+        "model_cached": is_cached,
+        "state": state,
+        "error": BLIP_ENGINE.error,
+        "model_dir": resolved_dir or CONFIG["model_dir"],
+        "provider": BLIP_ENGINE.selected_provider if is_loaded else None,
+    }
 
-    keyframe_results: List[KeyframeSemantic] = []
+
+def analyze_media_semantics(
+    keyframes: List[Dict[str, Any]],
+    is_video: bool = False,
+    duration: float = 0.0
+) -> Dict[str, Any]:
+    """Analyzes a set of representative keyframes with the ONNX BLIP model and temporal intelligence."""
+    if not keyframes:
+        raise ValueError("No keyframes provided for semantic analysis.")
+
+    # Lazy-load if not already loaded
+    if not BLIP_ENGINE.loaded:
+        resolved_dir = resolve_model_dir()
+        if resolved_dir:
+            BLIP_ENGINE.load(resolved_dir, CONFIG["device"])
+
+    if not BLIP_ENGINE.loaded:
+        raise RuntimeError(f"Semantic analysis unavailable: {BLIP_ENGINE.error or 'Vision model not installed or loaded'}")
+
+    keyframe_results: List[Dict[str, Any]] = []
     decoded_images: List[Image.Image] = []
     all_tags: List[str] = []
     descriptions: List[str] = []
 
     # 1. Inference per frame
-    for kf in req.keyframes:
-        try:
-            img = decode_image(kf.imageData)
-            decoded_images.append(img)
-            desc = run_caption_inference(img, DEFAULT_DEVICE)
-            tags = extract_tags_from_text(desc)
-            descriptions.append(desc)
-            all_tags.extend(tags)
+    for kf in keyframes:
+        img_data = kf.get("imageData", "")
+        kf_time = float(kf.get("time", 0.0))
+        img = decode_image(img_data)
+        decoded_images.append(img)
 
-            keyframe_results.append(KeyframeSemantic(
-                time=kf.time,
-                description=desc,
-                tags=tags,
-                isKeyMoment=False
-            ))
-        except Exception as err:
-            print(f"[Vision Worker] Frame at {kf.time}s analysis error: {err}")
-            raise HTTPException(status_code=500, detail=f"Inference error on frame @ {kf.time}s: {err}")
+        desc = BLIP_ENGINE.generate_caption(img)
+        tags = extract_tags_from_text(desc)
+        descriptions.append(desc)
+        all_tags.extend(tags)
 
-    # 2. Temporal Visual Change Detection (Step 3)
-    visual_changes: List[VisualChangeSegment] = []
+        keyframe_results.append({
+            "time": kf_time,
+            "description": desc,
+            "tags": tags,
+            "isKeyMoment": False,
+        })
+
+    # 2. Temporal Visual Change Detection
+    visual_changes: List[Dict[str, Any]] = []
     has_visual_change = False
 
-    if req.isVideo and len(decoded_images) > 1:
+    if is_video and len(decoded_images) > 1:
         for i in range(len(decoded_images) - 1):
             diff = compute_image_difference(decoded_images[i], decoded_images[i + 1])
-            t1 = req.keyframes[i].time
-            t2 = req.keyframes[i + 1].time
+            t1 = float(keyframes[i].get("time", 0.0))
+            t2 = float(keyframes[i + 1].get("time", 0.0))
 
             if diff >= 0.12:
                 has_visual_change = True
                 change_desc = f"Visual change detected between {t1:.1f}s and {t2:.1f}s."
-                visual_changes.append(VisualChangeSegment(
-                    fromTime=t1,
-                    toTime=t2,
-                    differenceScore=round(diff, 3),
-                    description=change_desc
-                ))
-                # Mark succeeding keyframe as an informative moment
+                visual_changes.append({
+                    "fromTime": t1,
+                    "toTime": t2,
+                    "differenceScore": round(diff, 3),
+                    "description": change_desc,
+                })
                 if i + 1 < len(keyframe_results):
-                    keyframe_results[i + 1].isKeyMoment = True
+                    keyframe_results[i + 1]["isKeyMoment"] = True
 
-    # 3. Informative Frame Selection (Step 6)
+    # 3. Informative Frame Selection
     seen_concepts = set()
     for idx, kr in enumerate(keyframe_results):
-        new_concepts = [t for t in kr.tags if t not in seen_concepts]
+        new_concepts = [t for t in kr["tags"] if t not in seen_concepts]
         if len(new_concepts) >= 2 or idx == 0:
-            kr.isKeyMoment = True
-        seen_concepts.update(kr.tags)
+            kr["isKeyMoment"] = True
+        seen_concepts.update(kr["tags"])
 
-    # 4. Temporal Tag Aggregation (Step 5)
+    # 4. Temporal Tag Aggregation
     sorted_unique_tags = aggregate_temporal_tags(all_tags)
 
-    # 5. Temporal Semantic Summary (Step 4)
-    if req.isVideo and len(descriptions) > 1:
+    # 5. Temporal Semantic Summary
+    if is_video and len(descriptions) > 1:
         overall_description = build_temporal_summary(keyframe_results)
         temporal_summary = overall_description
     else:
         overall_description = descriptions[0] if descriptions else "Visual scene."
         temporal_summary = None
 
-    return MediaSemanticResponse(
-        status="success",
-        description=overall_description,
-        tags=sorted_unique_tags,
-        keyframeDescriptions=keyframe_results,
-        temporalSummary=temporal_summary,
-        hasVisualChange=has_visual_change,
-        visualChanges=visual_changes,
-        modelUsed=DEFAULT_MODEL_NAME
-    )
+    return {
+        "status": "success",
+        "description": overall_description,
+        "tags": sorted_unique_tags,
+        "keyframeDescriptions": keyframe_results,
+        "temporalSummary": temporal_summary,
+        "hasVisualChange": has_visual_change,
+        "visualChanges": visual_changes,
+        "modelUsed": CONFIG["model_name"],
+    }
+
+
+TEST_PAGE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LongFormAI Vision Worker Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 16px;
+      line-height: 1.5;
+    }
+    .container { max-width: 600px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .url-badge { display: inline-block; background: #334155; color: #94a3b8; padding: 4px 8px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin-bottom: 16px; word-break: break-all; }
+    .mode-select { display: flex; gap: 8px; margin-bottom: 12px; }
+    .mode-btn { flex: 1; padding: 8px; background: #0f172a; border: 1px solid #334155; color: #94a3b8; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+    .mode-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; margin-top: 10px; }
+    input[type="file"] { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #f8fafc; font-size: 0.95rem; }
+    input[type="file"]::file-selector-button { background: #38bdf8; border: none; color: #0f172a; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; margin-right: 10px; }
+    button[type="submit"] { width: 100%; background: #2563eb; color: #ffffff; border: none; border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 16px; }
+    button:disabled { background: #475569; cursor: not-allowed; opacity: 0.7; }
+    .status-box { margin-top: 12px; padding: 12px; border-radius: 6px; font-size: 0.9rem; }
+    .status-box.loading { background: #0369a1; color: #e0f2fe; }
+    .status-box.error { background: #7f1d1d; border: 1px solid #b91c1c; color: #fecaca; }
+    .status-box.success { background: #064e3b; border: 1px solid #059669; color: #d1fae5; }
+    .preview-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .preview-thumb { width: 100px; height: 75px; object-fit: cover; border-radius: 4px; border: 1px solid #475569; }
+    .tag { display: inline-block; background: #0284c7; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin: 2px; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .meta-item { background: #0f172a; padding: 8px; border-radius: 6px; font-size: 0.85rem; }
+    .meta-item span { display: block; color: #94a3b8; font-size: 0.75rem; }
+    .kf-item { background: #0f172a; border-left: 3px solid #38bdf8; padding: 10px; margin-top: 8px; border-radius: 0 6px 6px 0; }
+    .kf-item.key-moment { border-left-color: #f59e0b; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>LongFormAI Vision Worker Test</h1>
+    <div class="url-badge" id="workerUrlBadge">Worker: checking...</div>
+
+    <div class="card">
+      <div class="mode-select">
+        <button type="button" class="mode-btn active" id="singleModeBtn">Single Frame</button>
+        <button type="button" class="mode-btn" id="multiModeBtn">Multi-Keyframe Media</button>
+      </div>
+
+      <form id="visionForm">
+        <label id="fileLabel" for="imageFile">Select Image Frame:</label>
+        <input type="file" id="imageFile" accept="image/*" required>
+        <div id="previewContainer" class="preview-grid hidden"></div>
+        <button type="submit" id="submitBtn">Analyze with ONNX BLIP</button>
+      </form>
+      <div id="statusBox" class="status-box hidden"></div>
+    </div>
+
+    <div id="resultsCard" class="card hidden">
+      <h2 style="font-size: 1.1rem; color: #38bdf8; margin-bottom: 8px;">Analysis Results</h2>
+      
+      <div id="singleResultSection">
+        <p id="captionText" style="font-size: 1.05rem; font-weight: 600; color: #f8fafc; margin-bottom: 8px;"></p>
+      </div>
+
+      <div id="multiResultSection" class="hidden">
+        <div class="meta-grid">
+          <div class="meta-item"><span>Visual Change Detected</span><strong id="hasChangeVal">-</strong></div>
+          <div class="meta-item"><span>Model Used</span><strong id="modelUsedVal">-</strong></div>
+        </div>
+        <div style="margin-top: 12px;">
+          <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Temporal Summary:</span>
+          <p id="temporalSummaryText" style="font-size: 0.95rem; color: #f8fafc; font-style: italic;"></p>
+        </div>
+        <h3 style="font-size: 0.85rem; color: #cbd5e1; margin-top: 14px; margin-bottom: 6px;">Keyframes (<span id="kfCount">0</span>):</h3>
+        <div id="keyframesList"></div>
+      </div>
+
+      <div style="margin-top: 14px;">
+        <span style="font-size: 0.75rem; color: #94a3b8; display: block; margin-bottom: 4px;">Semantic Tags:</span>
+        <div id="tagsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const workerUrl = window.location.origin;
+    document.getElementById('workerUrlBadge').textContent = 'Worker: ' + workerUrl;
+
+    let isMulti = false;
+    const fileInput = document.getElementById('imageFile');
+    const previewContainer = document.getElementById('previewContainer');
+    const form = document.getElementById('visionForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const statusBox = document.getElementById('statusBox');
+    const resultsCard = document.getElementById('resultsCard');
+    const singleResult = document.getElementById('singleResultSection');
+    const multiResult = document.getElementById('multiResultSection');
+    const captionText = document.getElementById('captionText');
+    const tagsList = document.getElementById('tagsList');
+    const singleModeBtn = document.getElementById('singleModeBtn');
+    const multiModeBtn = document.getElementById('multiModeBtn');
+    const fileLabel = document.getElementById('fileLabel');
+
+    singleModeBtn.onclick = () => {
+      isMulti = false;
+      singleModeBtn.classList.add('active');
+      multiModeBtn.classList.remove('active');
+      fileInput.removeAttribute('multiple');
+      fileLabel.textContent = 'Select Image Frame:';
+      previewContainer.innerHTML = '';
+      loadedFrames = [];
+    };
+
+    multiModeBtn.onclick = () => {
+      isMulti = true;
+      multiModeBtn.classList.add('active');
+      singleModeBtn.classList.remove('active');
+      fileInput.setAttribute('multiple', 'true');
+      fileLabel.textContent = 'Select 2 to 5 Keyframe Images:';
+      previewContainer.innerHTML = '';
+      loadedFrames = [];
+    };
+
+    let loadedFrames = [];
+
+    fileInput.addEventListener('change', async () => {
+      previewContainer.innerHTML = '';
+      loadedFrames = [];
+      const files = Array.from(fileInput.files || []);
+      if (files.length === 0) return;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const b64 = await new Promise((res) => {
+          const reader = new FileReader();
+          reader.onload = (e) => res(e.target.result);
+          reader.readAsDataURL(file);
+        });
+        loadedFrames.push({ time: i * 2.5, imageData: b64, name: file.name });
+        const img = document.createElement('img');
+        img.src = b64;
+        img.className = 'preview-thumb';
+        previewContainer.appendChild(img);
+      }
+      previewContainer.classList.remove('hidden');
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (loadedFrames.length === 0) { alert('Please select image(s).'); return; }
+
+      submitBtn.disabled = true;
+      statusBox.className = 'status-box loading';
+      statusBox.textContent = isMulti
+        ? `Running ONNX BLIP multi-keyframe analysis (${loadedFrames.length} frames)...`
+        : 'Running ONNX BLIP captioning on device...';
+      statusBox.classList.remove('hidden');
+      resultsCard.classList.add('hidden');
+
+      const start = performance.now();
+      try {
+        let res, data;
+        if (!isMulti) {
+          res = await fetch(`${workerUrl}/analyze-frame`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageData: loadedFrames[0].imageData, time: 0.0 })
+          });
+          data = await res.json();
+        } else {
+          res = await fetch(`${workerUrl}/analyze-media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              isVideo: true,
+              duration: loadedFrames.length * 2.5,
+              keyframes: loadedFrames.map(f => ({ time: f.time, imageData: f.imageData }))
+            })
+          });
+          data = await res.json();
+        }
+
+        const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+        if (!res.ok) {
+          statusBox.className = 'status-box error';
+          statusBox.textContent = `Error (HTTP ${res.status}): ${data.detail || JSON.stringify(data)}`;
+          submitBtn.disabled = false;
+          return;
+        }
+
+        statusBox.className = 'status-box success';
+        statusBox.textContent = `Analysis completed in ${elapsed}s!`;
+
+        tagsList.innerHTML = '';
+        (data.tags || []).forEach(t => {
+          const tagSpan = document.createElement('span');
+          tagSpan.className = 'tag';
+          tagSpan.textContent = t;
+          tagsList.appendChild(tagSpan);
+        });
+
+        if (!isMulti) {
+          singleResult.classList.remove('hidden');
+          multiResult.classList.add('hidden');
+          captionText.textContent = data.description;
+        } else {
+          singleResult.classList.add('hidden');
+          multiResult.classList.remove('hidden');
+          document.getElementById('hasChangeVal').textContent = data.hasVisualChange ? 'Yes' : 'No';
+          document.getElementById('modelUsedVal').textContent = data.modelUsed || 'BLIP ONNX';
+          document.getElementById('temporalSummaryText').textContent = data.temporalSummary || data.description;
+          document.getElementById('kfCount').textContent = (data.keyframeDescriptions || []).length;
+
+          const kfList = document.getElementById('keyframesList');
+          kfList.innerHTML = '';
+          (data.keyframeDescriptions || []).forEach(kd => {
+            const kfEl = document.createElement('div');
+            kfEl.className = 'kf-item' + (kd.isKeyMoment ? ' key-moment' : '');
+            kfEl.innerHTML = `<div style="font-size:0.75rem; color:#38bdf8; font-family:monospace;">@ ${kd.time}s ${kd.isKeyMoment ? '★ Key Moment' : ''}</div><div style="font-size:0.9rem; color:#f8fafc; margin-top:2px;">${kd.description}</div>`;
+            kfList.appendChild(kfEl);
+          });
+        }
+
+        resultsCard.classList.remove('hidden');
+      } catch (err) {
+        statusBox.className = 'status-box error';
+        statusBox.textContent = `Network Error: ${err.message}`;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+"""
+
+
+class VisionRequestHandler(BaseHTTPRequestHandler):
+    """Standard library HTTP request handler for the local vision worker."""
+    def log_message(self, format, *args):
+        pass
+
+    def send_html_response(self, status_code: int, html_str: str):
+        body = html_str.encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_json_response(self, status_code: int, data: Dict[str, Any]):
+        body = json.dumps(data, indent=2).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_GET(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        if parsed_url.path in ("/", "/index.html"):
+            self.send_html_response(200, TEST_PAGE_HTML)
+        elif parsed_url.path == "/health":
+            self.send_json_response(200, get_health_data())
+        else:
+            self.send_json_response(404, {"detail": "Not Found"})
+
+    def do_POST(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+
+        if parsed_url.path == "/model/load":
+            resolved_dir = resolve_model_dir()
+            if resolved_dir:
+                BLIP_ENGINE.load(resolved_dir, CONFIG["device"])
+            self.send_json_response(200, get_health_data())
+            return
+
+        # Read JSON body
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except (TypeError, ValueError):
+            content_length = 0
+
+        if content_length <= 0:
+            self.send_json_response(400, {"detail": "No JSON payload provided."})
+            return
+
+        try:
+            body_bytes = self.rfile.read(content_length)
+            payload = json.loads(body_bytes.decode("utf-8"))
+        except Exception as e:
+            self.send_json_response(400, {"detail": f"Malformed JSON request: {str(e)}"})
+            return
+
+        if parsed_url.path == "/analyze-frame":
+            image_data = payload.get("imageData")
+            time_val = float(payload.get("time", 0.0))
+
+            if not image_data:
+                self.send_json_response(400, {"detail": "Missing imageData in request."})
+                return
+
+            if not BLIP_ENGINE.loaded:
+                resolved_dir = resolve_model_dir()
+                if resolved_dir:
+                    BLIP_ENGINE.load(resolved_dir, CONFIG["device"])
+
+            if not BLIP_ENGINE.loaded:
+                self.send_json_response(
+                    503,
+                    {"detail": f"Semantic analysis unavailable: {BLIP_ENGINE.error or 'Vision model not installed or loaded'}"}
+                )
+                return
+
+            try:
+                img = decode_image(image_data)
+                description = BLIP_ENGINE.generate_caption(img)
+                tags = extract_tags_from_text(description)
+                self.send_json_response(200, {
+                    "status": "success",
+                    "time": time_val,
+                    "description": description,
+                    "tags": tags
+                })
+            except Exception as e:
+                print(f"[LongFormAI Vision Worker] Frame analysis error: {e}")
+                self.send_json_response(500, {"detail": f"Frame analysis failed: {str(e)}"})
+
+        elif parsed_url.path == "/analyze-media":
+            keyframes = payload.get("keyframes", [])
+            is_video = bool(payload.get("isVideo", False))
+            duration = float(payload.get("duration", 0.0))
+
+            if not keyframes or not isinstance(keyframes, list):
+                self.send_json_response(400, {"detail": "No keyframes provided for semantic analysis."})
+                return
+
+            try:
+                result = analyze_media_semantics(keyframes, is_video=is_video, duration=duration)
+                self.send_json_response(200, result)
+            except RuntimeError as e:
+                self.send_json_response(503, {"detail": str(e)})
+            except ValueError as e:
+                self.send_json_response(400, {"detail": str(e)})
+            except Exception as e:
+                print(f"[LongFormAI Vision Worker] Media analysis error: {e}")
+                self.send_json_response(500, {"detail": f"Media analysis failed: {str(e)}"})
+
+        else:
+            self.send_json_response(404, {"detail": "Not Found"})
+
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    """Multi-threaded standard library HTTP Server."""
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def create_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> ThreadedHTTPServer:
+    return ThreadedHTTPServer((host, port), VisionRequestHandler)
 
 
 def main():
-    global DEFAULT_MODEL_NAME, DEFAULT_DEVICE
-    parser = argparse.ArgumentParser(description="LongFormAI Local Vision Worker")
-    parser.add_argument("--host", default="127.0.0.1", help="Host address (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8766, help="Port number (default: 8766)")
-    parser.add_argument("--model", default=DEFAULT_MODEL_NAME, help="Vision model name")
-    parser.add_argument("--device", default="cpu", help="Device (cpu, cuda)")
+    global DEFAULT_DEVICE
+    parser = argparse.ArgumentParser(description="LongFormAI Local Vision Worker (ONNX BLIP - stdlib HTTP)")
+    parser.add_argument("--host", default=DEFAULT_HOST, help=f"Host address (default: {DEFAULT_HOST})")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Port number (default: {DEFAULT_PORT})")
+    parser.add_argument("--model-dir", "--model", dest="model_dir", default=None, help="Path to BLIP ONNX model directory (default: ~/models/blip)")
+    parser.add_argument("--device", default=DEFAULT_DEVICE, help="Device (cpu, cuda)")
     args = parser.parse_args()
 
-    DEFAULT_MODEL_NAME = args.model
-    DEFAULT_DEVICE = args.device
+    if args.model_dir:
+        CONFIG["model_dir"] = args.model_dir
+    if args.device:
+        CONFIG["device"] = args.device
+
+    resolved_dir = resolve_model_dir(args.model_dir)
+    is_cached, _ = check_model_files_status(resolved_dir)
 
     print("=" * 60)
     print(" LongFormAI - Local Vision Worker (Project Hail Mary)")
     print("=" * 60)
-    print(f" Vision Engine: transformers / BLIP (100% Offline Capable)")
-    print(f" Default Model: {DEFAULT_MODEL_NAME}")
-    print(f" Device:        {DEFAULT_DEVICE}")
-    print(f" Server URL:    http://{args.host}:{args.port}")
+    print(f" Engine:          onnx-blip (native)")
+    print(f" Server Runtime:  Python stdlib ThreadedHTTPServer")
+    print(f" Model Dir:       {resolved_dir or CONFIG['model_dir']} {'[CACHED]' if is_cached else '[NOT FOUND]'}")
+    print(f" Device:          {CONFIG['device']}")
+    print(f" Providers:       {', '.join(BLIP_ENGINE.get_providers())}")
+    print(f" Test Page:       http://{args.host}:{args.port}/")
+    print(f" Server URL:      http://{args.host}:{args.port}")
     print("=" * 60)
 
-    # Attempt initial local load if cached
-    load_vision_model(DEFAULT_MODEL_NAME, DEFAULT_DEVICE)
+    # Attempt eager load if model files exist
+    if resolved_dir and is_cached:
+        print("[LongFormAI Vision Worker] Loading ONNX BLIP sessions into memory...")
+        BLIP_ENGINE.load(resolved_dir, CONFIG["device"])
+        if BLIP_ENGINE.loaded:
+            print(f"[LongFormAI Vision Worker] BLIP ONNX loaded successfully ({BLIP_ENGINE.selected_provider}). Ready for inference.")
+        else:
+            print(f"[LongFormAI Vision Worker Warning] Could not load ONNX model: {BLIP_ENGINE.error}")
 
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    server = create_server(args.host, args.port)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down vision server...")
+        server.shutdown()
+        server.server_close()
 
 
 if __name__ == "__main__":
