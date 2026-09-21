@@ -275,13 +275,15 @@ class OnnxBlipEngine:
         # 1. Vision Encoder (split_0.onnx)
         pixel_values = preprocess_image(pil_img)
         input_name_0 = self.session_0.get_inputs()[0].name
-        outputs_0 = self.session_0.run(None, {input_name_0: pixel_values})
-        
-        encoder_hidden_states = outputs_0[0]
+        # split_0.onnx outputs:
+        # outputs_0[0] = encoder_attention_mask (int64)
+        # outputs_0[1] = encoder_hidden_states (float32)
         if len(outputs_0) > 1:
-            encoder_attention_mask = outputs_0[1]
+            encoder_attention_mask = outputs_0[0]
+            encoder_hidden_states = outputs_0[1]
         else:
             encoder_attention_mask = np.array([1], dtype=np.int64)
+            encoder_hidden_states = outputs_0[0]
 
         # 2. Text Decoder (split_1.onnx)
         current_input_ids = np.array([[self.tokenizer.bos_token_id]], dtype=np.int64)

@@ -337,14 +337,16 @@ class TestStdlibVisionEndpoints(unittest.TestCase):
         try:
             BLIP_ENGINE.loaded = True
 
-            # Mock session_0 returning 3D hidden states (1, 577, 768) and 1D attention mask (1,)
+            # Mock session_0 matching real Android contract:
+            # outputs_0[0] = encoder_attention_mask (int64, shape (1,))
+            # outputs_0[1] = encoder_hidden_states (float32, shape (1, 577, 768))
             mock_s0 = MagicMock()
             inp_0 = MagicMock()
             inp_0.name = "pixel_values"
             mock_s0.get_inputs.return_value = [inp_0]
             mock_s0.run.return_value = [
-                np.zeros((1, 577, 768), dtype=np.float32),
-                np.array([1], dtype=np.int64)  # 1D mask as on real Nord
+                np.array([1], dtype=np.int64),              # outputs_0[0] = attention mask (int64)
+                np.zeros((1, 577, 768), dtype=np.float32),  # outputs_0[1] = hidden states (float32)
             ]
             BLIP_ENGINE.session_0 = mock_s0
 
@@ -356,7 +358,6 @@ class TestStdlibVisionEndpoints(unittest.TestCase):
             mock_s1.get_inputs.return_value = [inp_ids, inp_enc, inp_msk]
 
             # Sequence of tokens: 1000 ("a"), 1001 ("man"), 102 (SEP)
-            # Logits returned as 2D shape (1, 30524)
             logits_step1 = np.zeros((1, 30524), dtype=np.float32)
             logits_step1[0, 1000] = 10.0
 
@@ -382,6 +383,88 @@ class TestStdlibVisionEndpoints(unittest.TestCase):
             caption = BLIP_ENGINE.generate_caption(test_img)
 
             self.assertEqual(caption, "A man")
+        finally:
+            BLIP_ENGINE.loaded = orig_loaded
+            BLIP_ENGINE.session_0 = orig_s0
+            BLIP_ENGINE.session_1 = orig_s1
+            BLIP_ENGINE.tokenizer = orig_tok
+
+    def test_10_regression_encoder_output_dtype_role_mapping(self):
+        """
+        Step 52 Regression Test:
+        Verifies the exact Android ONNX contract:
+          outputs_0[0] -> encoder_attention_mask (int64)
+          outputs_0[1] -> encoder_hidden_states (float32)
+        Ensures that decoder input_feed receives:
+          encoder_attention_mask: int64, shape (1,)
+          encoder_hidden_states: float32, shape (1, 577, 768)
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("NumPy not installed")
+
+        orig_loaded = BLIP_ENGINE.loaded
+        orig_s0 = BLIP_ENGINE.session_0
+        orig_s1 = BLIP_ENGINE.session_1
+        orig_tok = BLIP_ENGINE.tokenizer
+
+        try:
+            BLIP_ENGINE.loaded = True
+
+            # Set distinct marker values and correct dtypes
+            real_mask = np.array([42], dtype=np.int64)
+            real_hidden = np.ones((1, 577, 768), dtype=np.float32) * 3.14
+
+            mock_s0 = MagicMock()
+            inp_0 = MagicMock(); inp_0.name = "pixel_values"
+            mock_s0.get_inputs.return_value = [inp_0]
+            # split_0.onnx output contract: [0] = mask (int64), [1] = hidden (float32)
+            mock_s0.run.return_value = [real_mask, real_hidden]
+            BLIP_ENGINE.session_0 = mock_s0
+
+            captured_feeds = []
+
+            def mock_decoder_run(output_names, feed_dict):
+                captured_feeds.append(dict(feed_dict))
+                # Return EOS immediately to finish in 1 step
+                step_logits = np.zeros((1, 30524), dtype=np.float32)
+                step_logits[0, 102] = 10.0  # SEP
+                return [step_logits]
+
+            mock_s1 = MagicMock()
+            inp_ids = MagicMock(); inp_ids.name = "input_ids"; inp_ids.shape = [1, 'seq_len']
+            inp_enc = MagicMock(); inp_enc.name = "encoder_hidden_states"; inp_enc.shape = [1, 577, 768]
+            inp_msk = MagicMock(); inp_msk.name = "encoder_attention_mask"; inp_msk.shape = [1]
+            mock_s1.get_inputs.return_value = [inp_ids, inp_enc, inp_msk]
+            mock_s1.run.side_effect = mock_decoder_run
+            BLIP_ENGINE.session_1 = mock_s1
+
+            tok = WordPieceTokenizer()
+            tok.vocab = {"[PAD]": 0, "[UNK]": 100, "[CLS]": 101, "[SEP]": 102}
+            tok.inv_vocab = {v: k for k, v in tok.vocab.items()}
+            BLIP_ENGINE.tokenizer = tok
+
+            test_img = Image.new("RGB", (100, 100), color="blue")
+            BLIP_ENGINE.generate_caption(test_img)
+
+            # Assert decoder received the exact dtypes and tensor values
+            self.assertEqual(len(captured_feeds), 1)
+            feed = captured_feeds[0]
+
+            self.assertIn("encoder_attention_mask", feed)
+            self.assertIn("encoder_hidden_states", feed)
+
+            # 1. Attention mask must be int64 and match outputs_0[0]
+            self.assertEqual(feed["encoder_attention_mask"].dtype, np.int64)
+            self.assertEqual(feed["encoder_attention_mask"].shape, (1,))
+            self.assertEqual(feed["encoder_attention_mask"][0], 42)
+
+            # 2. Encoder hidden states must be float32 and match outputs_0[1]
+            self.assertEqual(feed["encoder_hidden_states"].dtype, np.float32)
+            self.assertEqual(feed["encoder_hidden_states"].shape, (1, 577, 768))
+            self.assertAlmostEqual(float(feed["encoder_hidden_states"][0, 0, 0]), 3.14, places=2)
+
         finally:
             BLIP_ENGINE.loaded = orig_loaded
             BLIP_ENGINE.session_0 = orig_s0
