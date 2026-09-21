@@ -224,6 +224,16 @@ export interface DraftStats {
   moderateConfidenceSelections?: number; // Step 48: Segments where 0.020 <= selectionMargin < 0.050
   lowConfidenceSelections?: number;     // Step 48: Segments where selectionMargin < 0.020
   averageSelectionMargin?: number;      // Step 48: Mean selectionMargin across all assigned segments
+  strongMatchCount?: number;            // Step 49: Segments classified as STRONG match (adjustedScore >= 0.550)
+  acceptableMatchCount?: number;        // Step 49: Segments classified as ACCEPTABLE match (adjustedScore >= 0.400 and < 0.550)
+  uncertainMatchCount?: number;         // Step 49: Segments classified as UNCERTAIN match (adjustedScore >= 0.300 and < 0.400)
+  noMatchCount?: number;                // Step 49: Segments classified as NO_MATCH (no usable candidate selected)
+  belowThresholdGapCount?: number;      // Step 49: Gaps specifically caused by candidate falling below existing threshold
+  broadCandidateCount?: number;         // Step 50: Segments with BROAD candidate diversity (viableCandidateCount >= 4)
+  moderateCandidateCount?: number;      // Step 50: Segments with MODERATE candidate diversity (2 <= viableCandidateCount < 4)
+  limitedCandidateCount?: number;       // Step 50: Segments with LIMITED candidate diversity (viableCandidateCount === 1)
+  noCandidateDiversityCount?: number;   // Step 50: Segments with NONE candidate diversity (no selection or 0 viable)
+  constrainedCandidateCount?: number;   // Step 50: Segments with CONSTRAINED candidate diversity context (viableCandidateCount === 1 with selection)
   quickPacingSelections?: number;
   normalPacingSelections?: number;
   lingeringPacingSelections?: number;
@@ -9023,6 +9033,214 @@ export function calculateCandidateConfidence(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Step 49: Draft Confidence-Aware Gap & Uncertainty Intelligence
+// ---------------------------------------------------------------------------
+
+/** Minimum adjustedScore for a STRONG match classification. */
+export const STRONG_MATCH_SCORE = 0.550;
+
+/** Minimum adjustedScore for an ACCEPTABLE match classification. */
+export const ACCEPTABLE_MATCH_SCORE = 0.400;
+
+/** Minimum adjustedScore for an UNCERTAIN match classification. */
+export const UNCERTAIN_MATCH_SCORE = 0.300;
+
+/**
+ * Step 49: Deterministic, observational match-quality classifier.
+ *
+ * Operates on the FINAL selection result AFTER:
+ *   - candidate scoring
+ *   - Step 47 semantic ranking protection
+ *   - Step 48 candidate confidence analysis
+ *
+ * Returns:
+ *   matchConfidence  – overall match quality state
+ *   matchCertainty   – selection certainty derived from Step 48 confidence level
+ *   gapReason        – why the segment is unassigned (undefined for assigned segments)
+ *
+ * DOES NOT modify adjustedScore, candidate ordering, or candidate selection.
+ */
+export function calculateDraftMatchQuality(
+  selected: {
+    adjustedScore: number;
+    candidateConfidenceLevel?: 'HIGH' | 'MODERATE' | 'LOW';
+  } | null,
+  context?: {
+    gapReason?: 'NO_CANDIDATE' | 'BELOW_EXISTING_THRESHOLD' | 'EMPTY_TRANSCRIPT' | 'UNAVAILABLE_MEDIA' | 'UNKNOWN';
+  }
+): {
+  matchConfidence: 'STRONG' | 'ACCEPTABLE' | 'UNCERTAIN' | 'NO_MATCH';
+  matchCertainty: 'HIGH_CERTAINTY' | 'MODERATE_CERTAINTY' | 'LOW_CERTAINTY' | undefined;
+  gapReason: 'NO_CANDIDATE' | 'BELOW_EXISTING_THRESHOLD' | 'EMPTY_TRANSCRIPT' | 'UNAVAILABLE_MEDIA' | 'UNKNOWN' | undefined;
+} {
+  // No candidate was selected → NO_MATCH
+  if (!selected) {
+    return {
+      matchConfidence: 'NO_MATCH',
+      matchCertainty: undefined,
+      gapReason: context?.gapReason ?? 'UNKNOWN',
+    };
+  }
+
+  // Primary classification: adjustedScore thresholds.
+  // A selected candidate (one that survived the engine's existing rejection logic) is
+  // NEVER classified as NO_MATCH — UNCERTAIN is the floor for any selected candidate.
+  const score = selected.adjustedScore;
+  const matchConfidence: 'STRONG' | 'ACCEPTABLE' | 'UNCERTAIN' =
+    score >= STRONG_MATCH_SCORE
+      ? 'STRONG'
+      : score >= ACCEPTABLE_MATCH_SCORE
+      ? 'ACCEPTABLE'
+      : 'UNCERTAIN';
+
+  // matchCertainty: direct mapping from Step 48 confidence level
+  const level = selected.candidateConfidenceLevel;
+  const matchCertainty: 'HIGH_CERTAINTY' | 'MODERATE_CERTAINTY' | 'LOW_CERTAINTY' | undefined =
+    level === 'HIGH'
+      ? 'HIGH_CERTAINTY'
+      : level === 'MODERATE'
+      ? 'MODERATE_CERTAINTY'
+      : level === 'LOW'
+      ? 'LOW_CERTAINTY'
+      : undefined;
+
+  return {
+    matchConfidence,
+    matchCertainty,
+    gapReason: undefined, // assigned segments have no gap reason
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Step 50: Confidence-Aware Candidate Diversity Intelligence
+// ---------------------------------------------------------------------------
+
+/** Minimum viable candidate count for a BROAD candidate diversity classification. */
+export const BROAD_CANDIDATE_COUNT = 4;
+
+/** Minimum viable candidate count for a MODERATE candidate diversity classification. */
+export const MODERATE_CANDIDATE_COUNT = 2;
+
+/** Viable candidate count for a LIMITED candidate diversity classification. */
+export const LIMITED_CANDIDATE_COUNT = 1;
+
+/**
+ * Step 50: Deterministic, observational candidate diversity diagnostics.
+ *
+ * Operates on the FINAL candidate pool already available after:
+ *   - candidate scoring
+ *   - Step 47 semantic ranking protection
+ *   - Step 48 candidate confidence analysis
+ *   - Step 49 match quality classification
+ *
+ * Returns:
+ *   candidatePoolSize          – total candidates available before final selection
+ *   viableCandidateCount       – count of candidates meeting the viability threshold
+ *   selectedCandidateRank      – 1-based rank of selected candidate in final ordering (undefined if no selection)
+ *   candidateDiversity         – 'BROAD' | 'MODERATE' | 'LIMITED' | 'NONE'
+ *   candidateDiversityContext  – 'SUPPORTED' | 'CONSTRAINED' | 'UNAVAILABLE'
+ *
+ * DOES NOT modify candidate scoring, ranking, ordering, or selection.
+ */
+export function calculateCandidateDiversity(
+  candidates: Array<{ adjustedScore: number; [key: string]: any }> | { candidatePoolSize?: number; viableCandidateCount?: number; selectedCandidateRank?: number } | null | undefined,
+  selectedCandidate?: { adjustedScore: number; [key: string]: any } | null,
+  viabilityThreshold: number = 0
+): {
+  candidatePoolSize: number;
+  viableCandidateCount: number;
+  selectedCandidateRank: number | undefined;
+  candidateDiversity: 'BROAD' | 'MODERATE' | 'LIMITED' | 'NONE';
+  candidateDiversityContext: 'SUPPORTED' | 'CONSTRAINED' | 'UNAVAILABLE';
+} {
+  let poolSize = 0;
+  let viableCount = 0;
+  let rank: number | undefined = undefined;
+  let isSelected = false;
+
+  if (candidates && !Array.isArray(candidates)) {
+    // Direct object input format
+    poolSize = Math.max(0, candidates.candidatePoolSize ?? 0);
+    viableCount = Math.max(0, candidates.viableCandidateCount ?? 0);
+    rank = candidates.selectedCandidateRank;
+    if (selectedCandidate === null) {
+      rank = undefined;
+      isSelected = false;
+    } else if (rank !== undefined && rank >= 1) {
+      isSelected = true;
+    } else if (selectedCandidate !== undefined && selectedCandidate !== null) {
+      rank = 1;
+      isSelected = true;
+    } else {
+      isSelected = false;
+    }
+  } else if (Array.isArray(candidates)) {
+    poolSize = candidates.length;
+    const viable = candidates.filter(
+      (c) => c && typeof c.adjustedScore === 'number' && c.adjustedScore >= viabilityThreshold
+    );
+    viableCount = viable.length;
+
+    if (selectedCandidate) {
+      const idx = candidates.indexOf(selectedCandidate);
+      if (idx >= 0) {
+        rank = idx + 1;
+        isSelected = true;
+      } else {
+        const matchIdx = candidates.findIndex(
+          (c) => c === selectedCandidate || (c && (c as any).id && (c as any).id === (selectedCandidate as any).id)
+        );
+        rank = matchIdx >= 0 ? matchIdx + 1 : 1;
+        isSelected = true;
+      }
+    } else {
+      rank = undefined;
+      isSelected = false;
+    }
+  } else {
+    poolSize = 0;
+    viableCount = 0;
+    rank = undefined;
+    isSelected = false;
+  }
+
+  // Diversity State calculation
+  let candidateDiversity: 'BROAD' | 'MODERATE' | 'LIMITED' | 'NONE';
+  if (!isSelected || viableCount === 0) {
+    candidateDiversity = 'NONE';
+  } else if (viableCount >= BROAD_CANDIDATE_COUNT) {
+    candidateDiversity = 'BROAD';
+  } else if (viableCount >= MODERATE_CANDIDATE_COUNT) {
+    candidateDiversity = 'MODERATE';
+  } else if (viableCount === LIMITED_CANDIDATE_COUNT) {
+    candidateDiversity = 'LIMITED';
+  } else {
+    candidateDiversity = 'NONE';
+  }
+
+  // Diversity Interpretation / Context
+  let candidateDiversityContext: 'SUPPORTED' | 'CONSTRAINED' | 'UNAVAILABLE';
+  if (!isSelected || viableCount === 0) {
+    candidateDiversityContext = 'UNAVAILABLE';
+  } else if (viableCount >= MODERATE_CANDIDATE_COUNT) {
+    candidateDiversityContext = 'SUPPORTED';
+  } else if (viableCount === LIMITED_CANDIDATE_COUNT) {
+    candidateDiversityContext = 'CONSTRAINED';
+  } else {
+    candidateDiversityContext = 'UNAVAILABLE';
+  }
+
+  return {
+    candidatePoolSize: poolSize,
+    viableCandidateCount: viableCount,
+    selectedCandidateRank: isSelected ? rank : undefined,
+    candidateDiversity,
+    candidateDiversityContext,
+  };
+}
+
+
 /**
  * Step 47: Applies semantic ranking protection to a list of scored candidates.
  * Sorts candidates using compareCandidatesWithSemanticProtection and sets protection metadata flags.
@@ -10177,6 +10395,26 @@ export async function generateDraftTimeline(
         ? calculateCandidateConfidence(bestCandidate, scoredCandidates[1])
         : null;
 
+      // Step 49: Draft Confidence-Aware Gap & Uncertainty Intelligence (observational only)
+      // Computes match quality for the final selected candidate.
+      // For rejected candidates (below threshold), records BELOW_EXISTING_THRESHOLD gap reason.
+      const matchQuality = bestCandidate
+        ? calculateDraftMatchQuality(
+            {
+              adjustedScore: bestCandidate.adjustedScore,
+              candidateConfidenceLevel: candidateConfidence?.candidateConfidenceLevel,
+            }
+          )
+        : calculateDraftMatchQuality(null, { gapReason: 'NO_CANDIDATE' });
+
+      // Step 50: Confidence-Aware Candidate Diversity Intelligence (observational only)
+      // Calculates diversity metrics across available candidate pool for the segment.
+      const candidateDiversity = calculateCandidateDiversity(
+        scoredCandidates,
+        bestCandidate && bestCandidate.adjustedScore >= similarityThreshold * 0.6 ? bestCandidate : null,
+        similarityThreshold * 0.6
+      );
+
       // If no candidate satisfies the threshold after evaluation, leave segment unassigned
       if (!bestCandidate || bestCandidate.adjustedScore < similarityThreshold * 0.6) {
         const topRawScore = matchResult.candidates[0]?.score || 0;
@@ -10390,6 +10628,14 @@ export async function generateDraftTimeline(
           semanticMargin: candidateConfidence?.semanticMargin,
           semanticSeparation: candidateConfidence?.semanticSeparation,
           visualInfluence: candidateConfidence?.visualInfluence,
+          matchConfidence: matchQuality.matchConfidence,
+          matchCertainty: matchQuality.matchCertainty,
+          gapReason: matchQuality.gapReason,
+          candidatePoolSize: candidateDiversity.candidatePoolSize,
+          viableCandidateCount: candidateDiversity.viableCandidateCount,
+          selectedCandidateRank: candidateDiversity.selectedCandidateRank,
+          candidateDiversity: candidateDiversity.candidateDiversity,
+          candidateDiversityContext: candidateDiversity.candidateDiversityContext,
           isManuallyEdited: false,
           assignedAt: Date.now(),
         },
@@ -10641,6 +10887,17 @@ export async function generateDraftTimeline(
   let moderateConfidenceSelectionsCount = 0;
   let lowConfidenceSelectionsCount = 0;
   let totalSelectionMarginSum = 0;
+  // Step 49: match quality counters
+  let strongMatchCount = 0;
+  let acceptableMatchCount = 0;
+  let uncertainMatchCount = 0;
+  let belowThresholdGapCount = 0;
+  // Step 50: candidate diversity counters
+  let broadCandidateCount = 0;
+  let moderateCandidateCount = 0;
+  let limitedCandidateCount = 0;
+  let noCandidateDiversityCount = 0;
+  let constrainedCandidateCount = 0;
   let quickPacingSelectionsCount = 0;
   let normalPacingSelectionsCount = 0;
   let lingeringPacingSelectionsCount = 0;
@@ -10657,6 +10914,21 @@ export async function generateDraftTimeline(
     if (typeof sm === 'number') {
       totalSelectionMarginSum += sm;
     }
+    // Step 49: match quality counters per timeline item
+    const mc = item.provenance?.matchConfidence;
+    if (mc === 'STRONG') strongMatchCount++;
+    else if (mc === 'ACCEPTABLE') acceptableMatchCount++;
+    else if (mc === 'UNCERTAIN') uncertainMatchCount++;
+    const gr = item.provenance?.gapReason;
+    if (gr === 'BELOW_EXISTING_THRESHOLD') belowThresholdGapCount++;
+    // Step 50: candidate diversity counters per timeline item
+    const cd = item.provenance?.candidateDiversity;
+    if (cd === 'BROAD') broadCandidateCount++;
+    else if (cd === 'MODERATE') moderateCandidateCount++;
+    else if (cd === 'LIMITED') limitedCandidateCount++;
+    else if (cd === 'NONE') noCandidateDiversityCount++;
+    const cdc = item.provenance?.candidateDiversityContext;
+    if (cdc === 'CONSTRAINED') constrainedCandidateCount++;
     const rawVis = item.provenance?.rawVisualIntelligence ?? 0;
     const boundedVis = item.provenance?.boundedVisualIntelligence ?? 0;
     if (Math.abs(boundedVis) > 0.0001) {
@@ -11180,6 +11452,16 @@ export async function generateDraftTimeline(
         assignedSegments > 0
           ? Math.round((totalSelectionMarginSum / assignedSegments) * 1000) / 1000
           : undefined,
+      strongMatchCount,
+      acceptableMatchCount,
+      uncertainMatchCount,
+      noMatchCount: unassignedSegments,
+      belowThresholdGapCount,
+      broadCandidateCount,
+      moderateCandidateCount,
+      limitedCandidateCount,
+      noCandidateDiversityCount: noCandidateDiversityCount + unassignedSegments,
+      constrainedCandidateCount,
       quickPacingSelections: quickPacingSelectionsCount,
       normalPacingSelections: normalPacingSelectionsCount,
       lingeringPacingSelections: lingeringPacingSelectionsCount,

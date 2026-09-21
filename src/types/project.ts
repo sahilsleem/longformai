@@ -337,6 +337,14 @@ export interface DraftProvenance {
   semanticMargin?: number;                    // Step 48: rawScore gap between selected and runner-up (or selectedScore if single candidate)
   semanticSeparation?: 'CLEAR' | 'CLOSE' | 'NONE'; // Step 48: Semantic clarity label (CLEAR ≥ 0.100, CLOSE > 0, NONE ≤ 0)
   visualInfluence?: 'NEUTRAL' | 'SUPPORTING' | 'OPPOSING'; // Step 48: Direction of bounded visual intelligence contribution
+  matchConfidence?: 'STRONG' | 'ACCEPTABLE' | 'UNCERTAIN' | 'NO_MATCH'; // Step 49: Overall match quality state (STRONG ≥ 0.550, ACCEPTABLE ≥ 0.400, UNCERTAIN ≥ 0.300, NO_MATCH otherwise)
+  matchCertainty?: 'HIGH_CERTAINTY' | 'MODERATE_CERTAINTY' | 'LOW_CERTAINTY'; // Step 49: Selection certainty derived from Step 48 confidence level
+  gapReason?: 'NO_CANDIDATE' | 'BELOW_EXISTING_THRESHOLD' | 'EMPTY_TRANSCRIPT' | 'UNAVAILABLE_MEDIA' | 'UNKNOWN'; // Step 49: Reason for unassigned segment (only present on gap/NO_MATCH items if recorded)
+  candidatePoolSize?: number;          // Step 50: Number of candidate media items available before final selection
+  viableCandidateCount?: number;       // Step 50: Number of candidate items meeting engine viability threshold
+  selectedCandidateRank?: number;      // Step 50: 1-based rank of the selected candidate in final ordering
+  candidateDiversity?: 'BROAD' | 'MODERATE' | 'LIMITED' | 'NONE'; // Step 50: Candidate diversity classification (BROAD >= 4, MODERATE >= 2, LIMITED === 1, NONE = 0 / no selection)
+  candidateDiversityContext?: 'SUPPORTED' | 'CONSTRAINED' | 'UNAVAILABLE'; // Step 50: Diagnostic interpretation (SUPPORTED >= 2, CONSTRAINED === 1 with selection, UNAVAILABLE = 0 / no selection)
   isManuallyEdited?: boolean;     // False initially, true once user modifies timing/duration/framing
   assignedAt?: number;
 }
