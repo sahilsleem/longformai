@@ -1,4 +1,5 @@
 import { AudioSegment } from '../types/project';
+import { getTranscriptionWorkerUrl } from '../config/workerConfig';
 
 export interface TranscriptionWorkerStatus {
   online: boolean;
@@ -14,13 +15,13 @@ export interface TranscriptionOptions {
   language?: string;
 }
 
-export const DEFAULT_WORKER_URL = 'http://127.0.0.1:8765';
+export const DEFAULT_WORKER_URL = getTranscriptionWorkerUrl();
 
 /**
  * Checks if the local transcription worker is running.
  */
 export async function checkTranscriptionWorkerHealth(
-  workerUrl: string = DEFAULT_WORKER_URL
+  workerUrl: string = getTranscriptionWorkerUrl()
 ): Promise<TranscriptionWorkerStatus> {
   try {
     const controller = new AbortController();

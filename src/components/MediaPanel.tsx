@@ -78,7 +78,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
   );
 
   return (
-    <div className="flex flex-col h-full bg-editor-panel border-r border-editor-panelBorder w-84 shrink-0 select-none">
+    <div className="flex flex-col h-full bg-editor-panel w-full select-none overflow-hidden">
       {/* Hidden file pickers */}
       <input
         type="file"
@@ -102,7 +102,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
 
       {/* Relink Warning Banner if unlinked files exist */}
       {unlinkedCount > 0 && onOpenRelinkModal && (
-        <div className="bg-amber-950/60 border-b border-amber-800/60 px-3 py-2 flex items-center justify-between">
+        <div className="bg-amber-950/60 border-b border-amber-800/60 px-3 py-2 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-amber-300">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
             <span className="font-semibold">{unlinkedCount} missing file(s)</span>
@@ -117,7 +117,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
       )}
 
       {/* 1. Voiceover Audio Section */}
-      <div className="p-3 border-b border-editor-panelBorder bg-editor-surface/30">
+      <div className="p-3 border-b border-editor-panelBorder bg-editor-surface/30 shrink-0">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <Music className="w-3.5 h-3.5 text-purple-400" />
@@ -168,7 +168,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                   <span>{formatSecondsToMinutes(voiceover.duration)}</span>
                   {isVoiceoverMissing && (
                     <span className="text-amber-400 font-bold bg-amber-950 px-1 rounded">
-                      [UNLINKED]
+                      Missing
                     </span>
                   )}
                 </div>
@@ -176,23 +176,20 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={() =>
-                  onOpenRelinkModal ? onOpenRelinkModal() : voiceoverInputRef.current?.click()
-                }
-                className={`text-[10px] px-2 py-1 rounded transition-colors font-semibold ${
-                  isVoiceoverMissing
-                    ? 'bg-amber-500 hover:bg-amber-400 text-black'
-                    : 'text-purple-300 hover:text-white bg-purple-900/60 hover:bg-purple-800'
-                }`}
-                title="Relink or replace Voiceover Audio"
-              >
-                {isVoiceoverMissing ? 'Relink' : 'Replace'}
-              </button>
+              {isVoiceoverMissing && (
+                <button
+                  onClick={() =>
+                    onOpenRelinkModal ? onOpenRelinkModal() : voiceoverInputRef.current?.click()
+                  }
+                  className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold rounded shadow transition-colors"
+                >
+                  Relink
+                </button>
+              )}
               {onRemoveVoiceover && (
                 <button
                   onClick={onRemoveVoiceover}
-                  className="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-editor-surface rounded transition-colors"
                   title="Remove Voiceover"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -205,7 +202,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
             onClick={() => voiceoverInputRef.current?.click()}
             className="border border-dashed border-purple-500/30 hover:border-purple-400 rounded-lg p-2.5 flex items-center justify-center gap-2 text-center cursor-pointer bg-purple-950/15 hover:bg-purple-950/30 transition-colors"
           >
-            <Upload className="w-4 h-4 text-purple-400" />
+            <Upload className="w-4 h-4 text-purple-400 shrink-0" />
             <div className="text-left">
               <p className="text-xs font-medium text-purple-200">Import Voiceover Audio</p>
               <p className="text-[10px] text-slate-400">MP3, WAV, M4A, AAC</p>
@@ -215,7 +212,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
       </div>
 
       {/* 2. Visual Media Library Header */}
-      <div className="p-3 border-b border-editor-panelBorder flex items-center justify-between">
+      <div className="p-3 border-b border-editor-panelBorder flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-xs text-slate-200 uppercase tracking-wider">
             Visual Media
@@ -376,7 +373,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                   </div>
 
                   {/* Quick Action Buttons */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     {isMissing ? (
                       <button
                         onClick={(e) => {
@@ -434,7 +431,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
 
       {/* Footer hint */}
       {mediaList.length > 0 && (
-        <div className="p-2.5 border-t border-editor-panelBorder bg-editor-surface/30 text-center">
+        <div className="p-2.5 border-t border-editor-panelBorder bg-editor-surface/30 text-center shrink-0">
           <button
             onClick={() => fileInputRef.current?.click()}
             className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors inline-flex items-center gap-1.5"

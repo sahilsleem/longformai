@@ -7,8 +7,10 @@ import json
 import os
 import subprocess
 import tempfile
-from pathlib import Path
-from render_engine import get_media_dimensions, render_project
+try:
+    from server.render_engine import get_media_dimensions, render_project
+except ImportError:
+    from render_engine import get_media_dimensions, render_project
 
 def generate_synthetic_assets(test_dir: str):
     """

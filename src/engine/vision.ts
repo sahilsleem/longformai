@@ -1,4 +1,5 @@
 import { MediaKeyframe, MediaSemanticAnalysis } from '../types/project';
+import { getVisionWorkerUrl } from '../config/workerConfig';
 
 export interface VisionWorkerStatus {
   online: boolean;
@@ -11,13 +12,13 @@ export interface VisionWorkerStatus {
   error?: string;
 }
 
-export const DEFAULT_VISION_WORKER_URL = 'http://127.0.0.1:8766';
+export const DEFAULT_VISION_WORKER_URL = getVisionWorkerUrl();
 
 /**
  * Checks if the local vision worker is running on port 8766 and queries model state.
  */
 export async function checkVisionWorkerHealth(
-  workerUrl: string = DEFAULT_VISION_WORKER_URL
+  workerUrl: string = getVisionWorkerUrl()
 ): Promise<VisionWorkerStatus> {
   try {
     const controller = new AbortController();
@@ -59,7 +60,7 @@ export async function analyzeKeyframesSemantics(
   keyframes: MediaKeyframe[],
   isVideo: boolean,
   duration: number = 0,
-  workerUrl: string = DEFAULT_VISION_WORKER_URL
+  workerUrl: string = getVisionWorkerUrl()
 ): Promise<MediaSemanticAnalysis> {
   const validKeyframes = keyframes.filter((k) => Boolean(k.imageData));
 
@@ -102,11 +103,15 @@ export async function analyzeKeyframesSemantics(
       analyzed: true,
       description: data.description || '',
       tags: data.tags || [],
+      ocrText: data.ocrText || undefined,
+      ocrConfidence: typeof data.ocrConfidence === 'number' ? data.ocrConfidence : undefined,
       keyframeDescriptions: (data.keyframeDescriptions || []).map(
-        (kd: { time: number; description: string; tags: string[]; isKeyMoment?: boolean }) => ({
+        (kd: { time: number; description: string; tags: string[]; ocrText?: string; ocrConfidence?: number; isKeyMoment?: boolean }) => ({
           time: kd.time,
           description: kd.description,
           tags: kd.tags || [],
+          ocrText: kd.ocrText || undefined,
+          ocrConfidence: kd.ocrConfidence,
           isKeyMoment: Boolean(kd.isKeyMoment),
         })
       ),

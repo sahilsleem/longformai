@@ -21,6 +21,8 @@ export interface MediaKeyframe {
   imageData?: string;    // Transient thumbnail data URL (stripped in portable JSON export)
   description?: string;  // Frame-level semantic description
   tags?: string[];       // Frame-level semantic tags
+  ocrText?: string;      // Frame-level local OCR extracted text
+  ocrConfidence?: number;// Frame-level OCR confidence [0.0, 1.0]
   isKeyMoment?: boolean; // Informative frame with high visual or semantic uniqueness
 }
 
@@ -37,6 +39,8 @@ export interface KeyframeSemantic {
   time: number;
   description: string;
   tags: string[];
+  ocrText?: string;
+  ocrConfidence?: number;
   isKeyMoment?: boolean;
 }
 
@@ -51,6 +55,8 @@ export interface MediaSemanticAnalysis {
   analyzed: boolean;
   description: string;                 // Concise overall description of the media
   tags: string[];                      // Top 3-10 aggregated semantic tags
+  ocrText?: string;                    // Local OCR extracted text from visual scene
+  ocrConfidence?: number;              // OCR confidence [0.0, 1.0]
   keyframeDescriptions?: KeyframeSemantic[]; // Frame-by-frame interpretations
   temporalSummary?: string;            // Aggregated multi-frame narrative
   hasVisualChange?: boolean;           // True if meaningful visual shift detected
@@ -66,6 +72,8 @@ export interface MediaAnalysis {
   duration?: number;
   description?: string;
   tags?: string[];
+  ocrText?: string;                    // Top-level extracted OCR text
+  ocrConfidence?: number;              // Top-level OCR confidence
   visualFeatures?: VisualFeatures;     // Deterministic pixel stats (brightness, contrast, colors)
   keyframes?: MediaKeyframe[];         // Representative keyframes
   semantic?: MediaSemanticAnalysis;   // Semantic scene understanding from local vision model
@@ -345,6 +353,7 @@ export interface DraftProvenance {
   selectedCandidateRank?: number;      // Step 50: 1-based rank of the selected candidate in final ordering
   candidateDiversity?: 'BROAD' | 'MODERATE' | 'LIMITED' | 'NONE'; // Step 50: Candidate diversity classification (BROAD >= 4, MODERATE >= 2, LIMITED === 1, NONE = 0 / no selection)
   candidateDiversityContext?: 'SUPPORTED' | 'CONSTRAINED' | 'UNAVAILABLE'; // Step 50: Diagnostic interpretation (SUPPORTED >= 2, CONSTRAINED === 1 with selection, UNAVAILABLE = 0 / no selection)
+  isBelowThresholdFallback?: boolean; // True if selected as the best available fallback below similarity threshold
   isManuallyEdited?: boolean;     // False initially, true once user modifies timing/duration/framing
   assignedAt?: number;
 }

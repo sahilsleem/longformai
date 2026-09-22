@@ -184,9 +184,9 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
   ).length;
 
   return (
-    <div className="flex flex-col h-full bg-editor-panel border-r border-editor-panelBorder w-84 shrink-0 select-none">
+    <div className="flex flex-col h-full bg-editor-panel w-full select-none overflow-hidden">
       {/* Panel Header */}
-      <div className="p-3 border-b border-editor-panelBorder flex items-center justify-between bg-editor-panel">
+      <div className="p-3 border-b border-editor-panelBorder flex items-center justify-between bg-editor-panel shrink-0">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-purple-400" />
           <span className="font-semibold text-xs text-slate-200 uppercase tracking-wider">
@@ -220,8 +220,8 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
       </div>
 
       {/* Transcription Control Bar */}
-      <div className="p-3 border-b border-editor-panelBorder bg-editor-surface/30 space-y-2">
-        <div className="flex items-center justify-between gap-2">
+      <div className="p-3 border-b border-editor-panelBorder bg-editor-surface/30 space-y-2 shrink-0">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Model Selector */}
           <div className="flex items-center gap-1 text-[11px] text-slate-400">
             <span>Model:</span>

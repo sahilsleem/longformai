@@ -53,7 +53,7 @@ export const MediaInspector: React.FC<MediaInspectorProps> = ({
 
   if (!asset) {
     return (
-      <div className="w-80 h-full bg-editor-panel border-l border-editor-panelBorder p-6 flex flex-col items-center justify-center text-center text-slate-500 shrink-0 select-none">
+      <div className="w-full h-full bg-editor-panel p-6 flex flex-col items-center justify-center text-center text-slate-500 select-none">
         <Eye className="w-9 h-9 mb-2.5 opacity-30 text-slate-400" />
         <p className="text-xs font-semibold text-slate-300">No Media Selected</p>
         <p className="text-[11px] text-slate-500 mt-1 max-w-[210px] leading-relaxed">
@@ -77,9 +77,9 @@ export const MediaInspector: React.FC<MediaInspectorProps> = ({
   };
 
   return (
-    <div className="w-80 h-full bg-editor-panel border-l border-editor-panelBorder flex flex-col shrink-0 select-none">
+    <div className="w-full h-full bg-editor-panel flex flex-col select-none overflow-hidden">
       {/* Header */}
-      <div className="p-3 border-b border-editor-panelBorder flex items-center justify-between">
+      <div className="p-3 border-b border-editor-panelBorder flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
           <span className="font-semibold text-xs text-slate-200 uppercase tracking-wider truncate">

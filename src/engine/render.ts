@@ -1,6 +1,7 @@
 import { LongFormProject } from '../types/project';
+import { getRenderWorkerUrl } from '../config/workerConfig';
 
-export const RENDER_WORKER_URL = 'http://127.0.0.1:8768';
+export const RENDER_WORKER_URL = getRenderWorkerUrl();
 
 export interface RenderHealth {
   status: string;
@@ -38,9 +39,11 @@ export interface RenderJobStatus {
 /**
  * Checks if the local FFmpeg rendering worker is running.
  */
-export async function checkRenderWorkerHealth(): Promise<RenderHealth | null> {
+export async function checkRenderWorkerHealth(
+  workerUrl: string = getRenderWorkerUrl()
+): Promise<RenderHealth | null> {
   try {
-    const res = await fetch(`${RENDER_WORKER_URL}/health`, { method: 'GET' });
+    const res = await fetch(`${workerUrl}/health`, { method: 'GET' });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -53,12 +56,15 @@ export async function checkRenderWorkerHealth(): Promise<RenderHealth | null> {
  */
 export async function requestVideoRender(
   project: LongFormProject,
-  onProgress?: (progress: number, message: string) => void
+  onProgress?: (progress: number, message: string) => void,
+  options: { workerUrl?: string } = {}
 ): Promise<RenderJobResult> {
+  const workerUrl = options.workerUrl || getRenderWorkerUrl();
+
   // 1. Verify worker is online
-  const health = await checkRenderWorkerHealth();
+  const health = await checkRenderWorkerHealth(workerUrl);
   if (!health || !health.ffmpegAvailable) {
-    throw new Error('Local FFmpeg Render Worker is offline on port 8768. Run python server/render_server.py');
+    throw new Error(`Local FFmpeg Render Worker is offline on ${workerUrl}. Run python server/render_server.py`);
   }
 
   onProgress?.(5, 'Packaging project timeline & media files...');
@@ -132,7 +138,7 @@ export async function requestVideoRender(
 
   onProgress?.(10, 'Submitting render job to local FFmpeg worker...');
 
-  const startResp = await fetch(`${RENDER_WORKER_URL}/render/multipart`, {
+  const startResp = await fetch(`${workerUrl}/render/multipart`, {
     method: 'POST',
     body: formData,
   });
@@ -150,7 +156,7 @@ export async function requestVideoRender(
   // Poll until job completes
   while (true) {
     await new Promise((r) => setTimeout(r, 600));
-    const statusResp = await fetch(`${RENDER_WORKER_URL}/jobs/${jobId}`);
+    const statusResp = await fetch(`${workerUrl}/jobs/${jobId}`);
     if (!statusResp.ok) {
       throw new Error(`Failed to check job status: HTTP ${statusResp.status}`);
     }

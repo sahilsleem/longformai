@@ -37,10 +37,10 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
 }) => {
   if (!selectedItem || !selectedAsset) {
     return (
-      <div className="w-80 h-full bg-editor-panel border-l border-editor-panelBorder p-6 flex flex-col items-center justify-center text-center text-slate-500 shrink-0 select-none">
-        <Sliders className="w-9 h-9 mb-2.5 opacity-30 text-slate-400" />
+      <div className="w-full h-full bg-editor-panel p-4 sm:p-6 flex flex-col items-center justify-center text-center text-slate-500 select-none">
+        <Sliders className="w-8 h-8 sm:w-9 sm:h-9 mb-2.5 opacity-30 text-slate-400" />
         <p className="text-xs font-semibold text-slate-300">No Clip Selected</p>
-        <p className="text-[11px] text-slate-500 mt-1 max-w-[210px] leading-relaxed">
+        <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
           Select any media block on the timeline to inspect its AI draft intelligence and adjust its independent 16:9 framing.
         </p>
       </div>
@@ -85,19 +85,19 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
   };
 
   return (
-    <div className="w-80 h-full bg-editor-panel border-l border-editor-panelBorder flex flex-col shrink-0 select-none">
+    <div className="w-full h-full bg-editor-panel flex flex-col select-none overflow-hidden">
       {/* Header */}
-      <div className="p-3 border-b border-editor-panelBorder flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Crop className="w-4 h-4 text-blue-400" />
-          <span className="font-semibold text-xs text-slate-200 uppercase tracking-wider">
+      <div className="p-2.5 sm:p-3 border-b border-editor-panelBorder flex items-center justify-between shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Crop className="w-4 h-4 text-blue-400 shrink-0" />
+          <span className="font-semibold text-xs text-slate-200 uppercase tracking-wider truncate">
             Shot & Framing Inspector
           </span>
         </div>
 
         <button
           onClick={handleResetCrop}
-          className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 px-2 py-0.5 rounded hover:bg-editor-surface transition-colors border border-slate-700/60"
+          className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 active:bg-slate-700 px-2.5 py-1 sm:py-0.5 rounded hover:bg-editor-surface transition-colors border border-slate-700/60 shrink-0 touch-manipulation min-h-[32px] sm:min-h-0"
           title="Reset framing to default centered cover"
         >
           <RotateCcw className="w-3 h-3 text-slate-400" />
@@ -105,23 +105,23 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 sm:space-y-4">
         {/* AI Shot Intelligence Card (Step 14) */}
         {prov ? (
-          <div className="bg-gradient-to-br from-purple-950/30 to-slate-900/60 rounded-lg p-3 border border-purple-800/40 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                <span>AI Shot Intelligence</span>
+          <div className="bg-gradient-to-br from-purple-950/30 to-slate-900/60 rounded-lg p-2.5 sm:p-3 border border-purple-800/40 space-y-2 sm:space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-purple-200 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span className="truncate">AI Shot Intelligence</span>
               </span>
 
               {prov.isManuallyEdited ? (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-950/80 text-blue-300 border border-blue-800/50 flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-950/80 text-blue-300 border border-blue-800/50 flex items-center gap-1 shrink-0">
                   <User className="w-2.5 h-2.5 text-blue-400" />
                   <span>Human Edited</span>
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-950/80 text-purple-300 border border-purple-800/50 flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-950/80 text-purple-300 border border-purple-800/50 flex items-center gap-1 shrink-0">
                   <Bot className="w-2.5 h-2.5 text-purple-400" />
                   <span>AI Proposal</span>
                 </span>
@@ -132,10 +132,10 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
             {prov.sourceSegmentText && (
               <div className="bg-black/30 rounded p-2 border border-slate-800 space-y-1">
                 <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-                  <FileText className="w-3 h-3 text-purple-400" />
+                  <FileText className="w-3 h-3 text-purple-400 shrink-0" />
                   <span>Narration Line:</span>
                 </div>
-                <p className="text-xs text-slate-200 italic line-clamp-3">
+                <p className="text-xs text-slate-200 italic line-clamp-3 break-words">
                   "{prov.sourceSegmentText}"
                 </p>
               </div>
@@ -143,16 +143,16 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
 
             {/* Match Metrics */}
             <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="bg-editor-surface/60 rounded p-1.5 border border-editor-panelBorder">
-                <span className="text-[10px] text-slate-400 block">Match Status:</span>
-                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border mt-0.5 ${getMatchLabel(prov.originalScore).color}`}>
+              <div className="bg-editor-surface/60 rounded p-1.5 border border-editor-panelBorder min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate">Match Status:</span>
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border mt-0.5 truncate max-w-full ${getMatchLabel(prov.originalScore).color}`}>
                   {getMatchLabel(prov.originalScore).label}
                 </span>
               </div>
 
-              <div className="bg-editor-surface/60 rounded p-1.5 border border-editor-panelBorder">
-                <span className="text-[10px] text-slate-400 block">Similarity Score:</span>
-                <span className="font-mono text-xs text-slate-200 font-semibold mt-0.5 block">
+              <div className="bg-editor-surface/60 rounded p-1.5 border border-editor-panelBorder min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate">Similarity Score:</span>
+                <span className="font-mono text-xs text-slate-200 font-semibold mt-0.5 block truncate">
                   {prov.originalScore.toFixed(2)}
                   {prov.adjustedScore !== prov.originalScore && (
                     <span className="text-[10px] text-slate-400 font-normal ml-1">
@@ -165,7 +165,7 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
 
             {/* Why explanation */}
             {prov.explanation && (
-              <div className="text-[11px] text-slate-300 bg-editor-surface/40 p-2 rounded border border-editor-panelBorder/70 leading-relaxed">
+              <div className="text-[11px] text-slate-300 bg-editor-surface/40 p-2 rounded border border-editor-panelBorder/70 leading-relaxed break-words">
                 <span className="text-slate-400 font-medium block text-[10px] mb-0.5">Why Selected:</span>
                 {prov.explanation}
               </div>
@@ -313,57 +313,57 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
 
             {/* AI Source Start & Duration Refinement Explanation */}
             {prov.temporalSelectionReason && (
-              <div className="text-[10px] text-emerald-300/90 bg-emerald-950/20 px-2 py-1 rounded border border-emerald-800/30 italic">
+              <div className="text-[10px] text-emerald-300/90 bg-emerald-950/20 px-2 py-1 rounded border border-emerald-800/30 italic break-words">
                 {prov.temporalSelectionReason}
               </div>
             )}
             {prov.durationAdjustmentReason && prov.originalSegmentDuration && Math.abs(prov.originalSegmentDuration - (prov.selectedDuration || selectedItem.duration)) > 0.05 && (
-              <div className="text-[10px] text-cyan-300/90 bg-cyan-950/20 px-2 py-1 rounded border border-cyan-800/30 italic">
+              <div className="text-[10px] text-cyan-300/90 bg-cyan-950/20 px-2 py-1 rounded border border-cyan-800/30 italic break-words">
                 {prov.durationAdjustmentReason}
               </div>
             )}
             {prov.continuityReason && (
-              <div className="text-[10px] text-teal-300/90 bg-teal-950/20 px-2 py-1 rounded border border-teal-800/30 italic">
+              <div className="text-[10px] text-teal-300/90 bg-teal-950/20 px-2 py-1 rounded border border-teal-800/30 italic break-words">
                 {prov.continuityReason}
               </div>
             )}
             {prov.narrationRoleReason && prov.narrationRole && prov.narrationRole !== 'unknown' && (
-              <div className="text-[10px] text-rose-300/90 bg-rose-950/20 px-2 py-1 rounded border border-rose-800/30 italic">
+              <div className="text-[10px] text-rose-300/90 bg-rose-950/20 px-2 py-1 rounded border border-rose-800/30 italic break-words">
                 {prov.narrationRoleReason}
               </div>
             )}
             {prov.beatReason && prov.narrationBeatType && (
-              <div className="text-[10px] text-violet-300/90 bg-violet-950/20 px-2 py-1 rounded border border-violet-800/30 italic">
+              <div className="text-[10px] text-violet-300/90 bg-violet-950/20 px-2 py-1 rounded border border-violet-800/30 italic break-words">
                 Beat {prov.beatPosition || 1}/{prov.beatLength || 1} ({prov.narrationBeatType === 'STANDALONE' ? 'Standalone beat' : prov.narrationBeatType === 'NEW_BEAT' ? 'New beat start' : prov.narrationBeatType === 'CONTINUING_BEAT' ? 'Continuing beat' : 'Beat conclusion'}): {prov.beatReason}
               </div>
             )}
             {prov.visualVarietyReason && (
-              <div className="text-[10px] text-amber-300/90 bg-amber-950/20 px-2 py-1 rounded border border-amber-800/30 italic">
+              <div className="text-[10px] text-amber-300/90 bg-amber-950/20 px-2 py-1 rounded border border-amber-800/30 italic break-words">
                 {prov.visualVarietyReason}
               </div>
             )}
             {prov.pacingReason && (
-              <div className="text-[10px] text-fuchsia-300/90 bg-fuchsia-950/20 px-2 py-1 rounded border border-fuchsia-800/30 italic">
+              <div className="text-[10px] text-fuchsia-300/90 bg-fuchsia-950/20 px-2 py-1 rounded border border-fuchsia-800/30 italic break-words">
                 {prov.pacingReason}
               </div>
             )}
             {prov.pacingArcReason && (
-              <div className="text-[10px] text-lime-300/90 bg-lime-950/20 px-2 py-1 rounded border border-lime-800/30 italic">
+              <div className="text-[10px] text-lime-300/90 bg-lime-950/20 px-2 py-1 rounded border border-lime-800/30 italic break-words">
                 {prov.pacingArcReason}
               </div>
             )}
             {prov.emphasisImpactReason && (
-              <div className="text-[10px] text-amber-300/90 bg-amber-950/20 px-2 py-1 rounded border border-amber-800/30 italic">
+              <div className="text-[10px] text-amber-300/90 bg-amber-950/20 px-2 py-1 rounded border border-amber-800/30 italic break-words">
                 {prov.emphasisImpactReason}
               </div>
             )}
             {prov.narrationVisualContrastReason && (
-              <div className="text-[10px] text-emerald-300/90 bg-emerald-950/20 px-2 py-1 rounded border border-emerald-800/30 italic">
+              <div className="text-[10px] text-emerald-300/90 bg-emerald-950/20 px-2 py-1 rounded border border-emerald-800/30 italic break-words">
                 {prov.narrationVisualContrastReason}
               </div>
             )}
             {prov.subjectContinuityReason && (
-              <div className="text-[10px] text-cyan-300/90 bg-cyan-950/20 px-2 py-1 rounded border border-cyan-800/30 italic">
+              <div className="text-[10px] text-cyan-300/90 bg-cyan-950/20 px-2 py-1 rounded border border-cyan-800/30 italic break-words">
                 {prov.subjectContinuityReason}
               </div>
             )}
@@ -376,13 +376,13 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
         )}
 
         {/* Source Asset Info Card */}
-        <div className="bg-editor-surface rounded-lg p-3 border border-editor-panelBorder space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-200 truncate max-w-[170px]" title={selectedAsset.name}>
+        <div className="bg-editor-surface rounded-lg p-2.5 sm:p-3 border border-editor-panelBorder space-y-1">
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <span className="text-xs font-semibold text-slate-200 truncate flex-1 min-w-0" title={selectedAsset.name}>
               {selectedAsset.name}
             </span>
             <span
-              className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-medium ${
+              className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-medium shrink-0 ${
                 isNative16x9
                   ? 'text-emerald-300 bg-emerald-950/60 border border-emerald-800/40'
                   : 'text-amber-300 bg-amber-950/60 border border-amber-800/40'
@@ -392,7 +392,7 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
             </span>
           </div>
 
-          <div className="text-[11px] text-slate-400 font-mono flex items-center justify-between pt-1">
+          <div className="text-[11px] text-slate-400 font-mono flex flex-wrap items-center justify-between gap-1 pt-1">
             <span>Dimensions: {sourceWidth} × {sourceHeight}</span>
             <span>{selectedAsset.type.toUpperCase()}</span>
           </div>
@@ -408,17 +408,17 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
               <button
                 key={mode}
                 onClick={() => onUpdateTransform(selectedItem.id, { fitMode: mode })}
-                className={`py-1 text-xs font-medium rounded capitalize transition-colors ${
+                className={`min-h-[38px] sm:min-h-0 py-2 sm:py-1 text-xs font-medium rounded capitalize transition-colors touch-manipulation flex items-center justify-center ${
                   transform.fitMode === mode
                     ? 'bg-blue-600 text-white shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
+                    : 'text-slate-400 hover:text-slate-200 active:bg-slate-700'
                 }`}
               >
                 {mode}
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-slate-500">
+          <p className="text-[10px] text-slate-500 leading-normal">
             {transform.fitMode === 'cover'
               ? 'Fills the 16:9 canvas edge-to-edge. Aspect ratio preserved.'
               : transform.fitMode === 'contain'
@@ -435,51 +435,51 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
           <div className="grid grid-cols-5 gap-1">
             <button
               onClick={() => setPresetPan(0, 0)}
-              className="py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center gap-0.5"
+              className="min-h-[44px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
               title="Align Center"
             >
-              <AlignCenter className="w-3 h-3 text-blue-400" />
+              <AlignCenter className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Center</span>
             </button>
             <button
               onClick={() => setPresetPan(0, bounds.minY)}
-              className="py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center gap-0.5"
+              className="min-h-[44px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
               title="Align Top"
             >
-              <ArrowUp className="w-3 h-3 text-blue-400" />
+              <ArrowUp className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Top</span>
             </button>
             <button
               onClick={() => setPresetPan(0, bounds.maxY)}
-              className="py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center gap-0.5"
+              className="min-h-[44px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
               title="Align Bottom"
             >
-              <ArrowDown className="w-3 h-3 text-blue-400" />
+              <ArrowDown className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Bottom</span>
             </button>
             <button
               onClick={() => setPresetPan(bounds.minX, 0)}
-              className="py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center gap-0.5"
+              className="min-h-[44px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
               title="Align Left"
             >
-              <ArrowLeft className="w-3 h-3 text-blue-400" />
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Left</span>
             </button>
             <button
               onClick={() => setPresetPan(bounds.maxX, 0)}
-              className="py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center gap-0.5"
+              className="min-h-[44px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
               title="Align Right"
             >
-              <ArrowRight className="w-3 h-3 text-blue-400" />
+              <ArrowRight className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Right</span>
             </button>
           </div>
         </div>
 
         {/* 3. Pan Sliders */}
-        <div className="space-y-3 bg-editor-surface/40 p-3 rounded-lg border border-editor-panelBorder">
+        <div className="space-y-3 bg-editor-surface/40 p-2.5 sm:p-3 rounded-lg border border-editor-panelBorder">
           {/* Horizontal Pan (X) Slider */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-300">
               <span className="flex items-center gap-1.5">
                 <Move className="w-3.5 h-3.5 text-slate-400" />
@@ -497,11 +497,11 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
                 onChange={(e) =>
                   onUpdateTransform(selectedItem.id, { x: parseFloat(e.target.value) })
                 }
-                className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                className="flex-1 h-2 sm:h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer touch-manipulation accent-blue-500"
               />
               <button
                 onClick={() => onUpdateTransform(selectedItem.id, { x: 0 })}
-                className="text-[9px] font-mono text-slate-500 hover:text-slate-300 px-1 py-0.5 rounded hover:bg-slate-800"
+                className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center text-[11px] sm:text-[9px] font-mono text-slate-400 hover:text-slate-200 active:bg-slate-700 px-2 sm:px-1 py-1 sm:py-0.5 rounded bg-editor-surface sm:bg-transparent border border-slate-700 sm:border-transparent touch-manipulation"
                 title="Reset X"
               >
                 0%
@@ -510,7 +510,7 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
           </div>
 
           {/* Vertical Pan (Y) Slider */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-300">
               <span className="flex items-center gap-1.5">
                 <Move className="w-3.5 h-3.5 text-slate-400 rotate-90" />
@@ -528,11 +528,11 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
                 onChange={(e) =>
                   onUpdateTransform(selectedItem.id, { y: parseFloat(e.target.value) })
                 }
-                className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                className="flex-1 h-2 sm:h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer touch-manipulation accent-blue-500"
               />
               <button
                 onClick={() => onUpdateTransform(selectedItem.id, { y: 0 })}
-                className="text-[9px] font-mono text-slate-500 hover:text-slate-300 px-1 py-0.5 rounded hover:bg-slate-800"
+                className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center text-[11px] sm:text-[9px] font-mono text-slate-400 hover:text-slate-200 active:bg-slate-700 px-2 sm:px-1 py-1 sm:py-0.5 rounded bg-editor-surface sm:bg-transparent border border-slate-700 sm:border-transparent touch-manipulation"
                 title="Reset Y"
               >
                 0%
@@ -542,7 +542,7 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
         </div>
 
         {/* 4. Zoom Scale & Presets */}
-        <div className="space-y-2 bg-editor-surface/40 p-3 rounded-lg border border-editor-panelBorder">
+        <div className="space-y-2 bg-editor-surface/40 p-2.5 sm:p-3 rounded-lg border border-editor-panelBorder">
           <div className="flex items-center justify-between text-xs text-slate-300">
             <span className="flex items-center gap-1.5">
               <ZoomIn className="w-3.5 h-3.5 text-slate-400" />
@@ -560,7 +560,7 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
             onChange={(e) =>
               onUpdateTransform(selectedItem.id, { scale: parseFloat(e.target.value) })
             }
-            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 sm:h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer touch-manipulation accent-blue-500"
           />
 
           <div className="grid grid-cols-4 gap-1 pt-1">
@@ -568,10 +568,10 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
               <button
                 key={presetScale}
                 onClick={() => onUpdateTransform(selectedItem.id, { scale: presetScale })}
-                className={`py-0.5 rounded text-[10px] font-mono transition-colors ${
+                className={`min-h-[36px] sm:min-h-0 py-1.5 sm:py-0.5 rounded text-xs sm:text-[10px] font-mono transition-colors touch-manipulation flex items-center justify-center ${
                   Math.abs((transform.scale || 1.0) - presetScale) < 0.04
                     ? 'bg-blue-600 text-white font-semibold'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    : 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300'
                 }`}
               >
                 {presetScale}x
@@ -589,13 +589,13 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
           </label>
 
           {/* Duration */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs text-slate-300">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between text-xs text-slate-300 gap-1">
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                 <span>Timeline Duration</span>
               </span>
-              <span className="font-mono text-slate-400">
+              <span className="font-mono text-slate-400 text-xs">
                 {selectedItem.duration.toFixed(1)}s
                 {prov?.originalSegmentDuration && Math.abs(prov.originalSegmentDuration - selectedItem.duration) > 0.05 && (
                   <span className="text-[10px] text-cyan-400 ml-1">
@@ -616,10 +616,10 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
                   Math.max(0.5, parseFloat(e.target.value) || 1)
                 )
               }
-              className="w-full bg-editor-surface border border-editor-panelBorder rounded px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+              className="w-full bg-editor-surface border border-editor-panelBorder rounded px-3 py-2 sm:py-1 text-sm sm:text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500 min-h-[40px] sm:min-h-0"
             />
             {prov?.durationAdjustmentReason && prov.originalSegmentDuration && Math.abs(prov.originalSegmentDuration - selectedItem.duration) > 0.05 && (
-              <p className="text-[10px] text-cyan-400/90 italic pt-0.5">
+              <p className="text-[10px] text-cyan-400/90 italic pt-0.5 break-words">
                 {prov.durationAdjustmentReason}
               </p>
             )}
@@ -627,13 +627,13 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
 
           {/* Source Trim In-Point for Videos */}
           {selectedAsset.type === 'video' && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-300">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between text-xs text-slate-300 gap-1">
                 <span className="flex items-center gap-1.5">
                   <Scissors className="w-3.5 h-3.5 text-slate-400" />
                   <span>Start Trim In-Point</span>
                 </span>
-                <span className="font-mono text-slate-400">
+                <span className="font-mono text-slate-400 text-xs">
                   {selectedItem.sourceStart.toFixed(1)}s
                 </span>
               </div>
@@ -649,7 +649,7 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
                     Math.max(0, parseFloat(e.target.value) || 0)
                   )
                 }
-                className="w-full bg-editor-surface border border-editor-panelBorder rounded px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full bg-editor-surface border border-editor-panelBorder rounded px-3 py-2 sm:py-1 text-sm sm:text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500 min-h-[40px] sm:min-h-0"
               />
             </div>
           )}

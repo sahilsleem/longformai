@@ -1,4 +1,5 @@
 import { MediaAsset, AudioSegment, SegmentMatchResult, SemanticMatchCandidate } from '../types/project';
+import { getMatchingWorkerUrl } from '../config/workerConfig';
 
 export interface MatchingWorkerStatus {
   online: boolean;
@@ -11,7 +12,7 @@ export interface MatchingWorkerStatus {
   error?: string;
 }
 
-export const DEFAULT_MATCHING_WORKER_URL = 'http://127.0.0.1:8767';
+export const DEFAULT_MATCHING_WORKER_URL = getMatchingWorkerUrl();
 
 // Transient runtime cache to prevent redundant re-computation
 const MATCH_CACHE = new Map<string, SegmentMatchResult>();
@@ -20,7 +21,7 @@ const MATCH_CACHE = new Map<string, SegmentMatchResult>();
  * Checks if the local semantic matching worker is running on port 8767.
  */
 export async function checkMatchingWorkerHealth(
-  workerUrl: string = DEFAULT_MATCHING_WORKER_URL
+  workerUrl: string = getMatchingWorkerUrl()
 ): Promise<MatchingWorkerStatus> {
   try {
     const controller = new AbortController();
@@ -110,13 +111,15 @@ export async function matchMediaForSegment(
       mediaId: m.id,
       mediaName: m.name,
       description: semantic?.description || m.analysis?.description || '',
+      ocrText: semantic?.ocrText || m.analysis?.ocrText || undefined,
       tags: semantic?.tags || m.analysis?.tags || [],
       temporalSummary: semantic?.temporalSummary || undefined,
       keyframeDescriptions: keyframes
-        .filter((kf) => Boolean(kf.description))
+        .filter((kf) => Boolean(kf.description || kf.ocrText))
         .map((kf) => ({
           time: kf.time,
-          description: kf.description!,
+          description: kf.description || '',
+          ocrText: kf.ocrText || undefined,
           tags: kf.tags || [],
         })),
     };

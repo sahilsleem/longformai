@@ -57,29 +57,29 @@ export const WorkerDiagnosticsModal: React.FC<WorkerDiagnosticsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-editor-panelBorder flex items-center justify-between bg-editor-surface/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-editor-panelBorder flex items-center justify-between bg-editor-surface/50 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30 shrink-0">
               <Cpu className="w-4 h-4" />
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-white">Local Worker Diagnostics</h2>
-              <p className="text-xs text-slate-400">100% Offline AI & FFmpeg Processing Units</p>
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-semibold text-white truncate">Local Worker Diagnostics</h2>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">100% Offline AI & FFmpeg Processing Units</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4 overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto">
           {/* Status Overview Banner */}
           <div className="flex items-center justify-between p-3.5 rounded-lg bg-editor-surface border border-editor-panelBorder text-xs">
             <div className="flex items-center gap-2">
@@ -176,7 +176,7 @@ export const WorkerDiagnosticsModal: React.FC<WorkerDiagnosticsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-end">
+        <div className="px-4 sm:px-6 py-3 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-end shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors shadow-sm"

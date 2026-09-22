@@ -42,6 +42,7 @@ export function useProject() {
 
   const playAnimationRef = useRef<number | null>(null);
   const lastTickTimeRef = useRef<number>(0);
+  const currentTimeRef = useRef<number>(0);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize hidden audio element for voiceover playback synchronization
@@ -93,31 +94,48 @@ export function useProject() {
     if (isPlaying) {
       lastTickTimeRef.current = performance.now();
 
-      // Start audio playback if voiceover exists and position is within range
-      if (audio && project.voiceover && currentTime < project.voiceover.duration) {
-        if (Math.abs(audio.currentTime - currentTime) > 0.15) {
-          audio.currentTime = currentTime;
+      // Start audio playback once if voiceover exists and position is within range
+      if (audio && project.voiceover && currentTimeRef.current < project.voiceover.duration) {
+        if (Math.abs(audio.currentTime - currentTimeRef.current) > 0.05) {
+          audio.currentTime = currentTimeRef.current;
         }
         audio.play().catch((err) => console.warn('Audio play warning:', err));
       }
 
       const tick = (now: number) => {
-        const delta = (now - lastTickTimeRef.current) / 1000;
-        lastTickTimeRef.current = now;
+        // When voiceover audio is active and playing, use audio.currentTime as the master clock
+        if (audio && project.voiceover && !audio.paused && !audio.ended) {
+          const audioPos = audio.currentTime;
+          currentTimeRef.current = audioPos;
+          setCurrentTime(audioPos);
 
-        setCurrentTime((prev) => {
-          const next = prev + delta;
+          if (totalDuration > 0 && audioPos >= totalDuration) {
+            setIsPlaying(false);
+            audio.pause();
+            audio.currentTime = 0;
+            currentTimeRef.current = 0;
+            setCurrentTime(0);
+            return;
+          }
+        } else {
+          const delta = (now - lastTickTimeRef.current) / 1000;
+          const next = currentTimeRef.current + delta;
+          currentTimeRef.current = next;
+
           if (totalDuration > 0 && next >= totalDuration) {
             setIsPlaying(false);
             if (audio) {
               audio.pause();
               audio.currentTime = 0;
             }
-            return 0; // Return to start
+            currentTimeRef.current = 0;
+            setCurrentTime(0);
+            return;
           }
-          return next;
-        });
+          setCurrentTime(next);
+        }
 
+        lastTickTimeRef.current = now;
         playAnimationRef.current = requestAnimationFrame(tick);
       };
 
@@ -127,7 +145,7 @@ export function useProject() {
         cancelAnimationFrame(playAnimationRef.current);
         playAnimationRef.current = null;
       }
-      if (audio) {
+      if (audio && !audio.paused) {
         audio.pause();
       }
     }
@@ -135,18 +153,21 @@ export function useProject() {
     return () => {
       if (playAnimationRef.current) {
         cancelAnimationFrame(playAnimationRef.current);
+        playAnimationRef.current = null;
       }
     };
-  }, [isPlaying, totalDuration, project.voiceover, currentTime]);
+  }, [isPlaying, totalDuration, project.voiceover]);
 
-  // Synchronize audio seek when user scrubs timeline while paused
+  // Synchronize audio seek when user scrubs timeline
   const handleSeek = useCallback(
     (time: number) => {
-      setCurrentTime(time);
+      const clampedTime = Math.max(0, time);
+      currentTimeRef.current = clampedTime;
+      setCurrentTime(clampedTime);
       const audio = audioPlayerRef.current;
       if (audio && project.voiceover) {
-        if (time <= project.voiceover.duration) {
-          audio.currentTime = time;
+        if (clampedTime <= project.voiceover.duration) {
+          audio.currentTime = clampedTime;
         } else {
           audio.currentTime = project.voiceover.duration;
         }
@@ -341,6 +362,63 @@ export function useProject() {
         ),
       }));
     }
+  }, [project.media]);
+
+  // Analyze All Media Assets sequentially and update progress
+  const analyzeAllMedia = useCallback(async () => {
+    const unanalyzed = project.media.filter((m) => !m.analysis?.analyzed);
+    const targets = unanalyzed.length > 0 ? unanalyzed : project.media;
+    if (targets.length === 0) return;
+
+    setIsPreparing(true);
+    setPreparationProgress({
+      stage: 'analyzing_media',
+      percent: 0,
+      message: `Analyzing 0/${targets.length} media assets...`,
+    });
+
+    for (let i = 0; i < targets.length; i++) {
+      const targetAsset = targets[i];
+      setPreparationProgress({
+        stage: 'analyzing_media',
+        percent: Math.round(((i + 1) / targets.length) * 100),
+        message: `Analyzing visual media (${i + 1}/${targets.length}): ${targetAsset.name}...`,
+        currentItem: targetAsset.name,
+      });
+
+      // Mark this asset analyzing
+      setProject((prev) => ({
+        ...prev,
+        media: prev.media.map((m) =>
+          m.id === targetAsset.id ? { ...m, analysis: { analyzed: false, analyzing: true } } : m
+        ),
+      }));
+
+      try {
+        const analysisResult = await analyzeMediaAsset(targetAsset);
+        setProject((prev) => ({
+          ...prev,
+          media: prev.media.map((m) =>
+            m.id === targetAsset.id ? { ...m, analysis: analysisResult } : m
+          ),
+        }));
+        setIsDirty(true);
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : 'Analysis failed';
+        console.warn(`Analysis failed for ${targetAsset.name}:`, err);
+        setProject((prev) => ({
+          ...prev,
+          media: prev.media.map((m) =>
+            m.id === targetAsset.id
+              ? { ...m, analysis: { analyzed: false, analyzing: false, error: errMsg } }
+              : m
+          ),
+        }));
+      }
+    }
+
+    setIsPreparing(false);
+    setPreparationProgress(null);
   }, [project.media]);
 
   // Voiceover Volume & Mute Controls
@@ -915,6 +993,7 @@ export function useProject() {
 
     setSelectedItemId(null);
     setSelectedMediaId(null);
+    currentTimeRef.current = 0;
     setCurrentTime(0);
     setIsPlaying(false);
     setDraftStats(null);
@@ -941,6 +1020,7 @@ export function useProject() {
 
     setSelectedItemId(null);
     setSelectedMediaId(null);
+    currentTimeRef.current = 0;
     setCurrentTime(0);
     setIsPlaying(false);
     setTranscriptionError(null);
@@ -991,6 +1071,7 @@ export function useProject() {
     transcribeVoiceover,
     updateTranscriptSegmentText,
     analyzeMedia,
+    analyzeAllMedia,
     generateAIDraft,
     clearTimeline,
     setVoiceoverVolume,

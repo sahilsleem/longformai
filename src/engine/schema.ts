@@ -144,6 +144,8 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
           analyzed: m.analysis.analyzed,
           description: m.analysis.description,
           tags: m.analysis.tags,
+          ocrText: m.analysis.ocrText,
+          ocrConfidence: m.analysis.ocrConfidence,
           duration: m.analysis.duration,
           visualFeatures: m.analysis.visualFeatures,
           semantic: m.analysis.semantic
@@ -151,10 +153,19 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
                 analyzed: m.analysis.semantic.analyzed,
                 description: m.analysis.semantic.description,
                 tags: m.analysis.semantic.tags,
+                ocrText: m.analysis.semantic.ocrText,
+                ocrConfidence: m.analysis.semantic.ocrConfidence,
                 temporalSummary: m.analysis.semantic.temporalSummary,
                 hasVisualChange: m.analysis.semantic.hasVisualChange,
                 visualChanges: m.analysis.semantic.visualChanges,
-                keyframeDescriptions: m.analysis.semantic.keyframeDescriptions,
+                keyframeDescriptions: m.analysis.semantic.keyframeDescriptions?.map((kd) => ({
+                  time: kd.time,
+                  description: kd.description,
+                  tags: kd.tags,
+                  ocrText: kd.ocrText,
+                  ocrConfidence: kd.ocrConfidence,
+                  isKeyMoment: kd.isKeyMoment,
+                })),
                 modelUsed: m.analysis.semantic.modelUsed,
                 analyzedAt: m.analysis.semantic.analyzedAt,
               }
@@ -163,6 +174,8 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
             time: kf.time,
             description: kf.description,
             tags: kf.tags,
+            ocrText: kf.ocrText,
+            ocrConfidence: kf.ocrConfidence,
             isKeyMoment: kf.isKeyMoment,
             // imageData is stripped for portable export
           })),

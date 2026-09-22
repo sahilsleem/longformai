@@ -12,6 +12,8 @@ import json
 import re
 import base64
 import argparse
+import subprocess
+import shutil
 import threading
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -380,6 +382,79 @@ def compute_image_difference(img1: Image.Image, img2: Image.Image) -> float:
         return 0.0
 
 
+def find_tesseract_binary() -> Optional[str]:
+    """Finds the local native tesseract binary on Termux / Linux / Windows."""
+    candidates = [
+        os.getenv("TESSERACT_PATH"),
+        "/data/data/com.termux/files/usr/bin/tesseract",
+        "/data/data/com.termux/files/home/../usr/bin/tesseract",
+        "tesseract",
+        "/usr/bin/tesseract",
+        "/usr/local/bin/tesseract",
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+    for c in candidates:
+        if c:
+            if os.path.isabs(c) and os.path.isfile(c):
+                return c
+            which_path = shutil.which(c)
+            if which_path:
+                return which_path
+    return None
+
+
+def run_local_ocr(pil_img: Image.Image) -> Tuple[Optional[str], Optional[float]]:
+    """
+    Extracts visible text from image using local native Tesseract OCR if available.
+    Returns (cleaned_text, confidence) or (None, None) gracefully on any error or missing binary.
+    """
+    tess_bin = find_tesseract_binary()
+    if not tess_bin:
+        return None, None
+
+    try:
+        # Convert PIL Image to PNG bytes
+        img_byte_arr = io.BytesIO()
+        pil_img.save(img_byte_arr, format='PNG')
+        img_bytes = img_byte_arr.getvalue()
+
+        # Run tesseract with psm 6 (uniform block of text)
+        proc = subprocess.run(
+            [tess_bin, "stdin", "stdout", "--oem", "1", "-l", "eng", "--psm", "6"],
+            input=img_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5.0,
+            check=False
+        )
+
+        if proc.returncode == 0:
+            text = proc.stdout.decode("utf-8", errors="replace").strip()
+            clean_text = re.sub(r'[\r\n]+', ' ', text).strip()
+            if clean_text:
+                return clean_text, 0.90
+
+        # Try psm 11 (sparse text / isolated numbers) if psm 6 returned empty
+        proc2 = subprocess.run(
+            [tess_bin, "stdin", "stdout", "--oem", "1", "-l", "eng", "--psm", "11"],
+            input=img_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5.0,
+            check=False
+        )
+        if proc2.returncode == 0:
+            text2 = proc2.stdout.decode("utf-8", errors="replace").strip()
+            clean_text2 = re.sub(r'[\r\n]+', ' ', text2).strip()
+            if clean_text2:
+                return clean_text2, 0.85
+
+        return None, None
+    except Exception:
+        return None, None
+
+
 def extract_tags_from_text(text: str, max_tags: int = 6) -> List[str]:
     """Extract clean semantic keywords from generated caption."""
     words = re.findall(r'[a-zA-Z]{3,}', text.lower())
@@ -457,10 +532,14 @@ def get_health_data() -> Dict[str, Any]:
     if BLIP_ENGINE.error:
         state = "error"
 
+    tess_path = find_tesseract_binary()
+
     return {
         "status": "ok",
         "service": "LongFormAI Local Vision Worker",
         "engine": "onnx-blip",
+        "ocr_engine": "tesseract" if tess_path else "none",
+        "ocr_available": bool(tess_path),
         "model": CONFIG["model_name"],
         "device": CONFIG["device"],
         "model_loaded": is_loaded,
@@ -477,7 +556,7 @@ def analyze_media_semantics(
     is_video: bool = False,
     duration: float = 0.0
 ) -> Dict[str, Any]:
-    """Analyzes a set of representative keyframes with the ONNX BLIP model and temporal intelligence."""
+    """Analyzes a set of representative keyframes with the ONNX BLIP model, native OCR, and temporal intelligence."""
     if not keyframes:
         raise ValueError("No keyframes provided for semantic analysis.")
 
@@ -494,6 +573,7 @@ def analyze_media_semantics(
     decoded_images: List[Image.Image] = []
     all_tags: List[str] = []
     descriptions: List[str] = []
+    all_ocr_texts: List[str] = []
 
     # 1. Inference per frame
     for kf in keyframes:
@@ -504,6 +584,17 @@ def analyze_media_semantics(
 
         desc = BLIP_ENGINE.generate_caption(img)
         tags = extract_tags_from_text(desc)
+
+        # Run local native OCR
+        ocr_text, ocr_conf = run_local_ocr(img)
+        if ocr_text:
+            all_ocr_texts.append(ocr_text)
+            ocr_tokens = re.findall(r'[a-zA-Z0-9]+', ocr_text)
+            for tok in ocr_tokens:
+                lower_tok = tok.lower()
+                if lower_tok not in STOP_WORDS and lower_tok not in tags:
+                    tags.append(lower_tok)
+
         descriptions.append(desc)
         all_tags.extend(tags)
 
@@ -511,6 +602,8 @@ def analyze_media_semantics(
             "time": kf_time,
             "description": desc,
             "tags": tags,
+            "ocrText": ocr_text,
+            "ocrConfidence": ocr_conf,
             "isKeyMoment": False,
         })
 
@@ -555,10 +648,14 @@ def analyze_media_semantics(
         overall_description = descriptions[0] if descriptions else "Visual scene."
         temporal_summary = None
 
+    combined_ocr = " ".join(dict.fromkeys(all_ocr_texts)).strip() if all_ocr_texts else None
+
     return {
         "status": "success",
         "description": overall_description,
         "tags": sorted_unique_tags,
+        "ocrText": combined_ocr,
+        "ocrConfidence": 0.90 if combined_ocr else None,
         "keyframeDescriptions": keyframe_results,
         "temporalSummary": temporal_summary,
         "hasVisualChange": has_visual_change,

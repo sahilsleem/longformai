@@ -97,30 +97,30 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   const hasVoiceover = Boolean(project.voiceover);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-editor-panelBorder flex items-center justify-between bg-editor-surface/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-editor-panelBorder flex items-center justify-between bg-editor-surface/50 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30 shrink-0">
               <Video className="w-4 h-4" />
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-white">Master Video Export (1080p MP4)</h2>
-              <p className="text-xs text-slate-400">Local FFmpeg Rendering Engine • 100% Private</p>
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-semibold text-white truncate">Master Video Export (1080p MP4)</h2>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Local FFmpeg Rendering Engine • 100% Private</p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={isRendering}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors disabled:opacity-50"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors disabled:opacity-50 shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
           {/* Worker Status Banner */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-editor-surface border border-editor-panelBorder text-xs">
             <div className="flex items-center gap-2">
@@ -310,17 +310,17 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          <div className="text-[10px] sm:text-[11px] text-slate-500 flex items-center gap-1.5">
             <HardDrive className="w-3.5 h-3.5" />
-            <span>Saved to server/exports/ directory</span>
+            <span className="truncate">Saved to server/exports/</span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <button
               onClick={onClose}
               disabled={isRendering}
-              className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors disabled:opacity-50"
+              className="px-3 sm:px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors disabled:opacity-50"
             >
               Close
             </button>
@@ -328,7 +328,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             <button
               onClick={handleStartRender}
               disabled={isRendering || !workerHealth?.ffmpegAvailable}
-              className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 sm:px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRendering ? (
                 <>

@@ -103,11 +103,21 @@ export const Timeline: React.FC<TimelineProps> = ({
     ticks.push(s);
   }
 
-  // Handle ruler / timeline scrubbing
+  // Handle ruler / timeline scrubbing (Mouse & Touch)
   const handleTimelineMouseDown = (e: React.MouseEvent) => {
     if (!scrollContainerRef.current) return;
     const rect = scrollContainerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left + scrollContainerRef.current.scrollLeft;
+    const newTime = Math.max(0, clickX / timelineScale);
+    onSeek(newTime);
+    setIsScrubbing(true);
+  };
+
+  const handleTimelineTouchStart = (e: React.TouchEvent) => {
+    if (!scrollContainerRef.current || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const rect = scrollContainerRef.current.getBoundingClientRect();
+    const clickX = touch.clientX - rect.left + scrollContainerRef.current.scrollLeft;
     const newTime = Math.max(0, clickX / timelineScale);
     onSeek(newTime);
     setIsScrubbing(true);
@@ -130,6 +140,19 @@ export const Timeline: React.FC<TimelineProps> = ({
     [isScrubbing, resizingItemId, timelineScale, onSeek, onUpdateDuration]
   );
 
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (isScrubbing && scrollContainerRef.current && e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = scrollContainerRef.current.getBoundingClientRect();
+        const clickX = touch.clientX - rect.left + scrollContainerRef.current.scrollLeft;
+        const newTime = Math.max(0, clickX / timelineScale);
+        onSeek(newTime);
+      }
+    },
+    [isScrubbing, timelineScale, onSeek]
+  );
+
   const handleMouseUp = useCallback(() => {
     setIsScrubbing(false);
     setResizingItemId(null);
@@ -139,12 +162,16 @@ export const Timeline: React.FC<TimelineProps> = ({
     if (isScrubbing || resizingItemId) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('touchmove', handleTouchMove);
+      window.addEventListener('touchend', handleMouseUp);
     }
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleMouseUp);
     };
-  }, [isScrubbing, resizingItemId, handleMouseMove, handleMouseUp]);
+  }, [isScrubbing, resizingItemId, handleMouseMove, handleTouchMove, handleMouseUp]);
 
   // Reorder shift
   const handleMoveClip = (index: number, direction: 'left' | 'right') => {
@@ -194,7 +221,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   });
 
   return (
-    <div className="h-72 bg-editor-panel border-t border-editor-panelBorder flex flex-col shrink-0 select-none relative">
+    <div className="h-56 sm:h-64 lg:h-72 bg-editor-panel border-t border-editor-panelBorder flex flex-col shrink-0 select-none relative">
       <input
         type="file"
         ref={audioInputRef}
@@ -205,8 +232,8 @@ export const Timeline: React.FC<TimelineProps> = ({
 
       {/* AI Draft Review & Settings Modal */}
       {showDraftModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-md w-full max-h-[92vh] sm:max-h-[85vh] p-4 sm:p-5 space-y-4 overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-editor-panelBorder pb-3">
               <div className="flex items-center gap-2">
@@ -391,31 +418,31 @@ export const Timeline: React.FC<TimelineProps> = ({
 
           {/* AI Draft Review & Shot Intelligence Modal (Step 14) */}
           {showReviewModal && draftStats && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+              <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-2xl w-full max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between p-4 border-b border-editor-panelBorder bg-editor-surface/30">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-editor-panelBorder bg-editor-surface/30 shrink-0">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-purple-400" />
+                    <Sparkles className="w-5 h-5 text-purple-400 shrink-0" />
                     <div>
-                      <h3 className="font-semibold text-sm text-slate-100 uppercase tracking-wider">
+                      <h3 className="font-semibold text-xs sm:text-sm text-slate-100 uppercase tracking-wider">
                         AI Draft Review & Shot Intelligence
                       </h3>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[10px] sm:text-[11px] text-slate-400">
                         Measurable project metrics and shot selection provenance
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowReviewModal(false)}
-                    className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-editor-surface"
+                    className="text-slate-400 hover:text-slate-200 p-1.5 rounded hover:bg-editor-surface"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Tabs Switcher */}
-                <div className="flex items-center gap-1 px-4 pt-3 border-b border-editor-panelBorder/70 bg-editor-panel text-xs">
+                <div className="flex items-center gap-1 px-3 sm:px-4 pt-2.5 sm:pt-3 border-b border-editor-panelBorder/70 bg-editor-panel text-xs overflow-x-auto scrollbar-none shrink-0">
                   <button
                     onClick={() => setReviewTab('overview')}
                     className={`px-3 py-1.5 rounded-t-md font-medium transition-colors ${
@@ -801,17 +828,18 @@ export const Timeline: React.FC<TimelineProps> = ({
 
           {/* Draft Summary Stats Badge & Review Button */}
           {draftStats && (
-            <div className="hidden lg:flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5">
               <button
                 onClick={() => setShowReviewModal(true)}
-                className="flex items-center gap-1.5 text-[11px] font-medium bg-purple-950/80 hover:bg-purple-900 text-purple-200 px-2.5 py-1 rounded border border-purple-800/50 shadow-sm transition-colors"
+                className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px] font-medium bg-purple-950/80 hover:bg-purple-900 text-purple-200 px-2 sm:px-2.5 py-1 rounded border border-purple-800/50 shadow-sm transition-colors whitespace-nowrap"
                 title="Review AI Draft Statistics, Warnings & Shot Provenance"
               >
-                <FileText className="w-3 h-3 text-purple-400" />
-                <span>Review Draft ({draftStats.coveragePercentage}%)</span>
+                <FileText className="w-3 h-3 text-purple-400 shrink-0" />
+                <span className="hidden sm:inline">Review Draft ({draftStats.coveragePercentage}%)</span>
+                <span className="sm:hidden">Review ({draftStats.coveragePercentage}%)</span>
               </button>
 
-              <div className="flex items-center gap-1 text-[10px] font-mono bg-editor-surface text-slate-300 px-2 py-1 rounded border border-editor-panelBorder">
+              <div className="hidden xl:flex items-center gap-1 text-[10px] font-mono bg-editor-surface text-slate-300 px-2 py-1 rounded border border-editor-panelBorder">
                 <span>
                   {draftStats.assignedSegments}/{draftStats.totalSegments} assigned
                 </span>
@@ -848,7 +876,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         </div>
 
         {/* Timeline Zoom Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <span className="text-[11px] text-slate-500 hidden sm:inline">
             <span className="font-mono text-slate-300 font-semibold">{formatTimecode(totalDuration)}</span>
           </span>
@@ -867,7 +895,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             max="60"
             value={timelineScale}
             onChange={(e) => onSetTimelineScale(Number(e.target.value))}
-            className="w-16 sm:w-20 h-1 bg-editor-surface rounded-lg appearance-none cursor-pointer"
+            className="w-14 sm:w-20 h-1 bg-editor-surface rounded-lg appearance-none cursor-pointer"
             title="Timeline Scale"
           />
 
@@ -884,11 +912,11 @@ export const Timeline: React.FC<TimelineProps> = ({
       {/* Main Tracks Workspace */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Track Labels Column */}
-        <div className="w-40 bg-editor-panel border-r border-editor-panelBorder shrink-0 flex flex-col justify-start pt-6 z-10">
+        <div className="w-24 sm:w-32 md:w-40 bg-editor-panel border-r border-editor-panelBorder shrink-0 flex flex-col justify-start pt-6 z-10 select-none">
           {/* 1. Voiceover Track Header */}
-          <div className="h-16 px-3 flex flex-col justify-center border-b border-editor-panelBorder/60 bg-editor-surface/25">
+          <div className="h-16 px-2 sm:px-3 flex flex-col justify-center border-b border-editor-panelBorder/60 bg-editor-surface/25">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs text-purple-300 font-medium truncate">
+              <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-purple-300 font-medium truncate">
                 <Music className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                 <span className="truncate">Voiceover</span>
               </div>
@@ -911,7 +939,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             {voiceover ? (
               <div className="flex flex-col gap-1 mt-1">
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span className="font-mono text-purple-300 truncate max-w-[90px]" title={voiceover.name}>
+                  <span className="font-mono text-purple-300 truncate max-w-[60px] sm:max-w-[90px]" title={voiceover.name}>
                     {voiceover.name}
                   </span>
                   {onRemoveVoiceover && (
@@ -928,7 +956,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                 {/* Volume slider */}
                 {onSetVoiceoverVolume && (
                   <div className="flex items-center gap-1.5 pt-0.5">
-                    <span className="text-[9px] text-slate-500 font-mono">Vol</span>
+                    <span className="text-[9px] text-slate-500 font-mono hidden sm:inline">Vol</span>
                     <input
                       type="range"
                       min="0"
@@ -945,21 +973,21 @@ export const Timeline: React.FC<TimelineProps> = ({
             ) : (
               <button
                 onClick={() => audioInputRef.current?.click()}
-                className="mt-1 text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors"
+                className="mt-1 text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors truncate"
               >
-                <Upload className="w-2.5 h-2.5" />
-                <span>Import Audio</span>
+                <Upload className="w-2.5 h-2.5 shrink-0" />
+                <span className="truncate">Audio</span>
               </button>
             )}
           </div>
 
           {/* 2. Video / Photo Track Header */}
-          <div className="h-16 px-3 flex items-center justify-between border-b border-editor-panelBorder/50 bg-editor-surface/15">
-            <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
-              <Film className="w-3.5 h-3.5 text-blue-400" />
-              <span>Video / Photo</span>
+          <div className="h-16 px-2 sm:px-3 flex items-center justify-between border-b border-editor-panelBorder/50 bg-editor-surface/15">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-slate-300 font-medium truncate">
+              <Film className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="truncate">Video</span>
             </div>
-            <span className="text-[9px] text-slate-400 font-mono bg-slate-800 px-1 py-0.5 rounded">16:9</span>
+            <span className="text-[9px] text-slate-400 font-mono bg-slate-800 px-1 py-0.5 rounded hidden sm:inline">16:9</span>
           </div>
         </div>
 
@@ -968,6 +996,7 @@ export const Timeline: React.FC<TimelineProps> = ({
           ref={scrollContainerRef}
           className="flex-1 overflow-x-auto overflow-y-hidden relative bg-editor-trackBg flex flex-col cursor-crosshair"
           onMouseDown={handleTimelineMouseDown}
+          onTouchStart={handleTimelineTouchStart}
         >
           {/* Time Ruler */}
           <div

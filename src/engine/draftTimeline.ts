@@ -1,4 +1,4 @@
-import { AudioSegment, MediaAsset, TimelineItem, TransformState, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
+import { AudioSegment, MediaAsset, TimelineItem, TransformState, SemanticMatchCandidate, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
 import { createDefaultTransform } from './schema';
 import { matchMediaForSegment } from './matching';
 
@@ -9742,9 +9742,11 @@ export async function generateDraftTimeline(
   // 1. Filter media assets that have valid Step 5 semantic analysis
   const validAnalyzedMedia = mediaAssets.filter((m) => {
     const hasDesc = Boolean(m.analysis?.semantic?.description || m.analysis?.description);
+    const hasOcr = Boolean(m.analysis?.semantic?.ocrText || m.analysis?.ocrText);
     const hasTags = Boolean(m.analysis?.semantic?.tags?.length || m.analysis?.tags?.length);
-    const hasKeyframes = Boolean(m.analysis?.keyframes?.some((kf) => Boolean(kf.description)));
-    return hasDesc || hasTags || hasKeyframes;
+    const hasKeyframes = Boolean(m.analysis?.keyframes?.some((kf) => Boolean(kf.description || kf.ocrText)));
+    const hasTemporal = Boolean(m.analysis?.semantic?.temporalSummary);
+    return hasDesc || hasOcr || hasTags || hasKeyframes || hasTemporal || Boolean(m.analysis?.analyzed);
   });
 
   const unanalyzedCount = mediaAssets.length - validAnalyzedMedia.length;
@@ -9862,7 +9864,17 @@ export async function generateDraftTimeline(
         topK: 15,
       });
 
-      if (!matchResult.candidates || matchResult.candidates.length === 0) {
+      const hasWorkerCandidates = matchResult.candidates && matchResult.candidates.length > 0;
+      const candidatesToEvaluate: SemanticMatchCandidate[] = hasWorkerCandidates
+        ? matchResult.candidates
+        : validAnalyzedMedia.map((m) => ({
+            mediaId: m.id,
+            mediaName: m.name,
+            score: 0.10,
+            explanation: 'Available library media',
+          }));
+
+      if (candidatesToEvaluate.length === 0) {
         unassignedSegmentIds.push(segment.id);
         unassignedReasons[segment.id] = 'No matching media found in library';
         unassignedDetails.push({
@@ -9877,8 +9889,11 @@ export async function generateDraftTimeline(
       }
 
       // 3. Multi-Signal Deterministic Scoring (Step 13, 16, 19, 20, 21, 22, 23 & 24)
-      const rawScoredCandidates = matchResult.candidates
-        .filter((c) => c.score >= similarityThreshold)
+      const meetingThreshold = candidatesToEvaluate.filter((c) => c.score >= similarityThreshold);
+      const isFallbackBelowThreshold = meetingThreshold.length === 0;
+      const candidatePool = meetingThreshold.length > 0 ? meetingThreshold : candidatesToEvaluate;
+
+      const rawScoredCandidates = candidatePool
         .map((c) => {
           const asset = validAnalyzedMedia.find((m) => m.id === c.mediaId);
           if (!asset) return null;
@@ -10248,7 +10263,9 @@ export async function generateDraftTimeline(
 
           // Build deterministic explanation
           let explanation = c.explanation || 'Semantic match';
-          if (c.score >= 0.75) {
+          if (isFallbackBelowThreshold) {
+            explanation = 'Selected as best available fallback match from library (below confidence threshold)';
+          } else if (c.score >= 0.75) {
             explanation = 'Selected because transcript meaning strongly matches the analyzed scene concepts';
           } else if (transitionIntel.continuityBonus > 0) {
             explanation = 'Selected as a strong match with smooth thematic continuity with the previous shot';
@@ -10272,6 +10289,7 @@ export async function generateDraftTimeline(
             rawScore: c.score,
             adjustedScore,
             explanation,
+            isBelowThresholdFallback: isFallbackBelowThreshold,
             continuityBonus: transitionIntel.continuityBonus,
             continuityReason: transitionIntel.reason,
             isConsecutiveContinuation: transitionIntel.isConsecutiveContinuation,
@@ -10395,6 +10413,10 @@ export async function generateDraftTimeline(
         ? calculateCandidateConfidence(bestCandidate, scoredCandidates[1])
         : null;
 
+      if (candidateConfidence && isFallbackBelowThreshold) {
+        candidateConfidence.candidateConfidenceLevel = 'LOW';
+      }
+
       // Step 49: Draft Confidence-Aware Gap & Uncertainty Intelligence (observational only)
       // Computes match quality for the final selected candidate.
       // For rejected candidates (below threshold), records BELOW_EXISTING_THRESHOLD gap reason.
@@ -10411,12 +10433,12 @@ export async function generateDraftTimeline(
       // Calculates diversity metrics across available candidate pool for the segment.
       const candidateDiversity = calculateCandidateDiversity(
         scoredCandidates,
-        bestCandidate && bestCandidate.adjustedScore >= similarityThreshold * 0.6 ? bestCandidate : null,
-        similarityThreshold * 0.6
+        bestCandidate,
+        isFallbackBelowThreshold ? 0 : similarityThreshold * 0.6
       );
 
       // If no candidate satisfies the threshold after evaluation, leave segment unassigned
-      if (!bestCandidate || bestCandidate.adjustedScore < similarityThreshold * 0.6) {
+      if (!bestCandidate) {
         const topRawScore = matchResult.candidates[0]?.score || 0;
         const reason = `No candidate met similarity threshold (${topRawScore.toFixed(2)} raw vs ${similarityThreshold.toFixed(2)} min)`;
         unassignedSegmentIds.push(segment.id);
@@ -10636,6 +10658,7 @@ export async function generateDraftTimeline(
           selectedCandidateRank: candidateDiversity.selectedCandidateRank,
           candidateDiversity: candidateDiversity.candidateDiversity,
           candidateDiversityContext: candidateDiversity.candidateDiversityContext,
+          isBelowThresholdFallback: bestCandidate.isBelowThresholdFallback,
           isManuallyEdited: false,
           assignedAt: Date.now(),
         },

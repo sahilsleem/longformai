@@ -1,3 +1,8 @@
+import {
+  WORKER_PORTS,
+  getWorkerUrl,
+} from '../config/workerConfig';
+
 export interface WorkerDiagnostic {
   name: string;
   port: number;
@@ -8,18 +13,18 @@ export interface WorkerDiagnostic {
   errorMessage?: string;
 }
 
-export async function checkAllWorkers(): Promise<WorkerDiagnostic[]> {
+export async function checkAllWorkers(customHost?: string): Promise<WorkerDiagnostic[]> {
   const workers = [
-    { name: 'Whisper Transcription Worker', port: 8765 },
-    { name: 'BLIP Vision Understanding Worker', port: 8766 },
-    { name: 'Semantic Matching Worker', port: 8767 },
-    { name: 'FFmpeg Master Render Worker', port: 8768 },
+    { name: 'Whisper Transcription Worker', port: WORKER_PORTS.TRANSCRIPTION },
+    { name: 'BLIP Vision Understanding Worker', port: WORKER_PORTS.VISION },
+    { name: 'Semantic Matching Worker', port: WORKER_PORTS.MATCHING },
+    { name: 'FFmpeg Master Render Worker', port: WORKER_PORTS.RENDERING },
   ];
 
   const results: WorkerDiagnostic[] = [];
 
   for (const w of workers) {
-    const url = `http://127.0.0.1:${w.port}/health`;
+    const url = `${getWorkerUrl(w.port, customHost)}/health`;
     try {
       const resp = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(2500) });
       if (resp.ok) {

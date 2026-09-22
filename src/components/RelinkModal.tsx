@@ -97,8 +97,8 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 select-none">
+      <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh]">
         {/* Hidden inputs */}
         <input
           type="file"
@@ -124,28 +124,28 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
         />
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-editor-panelBorder flex items-center justify-between bg-editor-surface/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-editor-panelBorder flex items-center justify-between bg-editor-surface/50 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30 shrink-0">
               <Link2 className="w-4 h-4" />
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-white">Media Relinking Manager</h2>
-              <p className="text-xs text-slate-400">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-semibold text-white truncate">Media Relinking Manager</h2>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">
                 Restore local file references without losing timeline edits, framing, or transcripts
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4 overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           {/* Status Alert */}
           {totalUnlinkedCount > 0 ? (
             <div className="p-3.5 bg-amber-950/40 border border-amber-800/40 rounded-lg flex items-start justify-between gap-3 text-xs text-amber-300">
@@ -340,15 +340,15 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-            <HardDrive className="w-3.5 h-3.5" />
-            <span>Files remain local in your browser memory</span>
+        <div className="px-4 sm:px-6 py-3 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-between gap-2 shrink-0">
+          <div className="text-[10px] sm:text-[11px] text-slate-500 flex items-center gap-1.5 min-w-0">
+            <HardDrive className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Files remain local in browser memory</span>
           </div>
 
           <button
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors shadow-sm"
+            className="px-4 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors shadow-sm shrink-0"
           >
             Done
           </button>

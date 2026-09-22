@@ -240,36 +240,36 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-editor-bg overflow-hidden relative select-none">
       {/* Top Preview Status Bar */}
-      <div className="h-9 px-4 flex items-center justify-between border-b border-editor-panelBorder/50 bg-editor-panel/50 text-xs text-slate-400">
-        <div className="flex items-center gap-3">
-          <span className="font-semibold text-slate-300">16:9 Canvas Viewport</span>
+      <div className="h-9 px-2.5 sm:px-4 flex items-center justify-between border-b border-editor-panelBorder/50 bg-editor-panel/50 text-xs text-slate-400 overflow-x-auto scrollbar-none gap-2 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
+          <span className="font-semibold text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">16:9 Canvas</span>
           {activeAsset && (
-            <span className="text-slate-500 text-[11px] truncate max-w-[180px]">
+            <span className="text-slate-500 text-[10px] sm:text-[11px] truncate max-w-[120px] sm:max-w-[180px]">
               • {activeAsset.name}
             </span>
           )}
           {isMissing ? (
-            <span className="flex items-center gap-1 text-[10px] text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-700">
-              <AlertCircle className="w-3 h-3 text-amber-400" />
-              File Unlinked
+            <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-amber-300 bg-amber-950/80 px-1.5 sm:px-2 py-0.5 rounded border border-amber-700 whitespace-nowrap">
+              <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+              Unlinked
             </span>
           ) : isNon16x9 ? (
-            <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">
-              <AlertCircle className="w-3 h-3" />
-              Framed to 16:9 ({activeAsset?.aspectRatioLabel})
+            <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-amber-400 bg-amber-950/60 px-1.5 sm:px-2 py-0.5 rounded border border-amber-800/40 whitespace-nowrap">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              Framed ({activeAsset?.aspectRatioLabel})
             </span>
           ) : null}
           {transform.fitMode && (
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 border border-slate-700">
+            <span className="text-[9px] sm:text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 border border-slate-700 whitespace-nowrap">
               {transform.fitMode}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={() => setShowGuides(!showGuides)}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-colors ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] transition-colors whitespace-nowrap ${
               showGuides
                 ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                 : 'text-slate-400 hover:text-slate-200'
@@ -285,7 +285,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       {/* Main 16:9 Preview Viewport */}
       <div
         ref={containerRef}
-        className="flex-1 p-6 flex items-center justify-center relative overflow-hidden"
+        className="flex-1 p-2 sm:p-4 md:p-6 flex items-center justify-center relative overflow-hidden"
       >
         {/* The 16:9 Aspect Ratio Box (Represents 1920x1080 Output Frame) */}
         <div
@@ -404,12 +404,12 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       </div>
 
       {/* Bottom Transport Controls Bar */}
-      <div className="h-12 bg-editor-panel border-t border-editor-panelBorder px-6 flex items-center justify-between">
+      <div className="h-12 bg-editor-panel border-t border-editor-panelBorder px-3 sm:px-6 flex items-center justify-between shrink-0">
         {/* Playback Transport Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={() => onSeek(Math.max(0, currentTime - 1))}
-            className="p-1.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
             title="Step Back 1s (Left Arrow)"
           >
             <SkipBack className="w-4 h-4" />
@@ -425,7 +425,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
           <button
             onClick={() => onSeek(Math.min(totalDuration, currentTime + 1))}
-            className="p-1.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
             title="Step Forward 1s (Right Arrow)"
           >
             <SkipForward className="w-4 h-4" />
@@ -433,7 +433,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         </div>
 
         {/* Quick Framing Guide Hint */}
-        <div className="text-[11px] text-slate-400 hidden sm:block">
+        <div className="text-[11px] text-slate-400 hidden md:block">
           {activeItem ? (
             <span>💡 Click & drag canvas to pan 16:9 frame • Scroll wheel to zoom</span>
           ) : (
@@ -443,24 +443,24 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
         {/* Zoom Quick Adjuster */}
         {activeItem && onUpdateTransform ? (
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+          <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-slate-400 font-mono">
             <button
               onClick={() =>
                 onUpdateTransform({ scale: Math.max(1.0, Math.round(((transform.scale || 1.0) - 0.1) * 10) / 10) })
               }
-              className="p-1 hover:bg-editor-surface rounded text-slate-300"
+              className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
               title="Zoom Out"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="min-w-[48px] text-center">
+            <span className="min-w-[40px] sm:min-w-[48px] text-center text-[11px] sm:text-xs">
               {Math.round((transform.scale || 1.0) * 100)}%
             </span>
             <button
               onClick={() =>
                 onUpdateTransform({ scale: Math.min(4.0, Math.round(((transform.scale || 1.0) + 0.1) * 10) / 10) })
               }
-              className="p-1 hover:bg-editor-surface rounded text-slate-300"
+              className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
               title="Zoom In"
             >
               <ZoomIn className="w-3.5 h-3.5" />

@@ -305,7 +305,7 @@ export async function analyzeMediaAsset(
         description = semantic.description;
         tags = semantic.tags;
 
-        // Enrich keyframes with individual descriptions & key moments
+        // Enrich keyframes with individual descriptions, OCR, & key moments
         if (semantic.keyframeDescriptions && semantic.keyframeDescriptions.length > 0) {
           keyframes = keyframes.map((kf) => {
             const match = semantic?.keyframeDescriptions?.find((kd) => Math.abs(kd.time - kf.time) < 0.2);
@@ -314,6 +314,8 @@ export async function analyzeMediaAsset(
                   ...kf,
                   description: match.description,
                   tags: match.tags,
+                  ocrText: match.ocrText ?? kf.ocrText,
+                  ocrConfidence: match.ocrConfidence ?? kf.ocrConfidence,
                   isKeyMoment: match.isKeyMoment ?? kf.isKeyMoment,
                 }
               : kf;
@@ -342,6 +344,8 @@ export async function analyzeMediaAsset(
     semantic,
     description: description || undefined,
     tags: tags.length > 0 ? tags : undefined,
+    ocrText: semantic?.ocrText || undefined,
+    ocrConfidence: semantic?.ocrConfidence || undefined,
     error,
     analyzedAt: Date.now(),
   };
