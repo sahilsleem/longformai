@@ -17,7 +17,7 @@ export const DEFAULT_HOST = '127.0.0.1';
 
 /**
  * Returns the configured worker host.
- * Priority: customHost override > import.meta.env.VITE_WORKER_HOST > process.env.VITE_WORKER_HOST > '127.0.0.1'
+ * Priority: customHost override > import.meta.env.VITE_WORKER_HOST > window.location.hostname > '127.0.0.1'
  */
 export function getWorkerHost(customHost?: string): string {
   if (customHost && customHost.trim()) {
@@ -42,6 +42,16 @@ export function getWorkerHost(customHost?: string): string {
     }
   } catch {
     // Ignore context where process.env is unavailable
+  }
+
+  // 3. Browser window location hostname
+  try {
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      const browserHost = window.location.hostname.trim();
+      if (browserHost) return browserHost;
+    }
+  } catch {
+    // Ignore context where window is unavailable
   }
 
   return DEFAULT_HOST;

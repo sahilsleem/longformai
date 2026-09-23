@@ -64,4 +64,19 @@ describe('Worker Centralized Configuration', () => {
     expect(getMatchingWorkerUrl('10.0.0.50')).toBe('http://10.0.0.50:8767');
     expect(getRenderWorkerUrl('10.0.0.50')).toBe('http://10.0.0.50:8768');
   });
+
+  it('proves window.location.hostname is used when no VITE_WORKER_HOST is set', () => {
+    (globalThis as any).window = {
+      location: {
+        hostname: '100.91.141.9',
+      },
+    };
+
+    try {
+      expect(getWorkerHost()).toBe('100.91.141.9');
+      expect(getVisionWorkerUrl()).toBe('http://100.91.141.9:8766');
+    } finally {
+      delete (globalThis as any).window;
+    }
+  });
 });
