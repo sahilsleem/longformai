@@ -1809,10 +1809,10 @@ export function calculateSubjectContinuityModifier(
 // ==========================================
 
 export const GENERIC_MEDIA_NAME_STOPWORDS = new Set([
-  'video', 'clip', 'footage', 'scene', 'shot', 'image', 'photo', 'picture', 'broll', 'b-roll',
+  'video', 'clip', 'footage', 'scene', 'shot', 'image', 'photo', 'photos', 'picture', 'pictures', 'broll', 'b-roll',
   'track', 'media', 'asset', 'final', 'edit', 'draft', 'take', 'vlog', 'audio', 'mp4', 'mov',
   'jpg', 'jpeg', 'png', 'webp', 'mkv', 'hd', '4k', '1080p', '720p', 'raw', 'rec', 'recording',
-  'cam', 'camera', 'cut', 'render', 'export', 'project', 'sequence', 'part', 'segment', 'frame',
+  'cam', 'camera', 'cameras', 'cut', 'render', 'export', 'project', 'sequence', 'part', 'segment', 'frame',
   'red', 'carpet', 'event', 'press', 'interview', 'conference', 'meeting', 'speech', 'presentation',
   'arrival', 'celebration', 'background', 'overlay', 'stock', 'view', 'wallpaper', 'screen',
   'screencast', 'thumbnail', 'thumb', 'img', 'vid',
@@ -1828,8 +1828,21 @@ export const GENERIC_MEDIA_NAME_STOPWORDS = new Set([
   'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such',
   'have', 'has', 'had', 'having', 'been', 'being', 'were', 'does', 'doing',
   'would', 'should', 'could', 'might', 'must', 'will', 'shall', 'inside', 'outside',
-  'a', 'an', 'in', 'on', 'at', 'to', 'by', 'of', 'is', 'are', 'was', 'be'
+  'a', 'an', 'in', 'on', 'at', 'to', 'by', 'of', 'is', 'are', 'was', 'be',
+  // Event, scene, apparel, and action vocabulary
+  'award', 'awards', 'ceremony', 'ceremonies', 'crowd', 'crowds', 'audience', 'stage', 'microphone',
+  'fashion', 'dress', 'suit', 'party', 'wedding', 'festival', 'hall', 'smile', 'smiling', 'pose',
+  'posing', 'poses', 'walk', 'walking', 'entrance', 'grand', 'exclusive', 'photographer', 'photographers',
+  'fan', 'fans', 'trophy', 'glamour', 'dazzling',
+  // Social media handle suffixes and publisher stopwords
+  'cutie', 'fanclub', 'fanpage', 'updates', 'update', 'official', 'daily', 'lovers', 'lover',
+  'edits', 'chronicle', 'prime', 'news', 'journalist', 'videojournalist', 'status', 'page',
+  'club', 'posts', 'reels', 'shorts', 'gallery', 'hub', 'vibes', 'world', 'tv',
+  'channel', 'cinema', 'filmy', 'filmae', 'bollywood', 'hollywood', 'zone', 'bollywoodchronicle',
+  'buzzzookaprime', 'filmycine', 'mundenews', 'raazz'
 ]);
+
+export const SOCIAL_HANDLE_SUFFIXES = /(cutie|fanclub|fanpage|updates|update|official|daily|lovers|lover|edits|edit|chronicle|prime|news|journalist|videojournalist|status|page|club|posts|reels|shorts|gallery|hub|vibes|world|tv|channel|cinema|filmy|filmae|bollywood|hollywood|zone)$/i;
 
 /**
  * Step 53: Extracts distinct identity tokens (e.g. celebrity names, characters, subjects)
@@ -1850,7 +1863,13 @@ export function extractMediaIdentityTokens(asset: MediaAsset): string[] {
     .split(/\s+/)
     .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
 
-  nameWords.forEach((w) => tokens.add(w));
+  nameWords.forEach((w) => {
+    tokens.add(w);
+    const stripped = w.replace(SOCIAL_HANDLE_SUFFIXES, '');
+    if (stripped.length >= 3 && stripped !== w && !GENERIC_MEDIA_NAME_STOPWORDS.has(stripped)) {
+      tokens.add(stripped);
+    }
+  });
 
   // 2. From explicit user tags if provided
   const allTags = [
@@ -1914,9 +1933,25 @@ export function calculateDirectEntityConsistencyModifier(
 
   // Check matching tokens between narration and candidate
   const textLower = narrationText.toLowerCase();
-  const matchedTokens = candidateIdentityTokens.filter((token) =>
-    narrationTokens.includes(token) || textLower.includes(token)
-  );
+  const matchedTokensSet = new Set<string>();
+
+  for (const cToken of candidateIdentityTokens) {
+    if (narrationTokens.includes(cToken) || textLower.includes(cToken)) {
+      matchedTokensSet.add(cToken);
+      continue;
+    }
+    for (const nToken of narrationTokens) {
+      if (nToken.length >= 3 && cToken.length >= 3) {
+        if (cToken.includes(nToken)) {
+          matchedTokensSet.add(nToken);
+        } else if (nToken.includes(cToken)) {
+          matchedTokensSet.add(cToken);
+        }
+      }
+    }
+  }
+
+  const matchedTokens = Array.from(matchedTokensSet);
 
   // 1. Positive Entity Match (reward +0.15)
   if (matchedTokens.length > 0) {
@@ -1937,9 +1972,12 @@ export function calculateDirectEntityConsistencyModifier(
     const otherAssets = allMediaAssets.filter((a) => a.id !== candidateAsset.id);
     const poolOtherEntities = otherAssets.flatMap((a) => extractMediaIdentityTokens(a));
 
-    const narrationMatchesOtherEntity = poolOtherEntities.some((token) =>
-      narrationTokens.includes(token) || textLower.includes(token)
-    );
+    const narrationMatchesOtherEntity = poolOtherEntities.some((token) => {
+      if (narrationTokens.includes(token) || textLower.includes(token)) return true;
+      return narrationTokens.some(
+        (nToken) => nToken.length >= 3 && token.length >= 3 && (token.includes(nToken) || nToken.includes(token))
+      );
+    });
 
     if (narrationMatchesOtherEntity) {
       return {
@@ -9094,12 +9132,23 @@ export function calculateAggregateVisualIntelligence(modifiers: {
  * preserves semantic dominance by ensuring the higher semantic candidate cannot be overtaken
  * solely by visual intelligence modifiers.
  * For candidates with semantic separation < 0.100, standard adjustedScore ranking applies.
+ * Step 53: Confirmed direct entity matches take explicit entity-priority over non-matching candidates.
  */
 export function compareCandidatesWithSemanticProtection(
-  a: { rawScore: number; adjustedScore: number; boundedVisualIntelligence?: number },
-  b: { rawScore: number; adjustedScore: number; boundedVisualIntelligence?: number },
+  a: { rawScore: number; adjustedScore: number; boundedVisualIntelligence?: number; entityConsistencyModifier?: number },
+  b: { rawScore: number; adjustedScore: number; boundedVisualIntelligence?: number; entityConsistencyModifier?: number },
   safetyBand: number = VISUAL_RANKING_SEMANTIC_SAFETY_BAND
 ): number {
+  // Step 53: Explicit Entity-Priority. Confirmed direct entity matches decisively rank ahead of non-entity candidates.
+  const aEntityMatch = (a.entityConsistencyModifier || 0) > 0;
+  const bEntityMatch = (b.entityConsistencyModifier || 0) > 0;
+  if (aEntityMatch && !bEntityMatch) {
+    return -1; // A has confirmed entity match, B does not
+  }
+  if (!aEntityMatch && bEntityMatch) {
+    return 1; // B has confirmed entity match, A does not
+  }
+
   const semanticDiff = Math.round((a.rawScore - b.rawScore) * 1000) / 1000;
 
   // If candidate A has a semantic score >= safetyBand higher than B
@@ -9407,6 +9456,7 @@ export function applySemanticRankingProtection<T extends {
   rawScore: number;
   adjustedScore: number;
   boundedVisualIntelligence?: number;
+  entityConsistencyModifier?: number;
   semanticRankingProtectionApplied?: boolean;
   semanticRankingProtectionReason?: string;
 }>(
@@ -9421,6 +9471,11 @@ export function applySemanticRankingProtection<T extends {
 
   // Check if protection altered the top candidate relative to unprotected adjustedScore sorting
   const rawTopByAdjusted = [...candidates].sort((a, b) => {
+    const aEntityMatch = (a.entityConsistencyModifier || 0) > 0;
+    const bEntityMatch = (b.entityConsistencyModifier || 0) > 0;
+    if (aEntityMatch && !bEntityMatch) return -1;
+    if (!aEntityMatch && bEntityMatch) return 1;
+
     const diff = b.adjustedScore - a.adjustedScore;
     return Math.abs(diff) > 0.0001 ? diff : b.rawScore - a.rawScore;
   })[0];

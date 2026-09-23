@@ -154,6 +154,43 @@ describe('Step 53: calculateDirectEntityConsistencyModifier', () => {
     const r2 = calculateDirectEntityConsistencyModifier(narration, katrinaAsset, allMedia);
     expect(r1).toEqual(r2);
   });
+
+  it('matches concatenated social media filename katrinakaifcutie with Katrina Kaif', () => {
+    const asset = makeMedia({ name: 'katrinakaifcutie-20260922-0001.mp4' });
+    const narration = 'Katrina Kaif arrived at the awards ceremony.';
+    const result = calculateDirectEntityConsistencyModifier(narration, asset);
+    expect(result.status).toBe('MATCH');
+    expect(result.modifier).toBe(0.15);
+    expect(result.matchedTokens).toContain('katrina');
+  });
+
+  it('matches compound social media filename vickykatrina.updates with Katrina', () => {
+    const asset = makeMedia({ name: 'vickykatrina.updates-20260922-0001.mp4' });
+    const narration = 'Katrina arrived at the party.';
+    const result = calculateDirectEntityConsistencyModifier(narration, asset);
+    expect(result.status).toBe('MATCH');
+    expect(result.modifier).toBe(0.15);
+    expect(result.matchedTokens).toContain('katrina');
+  });
+
+  it('matches compound social media filename salmankhanfanclub with Salman Khan', () => {
+    const asset = makeMedia({ name: 'salmankhanfanclub-20260922-0001.mp4' });
+    const narration = 'Salman Khan attended the grand press conference.';
+    const result = calculateDirectEntityConsistencyModifier(narration, asset);
+    expect(result.status).toBe('MATCH');
+    expect(result.modifier).toBe(0.15);
+    expect(result.matchedTokens).toContain('salman');
+    expect(result.matchedTokens).toContain('khan');
+  });
+
+  it('returns NEUTRAL and not falsely MATCH for purely generic filenames with Katrina narration', () => {
+    const asset = makeMedia({ name: 'red_carpet_event_broll_footage_4k.mp4' });
+    const narration = 'Katrina Kaif walked onto the red carpet.';
+    const result = calculateDirectEntityConsistencyModifier(narration, asset);
+    expect(result.status).toBe('NEUTRAL');
+    expect(result.modifier).toBe(0.0);
+    expect(result.matchedTokens).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -315,5 +352,48 @@ describe('Step 53: generateDraftTimeline Entity Consistency Integration', () => 
     expect(result.timeline).toHaveLength(1);
     expect(result.timeline[0].mediaId).toBe('m-nature');
     expect(result.timeline[0].provenance?.entityConsistencyModifier).toBe(0);
+  });
+
+  it('5. Explicit Katrina match beats generic high-semantic-similarity B-roll candidate', async () => {
+    const katrinaAsset = makeMedia({
+      id: 'm-katrina',
+      name: 'katrinakaifcutie-20260922-0001.mp4',
+      analysis: {
+        analyzed: true,
+        // Generic description with low semantic overlap to transcript
+        description: 'A woman wearing a dress posing for cameras',
+        tags: ['fashion', 'dress', 'woman'],
+      },
+    });
+
+    const genericEventBrollAsset = makeMedia({
+      id: 'm-generic-event',
+      name: 'bollywoodchronicle-20260922-0001.mp4',
+      analysis: {
+        analyzed: true,
+        // Very high semantic overlap to transcript keywords like "awards ceremony" / "red carpet"
+        description: 'A grand red carpet event at the annual cinema awards ceremony with cheering crowd and press',
+        tags: ['awards', 'ceremony', 'press', 'carpet', 'event', 'crowd'],
+      },
+    });
+
+    const segments: AudioSegment[] = [
+      makeSegment({
+        id: 'seg-1',
+        text: 'Katrina Kaif arrived at the grand awards ceremony, smiling for the cameras.',
+        startTime: 0,
+        endTime: 6,
+      }),
+    ];
+
+    const result = await generateDraftTimeline(segments, [genericEventBrollAsset, katrinaAsset], {
+      similarityThreshold: 0.30,
+    });
+
+    expect(result.timeline).toHaveLength(1);
+    // Entity-priority must ensure Katrina footage is selected over generic event B-roll
+    expect(result.timeline[0].mediaId).toBe('m-katrina');
+    expect(result.timeline[0].provenance?.entityConsistencyModifier).toBe(0.15);
+    expect(result.timeline[0].provenance?.explanation).toMatch(/katrina/i);
   });
 });
