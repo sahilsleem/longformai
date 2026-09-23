@@ -277,6 +277,7 @@ class OnnxBlipEngine:
         # 1. Vision Encoder (split_0.onnx)
         pixel_values = preprocess_image(pil_img)
         input_name_0 = self.session_0.get_inputs()[0].name
+        outputs_0 = self.session_0.run(None, {input_name_0: pixel_values})
         # split_0.onnx outputs:
         # outputs_0[0] = encoder_attention_mask (int64)
         # outputs_0[1] = encoder_hidden_states (float32)
