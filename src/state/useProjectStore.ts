@@ -539,6 +539,68 @@ export function useProject() {
         updatedAt: new Date().toISOString(),
       }));
       setIsDirty(true);
+
+      // Trigger automatic background analysis for newly imported visual assets sequentially
+      const visualAssets = newAssets.filter((a) => a.type === 'video' || a.type === 'image');
+      if (visualAssets.length > 0) {
+        (async () => {
+          for (const newAsset of visualAssets) {
+            try {
+              // Avoid analyzing if already analyzed
+              let isAlreadyAnalyzed = false;
+              setProject((prev) => {
+                const current = prev.media.find((m) => m.id === newAsset.id);
+                if (current?.analysis?.analyzed) {
+                  isAlreadyAnalyzed = true;
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  media: prev.media.map((m) =>
+                    m.id === newAsset.id
+                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: true } }
+                      : m
+                  ),
+                };
+              });
+
+              if (isAlreadyAnalyzed) continue;
+
+              const analysisResult = await analyzeMediaAsset(newAsset);
+
+              setProject((prev) => {
+                const exists = prev.media.some((m) => m.id === newAsset.id);
+                if (!exists) return prev;
+
+                return {
+                  ...prev,
+                  media: prev.media.map((m) =>
+                    m.id === newAsset.id ? { ...m, analysis: analysisResult } : m
+                  ),
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+              setIsDirty(true);
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : 'Automatic analysis failed';
+              console.warn(`Automatic background analysis failed for ${newAsset.name}:`, err);
+              setProject((prev) => {
+                const exists = prev.media.some((m) => m.id === newAsset.id);
+                if (!exists) return prev;
+
+                return {
+                  ...prev,
+                  media: prev.media.map((m) =>
+                    m.id === newAsset.id
+                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: false, error: errMsg } }
+                      : m
+                  ),
+                };
+              });
+            }
+          }
+        })();
+      }
     }
   }, []);
 
