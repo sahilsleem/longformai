@@ -11,7 +11,10 @@
  *  3. Multi-word entity names (e.g. "Katrina Kaif", "Salman Khan")
  *  4. Invariants & determinism
  *  5. End-to-end integration with generateDraftTimeline:
- *     - Correct person footage selected over wrong person footage despite raw scene similarity
+ *     - Correct named entity below threshold survives candidate filtering
+ *     - Correct named entity beats wrong named entity with higher raw semantic similarity
+ *     - Generic low-score B-roll is still filtered normally
+ *     - Narration without entity names behaves exactly as before
  *     - DraftProvenance entityConsistencyModifier and entityMatchReason populated
  */
 
@@ -158,24 +161,15 @@ describe('Step 53: calculateDirectEntityConsistencyModifier', () => {
 // ---------------------------------------------------------------------------
 
 describe('Step 53: generateDraftTimeline Entity Consistency Integration', () => {
-  it('selects matching celebrity footage over conflicting celebrity footage and populates provenance', async () => {
+  it('1. Correct named entity below default threshold (0.30) survives candidate pre-filtering and is selected', async () => {
     const katrinaAsset = makeMedia({
       id: 'm-katrina',
       name: 'katrina_kaif_interview.mp4',
       analysis: {
         analyzed: true,
+        // Description does not match scene terms, giving low raw similarity
         description: 'A woman speaking on a stage with a microphone',
         tags: ['interview', 'speech', 'katrina', 'kaif'],
-      },
-    });
-
-    const salmanAsset = makeMedia({
-      id: 'm-salman',
-      name: 'salman_khan_red_carpet.mp4',
-      analysis: {
-        analyzed: true,
-        description: 'A man in a black suit on a red carpet smiling at cameras',
-        tags: ['red', 'carpet', 'salman', 'khan'],
       },
     });
 
@@ -188,18 +182,138 @@ describe('Step 53: generateDraftTimeline Entity Consistency Integration', () => 
       }),
     ];
 
-    const result = await generateDraftTimeline(segments, [salmanAsset, katrinaAsset], {
-      similarityThreshold: 0.15,
+    // Default threshold is 0.30. Katrina asset has a direct entity match and must survive.
+    const result = await generateDraftTimeline(segments, [katrinaAsset], {
+      similarityThreshold: 0.30,
     });
 
     expect(result.timeline).toHaveLength(1);
     const item = result.timeline[0];
-
-    // Katrina Kaif footage must be selected because of +0.15 entity bonus and -0.15 Salman conflict
     expect(item.mediaId).toBe('m-katrina');
-    expect(item.provenance).toBeDefined();
     expect(item.provenance?.entityConsistencyModifier).toBe(0.15);
     expect(item.provenance?.entityMatchReason).toContain('Direct entity match (+0.15)');
     expect(item.provenance?.explanation).toMatch(/katrina/i);
+  });
+
+  it('2. Correct named entity beats a wrong named entity with higher raw semantic similarity at default threshold', async () => {
+    const katrinaAsset = makeMedia({
+      id: 'm-katrina',
+      name: 'katrina_kaif_studio.mp4',
+      analysis: {
+        analyzed: true,
+        // Generic studio description -> low scene score
+        description: 'A woman sitting in a studio backdrop',
+        tags: ['studio', 'katrina', 'kaif'],
+      },
+    });
+
+    const salmanAsset = makeMedia({
+      id: 'm-salman',
+      name: 'salman_khan_red_carpet.mp4',
+      analysis: {
+        analyzed: true,
+        // High scene similarity on "red carpet event"
+        description: 'A man in a black suit on a red carpet smiling at cameras and fans',
+        tags: ['red', 'carpet', 'fans', 'salman', 'khan'],
+      },
+    });
+
+    const segments: AudioSegment[] = [
+      makeSegment({
+        id: 'seg-1',
+        text: 'Katrina Kaif made a grand entrance on the red carpet, dazzling the photographers and fans.',
+        startTime: 0,
+        endTime: 6,
+      }),
+    ];
+
+    // With default threshold (0.30): Salman meets threshold on scene terms, but Katrina has direct entity match (+0.15)
+    // while Salman gets entity conflict penalty (-0.15). Katrina must win!
+    const result = await generateDraftTimeline(segments, [salmanAsset, katrinaAsset], {
+      similarityThreshold: 0.30,
+    });
+
+    expect(result.timeline).toHaveLength(1);
+    const item = result.timeline[0];
+    expect(item.mediaId).toBe('m-katrina');
+    expect(item.provenance?.entityConsistencyModifier).toBe(0.15);
+  });
+
+  it('3. Generic low-score B-roll is still filtered normally by threshold', async () => {
+    const genericLowScoreAsset = makeMedia({
+      id: 'm-generic-low',
+      name: 'office_desk_broll.mp4',
+      analysis: {
+        analyzed: true,
+        description: 'A wooden office desk with a laptop and coffee cup',
+        tags: ['office', 'desk', 'coffee'],
+      },
+    });
+
+    const highMatchAsset = makeMedia({
+      id: 'm-high-match',
+      name: 'red_carpet_celebration.mp4',
+      analysis: {
+        analyzed: true,
+        description: 'A grand red carpet event with photographers and crowd',
+        tags: ['red', 'carpet', 'crowd'],
+      },
+    });
+
+    const segments: AudioSegment[] = [
+      makeSegment({
+        id: 'seg-1',
+        text: 'The red carpet event was packed with cheering fans and paparazzi.',
+        startTime: 0,
+        endTime: 6,
+      }),
+    ];
+
+    const result = await generateDraftTimeline(segments, [genericLowScoreAsset, highMatchAsset], {
+      similarityThreshold: 0.30,
+    });
+
+    expect(result.timeline).toHaveLength(1);
+    // Generic office desk must NOT bypass threshold
+    expect(result.timeline[0].mediaId).toBe('m-high-match');
+  });
+
+  it('4. Narration without entity names strictly preserves standard threshold scoring', async () => {
+    const natureAsset = makeMedia({
+      id: 'm-nature',
+      name: 'mountain_landscape.mp4',
+      analysis: {
+        analyzed: true,
+        description: 'A beautiful sunny mountain landscape with green trees',
+        tags: ['mountain', 'nature', 'trees'],
+      },
+    });
+
+    const cityAsset = makeMedia({
+      id: 'm-city',
+      name: 'city_traffic_night.mp4',
+      analysis: {
+        analyzed: true,
+        description: 'City street at night with neon lights and moving cars',
+        tags: ['city', 'traffic', 'night'],
+      },
+    });
+
+    const segments: AudioSegment[] = [
+      makeSegment({
+        id: 'seg-1',
+        text: 'The majestic mountains stood tall under the warm golden morning sun.',
+        startTime: 0,
+        endTime: 5,
+      }),
+    ];
+
+    const result = await generateDraftTimeline(segments, [cityAsset, natureAsset], {
+      similarityThreshold: 0.30,
+    });
+
+    expect(result.timeline).toHaveLength(1);
+    expect(result.timeline[0].mediaId).toBe('m-nature');
+    expect(result.timeline[0].provenance?.entityConsistencyModifier).toBe(0);
   });
 });

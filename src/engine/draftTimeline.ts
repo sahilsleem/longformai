@@ -1813,9 +1813,14 @@ export const GENERIC_MEDIA_NAME_STOPWORDS = new Set([
   'track', 'media', 'asset', 'final', 'edit', 'draft', 'take', 'vlog', 'audio', 'mp4', 'mov',
   'jpg', 'jpeg', 'png', 'webp', 'mkv', 'hd', '4k', '1080p', '720p', 'raw', 'rec', 'recording',
   'cam', 'camera', 'cut', 'render', 'export', 'project', 'sequence', 'part', 'segment', 'frame',
-  'red', 'carpet', 'event', 'press', 'interview', 'conference', 'meeting', 'background', 'overlay',
-  'stock', 'view', 'wallpaper', 'screen', 'screencast', 'thumbnail', 'thumb', 'img', 'vid',
-  'person', 'people', 'man', 'woman', 'celebrity', 'subject', 'character',
+  'red', 'carpet', 'event', 'press', 'interview', 'conference', 'meeting', 'speech', 'presentation',
+  'arrival', 'celebration', 'background', 'overlay', 'stock', 'view', 'wallpaper', 'screen',
+  'screencast', 'thumbnail', 'thumb', 'img', 'vid',
+  'person', 'people', 'man', 'woman', 'boy', 'girl', 'human', 'celebrity', 'subject', 'character',
+  'mountain', 'mountains', 'landscape', 'nature', 'city', 'street', 'traffic', 'sky', 'ocean',
+  'sea', 'beach', 'forest', 'trees', 'tree', 'water', 'sun', 'sunset', 'sunrise', 'room',
+  'indoor', 'indoors', 'outdoor', 'outdoors', 'studio', 'desk', 'office', 'building', 'house',
+  'car', 'cars', 'road', 'night', 'morning', 'evening', 'day', 'light', 'lights',
   'the', 'and', 'for', 'with', 'from', 'into', 'over', 'under', 'between',
   'through', 'about', 'after', 'before', 'without', 'during', 'against',
   'that', 'this', 'these', 'those', 'they', 'them', 'their', 'there', 'here',
@@ -10077,13 +10082,32 @@ export async function generateDraftTimeline(
 
       const hasWorkerCandidates = matchResult.candidates && matchResult.candidates.length > 0;
       const candidatesToEvaluate: SemanticMatchCandidate[] = hasWorkerCandidates
-        ? matchResult.candidates
+        ? [...matchResult.candidates]
         : validAnalyzedMedia.map((m) => ({
             mediaId: m.id,
             mediaName: m.name,
             score: 0.10,
             explanation: 'Available library media',
           }));
+
+      // Step 53: Ensure all library media with a direct entity match are included in candidates to evaluate
+      for (const asset of validAnalyzedMedia) {
+        if (!candidatesToEvaluate.some((c) => c.mediaId === asset.id)) {
+          const entityIntel = calculateDirectEntityConsistencyModifier(
+            segment.text,
+            asset,
+            validAnalyzedMedia
+          );
+          if (entityIntel.status === 'MATCH') {
+            candidatesToEvaluate.push({
+              mediaId: asset.id,
+              mediaName: asset.name,
+              score: 0.10,
+              explanation: 'Available library media (entity match)',
+            });
+          }
+        }
+      }
 
       if (candidatesToEvaluate.length === 0) {
         unassignedSegmentIds.push(segment.id);
@@ -10099,8 +10123,27 @@ export async function generateDraftTimeline(
         continue;
       }
 
-      // 3. Multi-Signal Deterministic Scoring (Step 13, 16, 19, 20, 21, 22, 23 & 24)
-      const meetingThreshold = candidatesToEvaluate.filter((c) => c.score >= similarityThreshold);
+      // 3. Multi-Signal Deterministic Scoring (Step 13, 16, 19, 20, 21, 22, 23, 24 & 53)
+      // Step 53: Entity-aware candidate pre-filtering.
+      // Candidates meeting similarityThreshold OR possessing a confirmed direct entity match survive.
+      const meetingThreshold = candidatesToEvaluate.filter((c) => {
+        if (c.score >= similarityThreshold) {
+          return true;
+        }
+        const asset = validAnalyzedMedia.find((m) => m.id === c.mediaId);
+        if (asset) {
+          const entityIntel = calculateDirectEntityConsistencyModifier(
+            segment.text,
+            asset,
+            validAnalyzedMedia
+          );
+          if (entityIntel.status === 'MATCH') {
+            return true;
+          }
+        }
+        return false;
+      });
+
       const isFallbackBelowThreshold = meetingThreshold.length === 0;
       const candidatePool = meetingThreshold.length > 0 ? meetingThreshold : candidatesToEvaluate;
 
