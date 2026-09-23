@@ -9679,6 +9679,62 @@ export function refineShotDuration(
   };
 }
 
+function groupAudioSegmentsForVisualDraft(input: AudioSegment[]): AudioSegment[] {
+  const grouped: AudioSegment[] = [];
+  let i = 0;
+
+  while (i < input.length) {
+    const first = input[i];
+    const group: AudioSegment[] = [first];
+    let j = i + 1;
+
+    while (j < input.length) {
+      const current = group[group.length - 1];
+      const next = input[j];
+
+      const gap = Math.max(0, next.startTime - current.endTime);
+      const duration = next.endTime - first.startTime;
+
+      const speakerChanged =
+        first.speaker !== undefined &&
+        next.speaker !== undefined &&
+        first.speaker !== next.speaker;
+
+      if (speakerChanged || gap > 0.75 || duration > 8) {
+        break;
+      }
+
+      group.push(next);
+      j++;
+
+      if (duration >= 5) {
+        break;
+      }
+    }
+
+    grouped.push({
+      ...group[0],
+      id:
+        group.length === 1
+          ? group[0].id
+          : "grouped_" + group[0].id,
+      startTime: group[0].startTime,
+      endTime: group[group.length - 1].endTime,
+      text: group
+        .map((x) => x.text.trim())
+        .filter(Boolean)
+        .join(" "),
+      words: group.some((x) => x.words && x.words.length > 0)
+        ? group.flatMap((x) => x.words || [])
+        : undefined,
+    });
+
+    i = j;
+  }
+
+  return grouped;
+}
+
 /**
  * Deterministically generates a first draft 16:9 timeline from:
  * 1. Transcript segments (Step 3)
@@ -9699,6 +9755,8 @@ export async function generateDraftTimeline(
   const continuityPreference = options.continuityPreference ?? DEFAULT_CONTINUITY_PREFERENCE;
   const preferVideo = options.preferVideoOverImage ?? true;
   const workerUrl = options.workerUrl;
+
+  segments = groupAudioSegmentsForVisualDraft(segments);
 
   const totalSegments = segments.length;
   const totalDuration = segments.reduce(
