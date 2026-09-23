@@ -1804,6 +1804,159 @@ export function calculateSubjectContinuityModifier(
   };
 }
 
+// ==========================================
+// Step 53: Direct Entity & Celebrity Identity Consistency Intelligence
+// ==========================================
+
+export const GENERIC_MEDIA_NAME_STOPWORDS = new Set([
+  'video', 'clip', 'footage', 'scene', 'shot', 'image', 'photo', 'picture', 'broll', 'b-roll',
+  'track', 'media', 'asset', 'final', 'edit', 'draft', 'take', 'vlog', 'audio', 'mp4', 'mov',
+  'jpg', 'jpeg', 'png', 'webp', 'mkv', 'hd', '4k', '1080p', '720p', 'raw', 'rec', 'recording',
+  'cam', 'camera', 'cut', 'render', 'export', 'project', 'sequence', 'part', 'segment', 'frame',
+  'red', 'carpet', 'event', 'press', 'interview', 'conference', 'meeting', 'background', 'overlay',
+  'stock', 'view', 'wallpaper', 'screen', 'screencast', 'thumbnail', 'thumb', 'img', 'vid',
+  'person', 'people', 'man', 'woman', 'celebrity', 'subject', 'character',
+  'the', 'and', 'for', 'with', 'from', 'into', 'over', 'under', 'between',
+  'through', 'about', 'after', 'before', 'without', 'during', 'against',
+  'that', 'this', 'these', 'those', 'they', 'them', 'their', 'there', 'here',
+  'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why', 'how',
+  'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such',
+  'have', 'has', 'had', 'having', 'been', 'being', 'were', 'does', 'doing',
+  'would', 'should', 'could', 'might', 'must', 'will', 'shall', 'inside', 'outside',
+  'a', 'an', 'in', 'on', 'at', 'to', 'by', 'of', 'is', 'are', 'was', 'be'
+]);
+
+/**
+ * Step 53: Extracts distinct identity tokens (e.g. celebrity names, characters, subjects)
+ * from asset filename and explicit tags, filtering generic media and scene stopwords.
+ */
+export function extractMediaIdentityTokens(asset: MediaAsset): string[] {
+  if (!asset || !asset.name) return [];
+
+  const tokens = new Set<string>();
+
+  // 1. From asset filename
+  const cleanName = asset.name
+    .replace(/\.[a-zA-Z0-9]+$/, '') // strip file extension
+    .toLowerCase()
+    .replace(/[_\W]+/g, ' '); // replace dashes, underscores, etc. with space
+
+  const nameWords = cleanName
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
+
+  nameWords.forEach((w) => tokens.add(w));
+
+  // 2. From explicit user tags if provided
+  const allTags = [
+    ...(asset.analysis?.tags || []),
+    ...(asset.analysis?.semantic?.tags || []),
+  ];
+  for (const tag of allTags) {
+    const cleanTag = tag.toLowerCase().replace(/[_\W]+/g, ' ');
+    const tagWords = cleanTag
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
+    tagWords.forEach((w) => tokens.add(w));
+  }
+
+  return Array.from(tokens);
+}
+
+export interface DirectEntityConsistencyResult {
+  modifier: number;
+  status: 'MATCH' | 'CONFLICT' | 'NEUTRAL';
+  reason: string;
+  matchedTokens: string[];
+  conflictingTokens: string[];
+}
+
+/**
+ * Step 53: Direct Entity & Subject Consistency Intelligence.
+ * Evaluates whether candidate media asset represents the specific person/entity referenced in narration:
+ * - Matching Identity: +0.15 bonus (e.g., narration mentions "Katrina Kaif", asset is "katrina_kaif.mp4")
+ * - Confirmed Conflicting Identity: -0.15 penalty (e.g., narration mentions "Katrina Kaif", candidate is "salman_khan.mp4" where "salman khan" is another library entity)
+ * - Neutral / Generic Identity: 0.0 modifier (e.g., candidate is "red_carpet_event.mp4" without conflicting identity)
+ */
+export function calculateDirectEntityConsistencyModifier(
+  narrationText: string,
+  candidateAsset: MediaAsset,
+  allMediaAssets: MediaAsset[] = []
+): DirectEntityConsistencyResult {
+  if (!narrationText || !candidateAsset) {
+    return {
+      modifier: 0.0,
+      status: 'NEUTRAL',
+      reason: 'No narration or candidate asset provided.',
+      matchedTokens: [],
+      conflictingTokens: [],
+    };
+  }
+
+  const narrationTokens = extractSubjectTokens(narrationText);
+  const candidateIdentityTokens = extractMediaIdentityTokens(candidateAsset);
+
+  // If candidate asset has no identity tokens, it is neutral (generic footage)
+  if (candidateIdentityTokens.length === 0) {
+    return {
+      modifier: 0.0,
+      status: 'NEUTRAL',
+      reason: 'Neutral entity: candidate media has generic/unassigned identity',
+      matchedTokens: [],
+      conflictingTokens: [],
+    };
+  }
+
+  // Check matching tokens between narration and candidate
+  const textLower = narrationText.toLowerCase();
+  const matchedTokens = candidateIdentityTokens.filter((token) =>
+    narrationTokens.includes(token) || textLower.includes(token)
+  );
+
+  // 1. Positive Entity Match (reward +0.15)
+  if (matchedTokens.length > 0) {
+    return {
+      modifier: 0.15,
+      status: 'MATCH',
+      reason: `Direct entity match (+0.15): candidate matches narration subject (${matchedTokens.join(', ')})`,
+      matchedTokens,
+      conflictingTokens: [],
+    };
+  }
+
+  // 2. Confirmed Conflicting Identity (penalize -0.15)
+  // A conflict occurs when:
+  // - Candidate has its own identity tokens (which did not match the narration)
+  // - AND the narration matches the identity tokens of another media asset in the pool
+  if (allMediaAssets.length > 0) {
+    const otherAssets = allMediaAssets.filter((a) => a.id !== candidateAsset.id);
+    const poolOtherEntities = otherAssets.flatMap((a) => extractMediaIdentityTokens(a));
+
+    const narrationMatchesOtherEntity = poolOtherEntities.some((token) =>
+      narrationTokens.includes(token) || textLower.includes(token)
+    );
+
+    if (narrationMatchesOtherEntity) {
+      return {
+        modifier: -0.15,
+        status: 'CONFLICT',
+        reason: `Direct entity conflict (-0.15): candidate represents (${candidateIdentityTokens.join(', ')}) while narration references another subject in library`,
+        matchedTokens: [],
+        conflictingTokens: candidateIdentityTokens,
+      };
+    }
+  }
+
+  // 3. Neutral: Narration does not reference candidate or competing entity
+  return {
+    modifier: 0.0,
+    status: 'NEUTRAL',
+    reason: 'Neutral entity: narration does not reference candidate or competing entity',
+    matchedTokens: [],
+    conflictingTokens: [],
+  };
+}
+
 const WIDE_COMPOSITION_KEYWORDS = new Set([
   'wide', 'aerial', 'drone', 'landscape', 'panoramic', 'vista', 'horizon',
   'overview', 'skyline', 'mountains', 'mountain', 'ocean', 'sea', 'establishing',
@@ -10298,6 +10451,13 @@ export async function generateDraftTimeline(
             textureModifier: textureIntel.modifier,
           });
 
+          // Step 53: Direct Entity & Subject Consistency Intelligence (+0.15 on match, -0.15 on conflict)
+          const entityConsistencyIntel = calculateDirectEntityConsistencyModifier(
+            segment.text,
+            asset,
+            validAnalyzedMedia
+          );
+
           // N. Final Composite Score (Semantic is dominant, visual micro-modifiers bounded by Step 46 budget)
           const adjustedScore = Math.round(
             (attenuatedSemantic +
@@ -10313,6 +10473,7 @@ export async function generateDraftTimeline(
               emphasisImpactIntel.modifier +
               contrastIntel.modifier +
               subjectContinuityIntel.modifier +
+              entityConsistencyIntel.modifier +
               visualAggregate.boundedVisualIntelligence -
               calculatedReusePenalty -
               transitionIntel.repetitionPenalty) *
@@ -10321,7 +10482,9 @@ export async function generateDraftTimeline(
 
           // Build deterministic explanation
           let explanation = c.explanation || 'Semantic match';
-          if (isFallbackBelowThreshold) {
+          if (entityConsistencyIntel.status === 'MATCH') {
+            explanation = `Selected because footage directly matches the narration subject (${entityConsistencyIntel.matchedTokens.join(', ')})`;
+          } else if (isFallbackBelowThreshold) {
             explanation = 'Selected as best available fallback match from library (below confidence threshold)';
           } else if (c.score >= 0.75) {
             explanation = 'Selected because transcript meaning strongly matches the analyzed scene concepts';
@@ -10381,6 +10544,8 @@ export async function generateDraftTimeline(
             subjectContinuity: subjectContinuityIntel.subjectContinuity,
             subjectContinuityReason: subjectContinuityIntel.reason,
             subjectMatchScore: subjectContinuityIntel.subjectMatchScore,
+            entityConsistencyModifier: entityConsistencyIntel.modifier,
+            entityMatchReason: entityConsistencyIntel.reason,
             framingScale: framingIntel.framingScale,
             framingModifier: framingIntel.modifier,
             framingReason: framingIntel.reason,
@@ -10717,6 +10882,8 @@ export async function generateDraftTimeline(
           candidateDiversity: candidateDiversity.candidateDiversity,
           candidateDiversityContext: candidateDiversity.candidateDiversityContext,
           isBelowThresholdFallback: bestCandidate.isBelowThresholdFallback,
+          entityConsistencyModifier: bestCandidate.entityConsistencyModifier,
+          entityMatchReason: bestCandidate.entityMatchReason,
           isManuallyEdited: false,
           assignedAt: Date.now(),
         },

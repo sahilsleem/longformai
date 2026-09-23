@@ -354,6 +354,8 @@ export interface DraftProvenance {
   candidateDiversity?: 'BROAD' | 'MODERATE' | 'LIMITED' | 'NONE'; // Step 50: Candidate diversity classification (BROAD >= 4, MODERATE >= 2, LIMITED === 1, NONE = 0 / no selection)
   candidateDiversityContext?: 'SUPPORTED' | 'CONSTRAINED' | 'UNAVAILABLE'; // Step 50: Diagnostic interpretation (SUPPORTED >= 2, CONSTRAINED === 1 with selection, UNAVAILABLE = 0 / no selection)
   isBelowThresholdFallback?: boolean; // True if selected as the best available fallback below similarity threshold
+  entityConsistencyModifier?: number;  // Step 53: Direct entity consistency modifier [-0.150, +0.150]
+  entityMatchReason?: string;          // Step 53: Explanation of entity match or conflict
   isManuallyEdited?: boolean;     // False initially, true once user modifies timing/duration/framing
   assignedAt?: number;
 }
