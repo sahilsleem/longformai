@@ -9918,6 +9918,328 @@ export function refineShotDuration(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Visual Narration Beat Grouping (Step: AI Human-Editor Visual Cuts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sentence-ending punctuation in Latin, Urdu, Arabic, Indic (Devanagari), and CJK scripts.
+ */
+const SENTENCE_TERMINATORS = /[.?!;:\u06D4\u061F\u0964\u0965\u3002\uFF01\uFF1F]\s*$/u;
+
+/**
+ * Explicit discourse transition markers at start of a clause/segment.
+ */
+const TRANSITION_START_REGEX =
+  /^(meanwhile|afterwards|shortly after|following this|at the same time|in the meantime|soon after|next up|on the other hand|however|in contrast|then|next|later|eventually|soon|suddenly|before long|but|yet|nevertheless|دوسری طرف|دوسری جانب|اس کے برعکس|وہیں|پھر بھی|لیکن|دوسری اور|پرنتو|حالانکہ|پر|پھر|مگر|جبکہ)\b/iu;
+
+/**
+ * Detects whether a segment text references a specific folder entity (by name or alias).
+ * Returns the folder ID if matched, or null if neutral.
+ */
+export function detectEntityInText(text: string, folders: MediaFolder[] = []): string | null {
+  if (!text || typeof text !== 'string' || folders.length === 0) return null;
+  const textLower = text.toLowerCase();
+  const subjectTokens = extractSubjectTokens(text);
+
+  for (const folder of folders) {
+    if (!folder.name) continue;
+    const identityStrings = [folder.name, ...(folder.aliases || [])];
+    for (const rawStr of identityStrings) {
+      const cleanStr = rawStr.toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]+/gu, ' ').trim();
+      if (!cleanStr) continue;
+
+      if (textLower.includes(cleanStr)) {
+        return folder.id;
+      }
+
+      const words = cleanStr
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
+
+      if (words.length > 0) {
+        const matchesWord = words.some((w) => subjectTokens.includes(w) || textLower.includes(w));
+        if (matchesWord) {
+          return folder.id;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Splits a single over-long AudioSegment (> 8.0s) at natural sentence, clause, or word boundaries.
+ */
+export function splitLongAudioSegment(segment: AudioSegment, maxDuration: number = 8.0): AudioSegment[] {
+  const segDur = segment.endTime - segment.startTime;
+  if (segDur <= maxDuration || !segment.text || !segment.text.trim()) {
+    return [segment];
+  }
+
+  // Case A: Word timestamps are available
+  if (segment.words && segment.words.length > 1) {
+    const subSegments: AudioSegment[] = [];
+    let currentWords: Array<{ word: string; start: number; end: number }> = [];
+    let subStart = segment.startTime;
+
+    for (let wIdx = 0; wIdx < segment.words.length; wIdx++) {
+      const w = segment.words[wIdx];
+      currentWords.push(w);
+      const curDur = w.end - subStart;
+      const isLastWord = wIdx === segment.words.length - 1;
+      const hasPunct = /[.,!?;:۔؟।॥]/.test(w.word);
+
+      if (isLastWord || (curDur >= 3.5 && hasPunct) || curDur >= maxDuration - 0.5) {
+        const subText = currentWords.map((cw) => cw.word.trim()).filter(Boolean).join(' ');
+        subSegments.push({
+          id: subSegments.length === 0 ? segment.id : `${segment.id}_sub${subSegments.length}`,
+          startTime: subStart,
+          endTime: w.end,
+          text: subText,
+          words: [...currentWords],
+          speaker: segment.speaker,
+        });
+        subStart = w.end;
+        currentWords = [];
+      }
+    }
+
+    if (subSegments.length > 0) {
+      subSegments[subSegments.length - 1].endTime = segment.endTime;
+      return subSegments;
+    }
+  }
+
+  // Case B: No word timestamps - split by sentence punctuation
+  const sentences = segment.text.split(/(?<=[.?!;:\u06D4\u061F\u0964\u0965\u3002\uFF01\uFF1F])\s+/u).filter(Boolean);
+  if (sentences.length > 1) {
+    const totalChars = segment.text.length;
+    const subSegments: AudioSegment[] = [];
+    let runningStart = segment.startTime;
+
+    for (let i = 0; i < sentences.length; i++) {
+      const sText = sentences[i].trim();
+      const fraction = sText.length / totalChars;
+      const subDur = fraction * segDur;
+      const sEnd = i === sentences.length - 1 ? segment.endTime : runningStart + subDur;
+
+      subSegments.push({
+        id: i === 0 ? segment.id : `${segment.id}_sub${i}`,
+        startTime: Math.round(runningStart * 100) / 100,
+        endTime: Math.round(sEnd * 100) / 100,
+        text: sText,
+        speaker: segment.speaker,
+      });
+      runningStart = sEnd;
+    }
+    return subSegments;
+  }
+
+  // Case C: Single long sentence - split around midpoint
+  const words = segment.text.split(/\s+/).filter(Boolean);
+  if (words.length > 4) {
+    const midIdx = Math.floor(words.length / 2);
+    const firstHalfText = words.slice(0, midIdx).join(' ');
+    const secondHalfText = words.slice(midIdx).join(' ');
+    const midTime = segment.startTime + segDur / 2;
+
+    return [
+      {
+        id: segment.id,
+        startTime: segment.startTime,
+        endTime: Math.round(midTime * 100) / 100,
+        text: firstHalfText,
+        speaker: segment.speaker,
+      },
+      {
+        id: `${segment.id}_sub1`,
+        startTime: Math.round(midTime * 100) / 100,
+        endTime: segment.endTime,
+        text: secondHalfText,
+        speaker: segment.speaker,
+      },
+    ];
+  }
+
+  return [segment];
+}
+
+/**
+ * Preprocessing step converting raw Whisper AudioSegment[] into natural Visual Narration Beats.
+ *
+ * Rules:
+ * 1. Combines adjacent segments that belong to the same thought/subject.
+ * 2. Visual duration target: 1–8s (preferred: 4–7s).
+ * 3. Cuts at:
+ *    - Sentence / punctuation boundaries (when duration >= 3.5s).
+ *    - Clear subject / entity changes (e.g. Katrina -> Salman).
+ *    - Explicit transition markers (e.g. "meanwhile", "on the other hand", "دوسری طرف").
+ *    - Speaker changes.
+ *    - Significant silence/gaps (> 0.75s).
+ *    - Duration limit (> 8.0s).
+ * 4. Absorbs ultra-short beats (< 1.0s) into compatible adjacent beats.
+ * 5. Splits over-long segments (> 8.0s) at natural boundaries.
+ */
+export function groupAudioSegmentsIntoVisualBeats(
+  inputSegments: AudioSegment[],
+  folders: MediaFolder[] = []
+): AudioSegment[] {
+  if (!inputSegments || inputSegments.length === 0) return [];
+
+  // Pass 1: Split any single raw segments exceeding 8.0 seconds
+  const normalizedSegments: AudioSegment[] = [];
+  for (const seg of inputSegments) {
+    const dur = seg.endTime - seg.startTime;
+    if (dur > 8.0) {
+      normalizedSegments.push(...splitLongAudioSegment(seg, 8.0));
+    } else {
+      normalizedSegments.push(seg);
+    }
+  }
+
+  if (normalizedSegments.length <= 1) {
+    return normalizedSegments;
+  }
+
+  // Pass 2: Group adjacent compatible segments into visual beats
+  const beatGroups: AudioSegment[][] = [];
+  let currentGroup: AudioSegment[] = [normalizedSegments[0]];
+
+  for (let i = 1; i < normalizedSegments.length; i++) {
+    const nextSeg = normalizedSegments[i];
+    const prevSeg = currentGroup[currentGroup.length - 1];
+
+    const currentBeatDuration = prevSeg.endTime - currentGroup[0].startTime;
+    const projectedDuration = nextSeg.endTime - currentGroup[0].startTime;
+    const gap = Math.max(0, nextSeg.startTime - prevSeg.endTime);
+
+    const currentBeatText = currentGroup.map((s) => s.text).join(' ');
+    const currentEntity = detectEntityInText(currentBeatText, folders);
+    const nextEntity = detectEntityInText(nextSeg.text, folders);
+
+    const speakerChanged =
+      Boolean(currentGroup[0].speaker) &&
+      Boolean(nextSeg.speaker) &&
+      currentGroup[0].speaker !== nextSeg.speaker;
+
+    const significantGap = gap > 0.75;
+
+    // Entity change: current beat and next segment refer to different explicit folder entities
+    const entityChanged = Boolean(currentEntity && nextEntity && currentEntity !== nextEntity);
+
+    // Sentence punctuation boundary reached and current beat already has good visual length (>= 3.5s)
+    const prevEndsSentence = SENTENCE_TERMINATORS.test(prevSeg.text);
+    const naturalSentenceBoundary = prevEndsSentence && currentBeatDuration >= 3.5;
+
+    // Explicit transition marker starting next segment (when current beat is at least 1.5s)
+    const hasTransition = TRANSITION_START_REGEX.test(nextSeg.text.trim()) && currentBeatDuration >= 1.5;
+
+    // Duration limit: adding next segment would exceed 8.0s
+    const exceedsMaxDuration = projectedDuration > 8.0 && currentBeatDuration >= 1.0;
+
+    // Decide whether to cut
+    if (
+      speakerChanged ||
+      significantGap ||
+      entityChanged ||
+      naturalSentenceBoundary ||
+      hasTransition ||
+      exceedsMaxDuration
+    ) {
+      beatGroups.push(currentGroup);
+      currentGroup = [nextSeg];
+    } else {
+      currentGroup.push(nextSeg);
+    }
+  }
+
+  if (currentGroup.length > 0) {
+    beatGroups.push(currentGroup);
+  }
+
+  // Pass 3: Convert groups into single AudioSegment objects
+  let visualBeats: AudioSegment[] = beatGroups.map((group) => {
+    const combinedText = group
+      .map((s) => s.text.trim())
+      .filter(Boolean)
+      .join(' ');
+
+    const allWords = group.some((s) => s.words && s.words.length > 0)
+      ? group.flatMap((s) => s.words || [])
+      : undefined;
+
+    return {
+      id: group[0].id,
+      startTime: group[0].startTime,
+      endTime: group[group.length - 1].endTime,
+      text: combinedText,
+      words: allWords,
+      speaker: group[0].speaker,
+    };
+  });
+
+  // Pass 4: Absorb ultra-short beats (< 1.0s) into compatible adjacent beats if possible
+  if (visualBeats.length > 1) {
+    const mergedBeats: AudioSegment[] = [];
+    let i = 0;
+
+    while (i < visualBeats.length) {
+      const beat = visualBeats[i];
+      const dur = beat.endTime - beat.startTime;
+
+      if (dur < 1.0) {
+        // Try to absorb into previous beat if compatible
+        if (mergedBeats.length > 0) {
+          const prevBeat = mergedBeats[mergedBeats.length - 1];
+          const combinedDur = beat.endTime - prevBeat.startTime;
+          const prevEntity = detectEntityInText(prevBeat.text, folders);
+          const currEntity = detectEntityInText(beat.text, folders);
+          const noEntityConflict = !prevEntity || !currEntity || prevEntity === currEntity;
+          const gap = Math.max(0, beat.startTime - prevBeat.endTime);
+
+          if (combinedDur <= 8.0 && noEntityConflict && gap <= 0.75) {
+            prevBeat.endTime = beat.endTime;
+            prevBeat.text = `${prevBeat.text} ${beat.text}`.trim();
+            if (beat.words && beat.words.length > 0) {
+              prevBeat.words = [...(prevBeat.words || []), ...beat.words];
+            }
+            i++;
+            continue;
+          }
+        }
+
+        // Try to absorb with next beat if compatible
+        if (i + 1 < visualBeats.length) {
+          const nextBeat = visualBeats[i + 1];
+          const combinedDur = nextBeat.endTime - beat.startTime;
+          const nextEntity = detectEntityInText(nextBeat.text, folders);
+          const currEntity = detectEntityInText(beat.text, folders);
+          const noEntityConflict = !nextEntity || !currEntity || nextEntity === currEntity;
+          const gap = Math.max(0, nextBeat.startTime - beat.endTime);
+
+          if (combinedDur <= 8.0 && noEntityConflict && gap <= 0.75) {
+            nextBeat.startTime = beat.startTime;
+            nextBeat.text = `${beat.text} ${nextBeat.text}`.trim();
+            if (beat.words && beat.words.length > 0) {
+              nextBeat.words = [...beat.words, ...(nextBeat.words || [])];
+            }
+            i++;
+            continue;
+          }
+        }
+      }
+
+      mergedBeats.push(beat);
+      i++;
+    }
+
+    visualBeats = mergedBeats;
+  }
+
+  return visualBeats;
+}
+
 /**
  * Deterministically generates a first draft 16:9 timeline from:
  * 1. Transcript segments (Step 3)
@@ -9940,7 +10262,10 @@ export async function generateDraftTimeline(
   const workerUrl = options.workerUrl;
   const folders = options.folders || [];
 
-  const totalSegments = segments.length;
+  // Preprocessing: Convert raw AudioSegments into visual narration beats
+  const visualBeats = groupAudioSegmentsIntoVisualBeats(segments, folders);
+
+  const totalSegments = visualBeats.length;
   const totalDuration = segments.reduce(
     (acc, seg) => Math.max(acc, seg.endTime),
     0
@@ -9959,8 +10284,8 @@ export async function generateDraftTimeline(
         uniqueMediaUsed: 0,
         mediaReuseCount: {},
         mediaUsageSummary: [],
-        unassignedReasons: Object.fromEntries(segments.map((s) => [s.id, 'No media assets available in project library'])),
-        unassignedDetails: segments.map((s) => ({
+        unassignedReasons: Object.fromEntries(visualBeats.map((s) => [s.id, 'No media assets available in project library'])),
+        unassignedDetails: visualBeats.map((s) => ({
           id: s.id,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -9975,7 +10300,7 @@ export async function generateDraftTimeline(
         continuityPreferenceUsed: continuityPreference,
         generatedAt: Date.now(),
       },
-      unassignedSegmentIds: segments.map((s) => s.id),
+      unassignedSegmentIds: visualBeats.map((s) => s.id),
     };
   }
 
@@ -10004,8 +10329,8 @@ export async function generateDraftTimeline(
         uniqueMediaUsed: 0,
         mediaReuseCount: {},
         mediaUsageSummary: [],
-        unassignedReasons: Object.fromEntries(segments.map((s) => [s.id, 'Media assets lack semantic analysis'])),
-        unassignedDetails: segments.map((s) => ({
+        unassignedReasons: Object.fromEntries(visualBeats.map((s) => [s.id, 'Media assets lack semantic analysis'])),
+        unassignedDetails: visualBeats.map((s) => ({
           id: s.id,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -10020,7 +10345,7 @@ export async function generateDraftTimeline(
         continuityPreferenceUsed: continuityPreference,
         generatedAt: Date.now(),
       },
-      unassignedSegmentIds: segments.map((s) => s.id),
+      unassignedSegmentIds: visualBeats.map((s) => s.id),
     };
   }
 
@@ -10045,23 +10370,23 @@ export async function generateDraftTimeline(
   let continuityLinksCount = 0;
   const roleCounts: { [role in NarrationRole]?: number } = {};
 
-  // Step 20 & 21: Precompute narration roles and narration beat groupings
-  const narrationRoles: NarrationRole[] = segments.map((seg, idx) => {
-    const prevText = idx > 0 ? segments[idx - 1]?.text : undefined;
-    const nextText = idx + 1 < segments.length ? segments[idx + 1]?.text : undefined;
-    return classifyNarrationRole(seg.text, idx, segments.length, prevText, nextText).role;
+  // Step 20 & 21: Precompute narration roles and narration beat groupings for visualBeats
+  const narrationRoles: NarrationRole[] = visualBeats.map((seg, idx) => {
+    const prevText = idx > 0 ? visualBeats[idx - 1]?.text : undefined;
+    const nextText = idx + 1 < visualBeats.length ? visualBeats[idx + 1]?.text : undefined;
+    return classifyNarrationRole(seg.text, idx, visualBeats.length, prevText, nextText).role;
   });
-  const beatResults = detectNarrationBeats(segments, narrationRoles);
+  const beatResults = detectNarrationBeats(visualBeats, narrationRoles);
 
-  // Step 6: Batch pre-fetch semantic matches for all grouped segments to minimize network roundtrips & reuse cached ONNX embeddings
-  await batchMatchMediaForSegments(segments, validAnalyzedMedia, {
+  // Step 6: Batch pre-fetch semantic matches for visualBeats
+  await batchMatchMediaForSegments(visualBeats, validAnalyzedMedia, {
     workerUrl,
     topK: 15,
   });
 
-  // 2. Iterate through each transcript segment in chronological order
-  for (let sIdx = 0; sIdx < segments.length; sIdx++) {
-    const segment = segments[sIdx];
+  // 2. Iterate through each visual beat in chronological order
+  for (let sIdx = 0; sIdx < visualBeats.length; sIdx++) {
+    const segment = visualBeats[sIdx];
     const segmentDuration = Math.max(0.1, Math.round((segment.endTime - segment.startTime) * 100) / 100);
 
     if (!segment.text || !segment.text.trim()) {
@@ -10081,12 +10406,12 @@ export async function generateDraftTimeline(
     try {
       // Step 20: Narration role & Step 21: Beat info
       const currentRole = narrationRoles[sIdx];
-      const prevSegmentText = sIdx > 0 ? segments[sIdx - 1]?.text : undefined;
-      const nextSegmentText = sIdx + 1 < segments.length ? segments[sIdx + 1]?.text : undefined;
+      const prevSegmentText = sIdx > 0 ? visualBeats[sIdx - 1]?.text : undefined;
+      const nextSegmentText = sIdx + 1 < visualBeats.length ? visualBeats[sIdx + 1]?.text : undefined;
       const narrationRoleInfo = classifyNarrationRole(
         segment.text,
         sIdx,
-        segments.length,
+        visualBeats.length,
         prevSegmentText,
         nextSegmentText
       );
