@@ -11,7 +11,7 @@ import { CropInspector } from './components/CropInspector';
 import { MediaInspector } from './components/MediaInspector';
 import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
-import { Film, FileText, Crop, Sparkles, Monitor } from 'lucide-react';
+import { Film, FileText, Crop, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -79,7 +79,6 @@ export const App: React.FC = () => {
 
   const [leftTab, setLeftTab] = useState<'media' | 'transcript'>('media');
   const [rightTab, setRightTab] = useState<'framing' | 'analysis'>('framing');
-  const [mobileTab, setMobileTab] = useState<'media' | 'transcript' | 'framing' | 'analysis' | 'preview-only'>('media');
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isWorkerModalOpen, setIsWorkerModalOpen] = useState(false);
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
@@ -102,11 +101,10 @@ export const App: React.FC = () => {
     }
   };
 
-  // Auto-switch to transcript tab when transcribing
+  // Auto-switch to transcript tab when transcribing on desktop
   useEffect(() => {
     if (isTranscribing) {
       setLeftTab('transcript');
-      setMobileTab('transcript');
     }
   }, [isTranscribing]);
 
@@ -115,7 +113,6 @@ export const App: React.FC = () => {
     setSelectedItemId(id);
     if (id) {
       setRightTab('framing');
-      setMobileTab('framing');
     }
   };
 
@@ -139,7 +136,12 @@ export const App: React.FC = () => {
       }
     }
     setRightTab('framing');
-    setMobileTab('framing');
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      const el = document.getElementById('mobile-section-framing');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   };
 
   // When user clicks a media asset in the library, show media analysis inspector
@@ -147,7 +149,6 @@ export const App: React.FC = () => {
     setSelectedMediaId(id);
     if (id) {
       setRightTab('analysis');
-      setMobileTab('analysis');
     }
   };
 
@@ -188,7 +189,7 @@ export const App: React.FC = () => {
   }, [isPlaying, selectedItemId, currentTime, totalDuration, project.fps, removeTimelineItem, setCurrentTime, setIsPlaying]);
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-editor-bg text-slate-100 max-w-full">
+    <div className="min-h-screen lg:h-screen w-full lg:overflow-hidden flex flex-col bg-editor-bg text-slate-100 max-w-full overflow-x-hidden overflow-y-auto lg:overflow-y-hidden">
       {/* 1. Top Header */}
       <Header
         project={project}
@@ -204,7 +205,7 @@ export const App: React.FC = () => {
         unlinkedCount={unlinkedCount}
       />
 
-      {/* 2. Step 10 Workflow Status & Action Bar */}
+      {/* 2. Workflow Progression Bar */}
       <WorkflowBar
         project={project}
         isPreparing={isPreparing}
@@ -214,7 +215,6 @@ export const App: React.FC = () => {
         onAnalyzeAllMedia={async () => {
           setRightTab('analysis');
           setLeftTab('media');
-          setMobileTab('analysis');
           await analyzeAllMedia();
         }}
         onOpenRenderModal={() => setIsRenderModalOpen(true)}
@@ -222,13 +222,18 @@ export const App: React.FC = () => {
         onOpenFramingEditor={() => handleFocusFraming()}
         onSwitchTab={(tab) => {
           setLeftTab(tab);
-          setMobileTab(tab);
+          if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            const el = document.getElementById(`mobile-section-${tab}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth' });
+            }
+          }
         }}
         activeWorkersCount={activeWorkers}
         totalWorkersCount={4}
       />
 
-      {/* 3A. DESKTOP WORKSPACE (>= 1024px): 3-Column Layout */}
+      {/* 3A. DESKTOP WORKSPACE (>= 1024px): 3-Column Workstation Layout */}
       <div className="hidden lg:flex flex-1 overflow-hidden min-h-0">
         {/* Left Side: Tabbed Container for Media Panel & Transcript Panel */}
         <div className="flex flex-col h-full bg-editor-panel border-r border-editor-panelBorder w-80 xl:w-84 shrink-0 overflow-hidden">
@@ -384,10 +389,10 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* 3B. MOBILE & TABLET WORKSPACE (< 1024px): Preview First + Timeline + Contextual Drawer */}
-      <div className="flex lg:hidden flex-col flex-1 overflow-hidden min-h-0">
+      {/* 3B. MOBILE & TABLET WORKSPACE (< 1024px): Dominant Preview + Timeline First, Vertical Scroll Tools Below */}
+      <div className="flex lg:hidden flex-col w-full min-h-0">
         {/* 1. DOMINANT PREVIEW VIEWPORT (Top Visual Focus) */}
-        <div className="flex-1 min-h-[180px] overflow-hidden flex flex-col bg-slate-950">
+        <div className="w-full h-[38vh] sm:h-[44vh] min-h-[220px] max-h-[380px] shrink-0 bg-slate-950 flex flex-col">
           <PreviewCanvas
             activeItem={effectiveTimelineItem}
             activeAsset={effectiveMediaAsset}
@@ -404,84 +409,99 @@ export const App: React.FC = () => {
           />
         </div>
 
-        {/* 2. MOBILE CONTEXTUAL TABS STRIP */}
-        <div className="h-9 bg-editor-panel border-t border-b border-editor-panelBorder flex items-center px-2 gap-1 overflow-x-auto scrollbar-none shrink-0">
-          <button
-            onClick={() => setMobileTab(mobileTab === 'media' ? 'preview-only' : 'media')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
-              mobileTab === 'media'
-                ? 'bg-editor-surface text-blue-400 font-semibold shadow-xs border border-blue-500/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Film className="w-3 h-3" />
-            <span>Media</span>
-            {project.media.length > 0 && (
-              <span className="text-[9px] bg-slate-800 text-slate-400 px-1 rounded font-mono">
-                {project.media.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setMobileTab(mobileTab === 'transcript' ? 'preview-only' : 'transcript')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
-              mobileTab === 'transcript'
-                ? 'bg-editor-surface text-purple-400 font-semibold shadow-xs border border-purple-500/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <FileText className="w-3 h-3" />
-            <span>Transcript</span>
-            {voiceover?.segments && voiceover.segments.length > 0 && (
-              <span className="text-[9px] bg-purple-950 text-purple-300 px-1 rounded font-mono">
-                {voiceover.segments.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setMobileTab(mobileTab === 'framing' ? 'preview-only' : 'framing')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
-              mobileTab === 'framing'
-                ? 'bg-editor-surface text-blue-400 font-semibold shadow-xs border border-blue-500/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Crop className="w-3 h-3" />
-            <span>Framing</span>
-          </button>
-
-          <button
-            onClick={() => setMobileTab(mobileTab === 'analysis' ? 'preview-only' : 'analysis')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
-              mobileTab === 'analysis'
-                ? 'bg-editor-surface text-blue-400 font-semibold shadow-xs border border-blue-500/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sparkles className="w-3 h-3" />
-            <span>Info</span>
-          </button>
-
-          <button
-            onClick={() => setMobileTab(mobileTab === 'preview-only' ? 'media' : 'preview-only')}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ml-auto ${
-              mobileTab === 'preview-only'
-                ? 'bg-blue-600/30 text-blue-300 font-semibold shadow-xs border border-blue-500/40'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
-            title={mobileTab === 'preview-only' ? 'Open Drawer' : 'Full Screen Preview'}
-          >
-            <Monitor className="w-3 h-3" />
-            <span>{mobileTab === 'preview-only' ? 'Panels' : 'Full'}</span>
-          </button>
+        {/* 2. MOBILE TIMELINE (Directly Under Preview) */}
+        <div className="w-full shrink-0 border-t border-b border-editor-panelBorder">
+          <Timeline
+            timeline={project.timeline}
+            mediaList={project.media}
+            voiceover={voiceover}
+            selectedItemId={selectedItemId}
+            currentTime={currentTime}
+            totalDuration={totalDuration}
+            timelineScale={timelineScale}
+            isGeneratingDraft={isGeneratingDraft}
+            draftStats={draftStats}
+            draftError={draftError}
+            onSelectClip={handleSelectTimelineClip}
+            onSeek={setCurrentTime}
+            onRemoveClip={removeTimelineItem}
+            onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
+            onReorder={reorderTimelineItems}
+            onSetTimelineScale={setTimelineScale}
+            onGenerateAIDraft={generateAIDraft}
+            onClearTimeline={clearTimeline}
+            onUploadVoiceover={setVoiceoverAudio}
+            onRemoveVoiceover={removeVoiceoverAudio}
+            onSetVoiceoverVolume={setVoiceoverVolume}
+            onToggleVoiceoverMute={toggleVoiceoverMute}
+          />
         </div>
 
-        {/* 3. CONTEXTUAL DRAWER (Bottom Panel on Mobile when expanded) */}
-        {mobileTab !== 'preview-only' && (
-          <div className="h-44 sm:h-52 border-b border-editor-panelBorder overflow-hidden shrink-0 flex flex-col bg-editor-panel">
-            {mobileTab === 'media' && (
+        {/* 3. QUICK NAVIGATION JUMP BAR */}
+        <div className="sticky top-0 z-10 bg-editor-panel/95 backdrop-blur border-b border-editor-panelBorder flex items-center px-3 py-2 gap-2 overflow-x-auto scrollbar-none shrink-0 shadow-sm">
+          <a
+            href="#mobile-section-media"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('mobile-section-media')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
+          >
+            <Film className="w-3.5 h-3.5 text-blue-400" />
+            <span>Media ({project.media.length})</span>
+          </a>
+
+          <a
+            href="#mobile-section-transcript"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('mobile-section-transcript')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
+          >
+            <FileText className="w-3.5 h-3.5 text-purple-400" />
+            <span>Transcript {voiceover?.segments?.length ? `(${voiceover.segments.length})` : ''}</span>
+          </a>
+
+          <a
+            href="#mobile-section-framing"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('mobile-section-framing')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
+          >
+            <Crop className="w-3.5 h-3.5 text-emerald-400" />
+            <span>16:9 Framing</span>
+          </a>
+
+          <a
+            href="#mobile-section-info"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('mobile-section-info')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Media Info</span>
+          </a>
+        </div>
+
+        {/* 4. VERTICALLY SCROLLABLE TOOL PANELS (Normal Height, No Squeezing) */}
+        <div className="flex flex-col gap-4 p-3 bg-editor-bg pb-20">
+          {/* Section 1: Media Library */}
+          <div id="mobile-section-media" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
+            <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Film className="w-4 h-4 text-blue-400" />
+                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Media Library</h3>
+              </div>
+              <span className="text-[11px] font-mono text-slate-400 bg-editor-bg px-2 py-0.5 rounded border border-slate-700/50">
+                {project.media.length} {project.media.length === 1 ? 'asset' : 'assets'}
+              </span>
+            </div>
+            <div className="min-h-[360px]">
               <MediaPanel
                 mediaList={project.media}
                 folders={folders}
@@ -505,8 +525,23 @@ export const App: React.FC = () => {
                 onSetMediaFolders={setMediaFolders}
                 onSetActiveFolderId={setActiveFolderId}
               />
-            )}
-            {mobileTab === 'transcript' && (
+            </div>
+          </div>
+
+          {/* Section 2: Voiceover Transcript & AI Draft */}
+          <div id="mobile-section-transcript" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
+            <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-400" />
+                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Voiceover Transcript & AI Draft</h3>
+              </div>
+              {voiceover?.segments && voiceover.segments.length > 0 && (
+                <span className="text-[11px] font-mono text-purple-300 bg-purple-950/70 px-2 py-0.5 rounded border border-purple-800/40">
+                  {voiceover.segments.length} segments
+                </span>
+              )}
+            </div>
+            <div className="min-h-[360px]">
               <TranscriptPanel
                 voiceover={voiceover}
                 mediaAssets={project.media}
@@ -523,8 +558,27 @@ export const App: React.FC = () => {
                 isTranscribing={isTranscribing}
                 transcriptionError={transcriptionError}
               />
-            )}
-            {mobileTab === 'framing' && (
+            </div>
+          </div>
+
+          {/* Section 3: 16:9 Framing Inspector */}
+          <div id="mobile-section-framing" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
+            <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Crop className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">16:9 Framing Inspector</h3>
+              </div>
+              {selectedTimelineItem ? (
+                <span className="text-[11px] text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                  Clip Selected
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  Tap a clip in timeline
+                </span>
+              )}
+            </div>
+            <div className="min-h-[260px]">
               <CropInspector
                 selectedItem={selectedTimelineItem}
                 selectedAsset={selectedMediaAsset}
@@ -534,43 +588,64 @@ export const App: React.FC = () => {
                   updateTimelineItem(id, { sourceStart: srcStart })
                 }
               />
-            )}
-            {mobileTab === 'analysis' && (
+            </div>
+          </div>
+
+          {/* Section 4: Media Info & Intelligence */}
+          <div id="mobile-section-info" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
+            <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Media Info & Intelligence</h3>
+              </div>
+              {currentlyInspectedMedia || selectedMediaAsset ? (
+                <span className="text-[11px] text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40 truncate max-w-[150px]">
+                  {(currentlyInspectedMedia || selectedMediaAsset)?.name}
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  Select media to view
+                </span>
+              )}
+            </div>
+            <div className="min-h-[260px]">
               <MediaInspector
                 asset={currentlyInspectedMedia || selectedMediaAsset}
                 onAnalyze={analyzeMedia}
                 onAddToTimeline={addMediaToTimeline}
               />
-            )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* 4. Bottom Timeline (Horizontally scrollable with local overflow) */}
-      <Timeline
-        timeline={project.timeline}
-        mediaList={project.media}
-        voiceover={voiceover}
-        selectedItemId={selectedItemId}
-        currentTime={currentTime}
-        totalDuration={totalDuration}
-        timelineScale={timelineScale}
-        isGeneratingDraft={isGeneratingDraft}
-        draftStats={draftStats}
-        draftError={draftError}
-        onSelectClip={handleSelectTimelineClip}
-        onSeek={setCurrentTime}
-        onRemoveClip={removeTimelineItem}
-        onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
-        onReorder={reorderTimelineItems}
-        onSetTimelineScale={setTimelineScale}
-        onGenerateAIDraft={generateAIDraft}
-        onClearTimeline={clearTimeline}
-        onUploadVoiceover={setVoiceoverAudio}
-        onRemoveVoiceover={removeVoiceoverAudio}
-        onSetVoiceoverVolume={setVoiceoverVolume}
-        onToggleVoiceoverMute={toggleVoiceoverMute}
-      />
+      {/* 4. Desktop Bottom Timeline (Horizontally scrollable with local overflow) */}
+      <div className="hidden lg:block shrink-0">
+        <Timeline
+          timeline={project.timeline}
+          mediaList={project.media}
+          voiceover={voiceover}
+          selectedItemId={selectedItemId}
+          currentTime={currentTime}
+          totalDuration={totalDuration}
+          timelineScale={timelineScale}
+          isGeneratingDraft={isGeneratingDraft}
+          draftStats={draftStats}
+          draftError={draftError}
+          onSelectClip={handleSelectTimelineClip}
+          onSeek={setCurrentTime}
+          onRemoveClip={removeTimelineItem}
+          onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
+          onReorder={reorderTimelineItems}
+          onSetTimelineScale={setTimelineScale}
+          onGenerateAIDraft={generateAIDraft}
+          onClearTimeline={clearTimeline}
+          onUploadVoiceover={setVoiceoverAudio}
+          onRemoveVoiceover={removeVoiceoverAudio}
+          onSetVoiceoverVolume={setVoiceoverVolume}
+          onToggleVoiceoverMute={toggleVoiceoverMute}
+        />
+      </div>
 
       {/* 5. Modals */}
       <RenderModal
