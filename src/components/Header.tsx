@@ -24,6 +24,8 @@ interface HeaderProps {
   currentTime: number;
   totalDuration: number;
   isDirty?: boolean;
+  isSavingLocal?: boolean;
+  lastSavedTime?: number | null;
   onMarkSaved?: () => void;
   onSetProjectName: (name: string) => void;
   onImportProject: (project: LongFormProject) => void;
@@ -38,6 +40,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentTime,
   totalDuration,
   isDirty = false,
+  isSavingLocal = false,
+  lastSavedTime = null,
   onMarkSaved,
   onSetProjectName,
   onImportProject,
@@ -130,11 +134,19 @@ export const Header: React.FC<HeaderProps> = ({
               className="bg-transparent hover:bg-editor-surface focus:bg-editor-surface border border-transparent focus:border-editor-panelBorder rounded px-1.5 py-0.5 text-xs font-medium text-slate-200 focus:outline-none transition-colors w-28 sm:w-36 md:w-44 truncate"
               title="Click to rename project"
             />
-            {isDirty && (
+            {isSavingLocal ? (
+              <span className="text-[9px] bg-blue-950/80 text-blue-300 border border-blue-800/60 px-1.5 py-0.5 rounded font-mono shrink-0 animate-pulse">
+                Saving…
+              </span>
+            ) : isDirty ? (
               <span className="text-[9px] bg-amber-950 text-amber-400 border border-amber-800 px-1 py-0.2 rounded font-mono shrink-0">
                 Unsaved
               </span>
-            )}
+            ) : lastSavedTime ? (
+              <span className="text-[9px] text-slate-500 font-mono shrink-0 hidden sm:inline-block">
+                Saved
+              </span>
+            ) : null}
           </div>
         </div>
 

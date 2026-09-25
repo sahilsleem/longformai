@@ -28,6 +28,9 @@ export const App: React.FC = () => {
     voiceover,
     isDirty,
     markSaved,
+    isHydrating,
+    isSavingLocal,
+    lastSavedTime,
     selectedItemId,
     selectedMediaId,
     currentlyInspectedMedia,
@@ -188,6 +191,21 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, selectedItemId, currentTime, totalDuration, project.fps, removeTimelineItem, setCurrentTime, setIsPlaying]);
 
+  if (isHydrating) {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-editor-bg text-slate-200 select-none">
+        <div className="flex items-center gap-2 bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/30 mb-4 animate-pulse">
+          <Film className="w-4 h-4 text-blue-400" />
+          <span className="font-bold text-sm tracking-wide text-white">LongFormAI</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+          <div className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+          <span>Restoring local project…</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen lg:h-screen w-full lg:overflow-hidden flex flex-col bg-editor-bg text-slate-100 max-w-full overflow-x-hidden overflow-y-auto lg:overflow-y-hidden">
       {/* 1. Top Header */}
@@ -196,6 +214,8 @@ export const App: React.FC = () => {
         currentTime={currentTime}
         totalDuration={totalDuration}
         isDirty={isDirty}
+        isSavingLocal={isSavingLocal}
+        lastSavedTime={lastSavedTime}
         onMarkSaved={markSaved}
         onSetProjectName={setProjectName}
         onImportProject={handleImportWithRelinkCheck}

@@ -15,6 +15,14 @@ import {
   removeMediaFromFolder as removeFolderHelper,
   setMediaFolders as setFoldersHelper,
 } from '../engine/mediaFolders';
+import {
+  saveProjectLocal,
+  loadProjectLocal,
+  saveMediaBlob,
+  deleteMediaBlob,
+  clearLocalProject,
+  hydrateProjectWithBlobs,
+} from '../engine/persistence';
 
 /**
  * Safely revokes a browser blob object URL if valid to prevent memory leaks
@@ -33,6 +41,10 @@ export function useProject() {
   const [project, setProject] = useState<LongFormProject>(() => {
     return createInitialProject();
   });
+
+  const [isHydrating, setIsHydrating] = useState<boolean>(true);
+  const [isSavingLocal, setIsSavingLocal] = useState<boolean>(false);
+  const [lastSavedTime, setLastSavedTime] = useState<number | null>(null);
 
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -54,6 +66,97 @@ export function useProject() {
   const lastTickTimeRef = useRef<number>(0);
   const currentTimeRef = useRef<number>(0);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  const projectRef = useRef<LongFormProject>(project);
+  projectRef.current = project;
+  const saveTimeoutRef = useRef<number | null>(null);
+
+  // 1. Initial Local State Hydration from IndexedDB on startup
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const stored = await loadProjectLocal();
+        if (stored && stored.project && isMounted) {
+          const hydrated = await hydrateProjectWithBlobs(stored.project);
+          if (isMounted) {
+            setProject(hydrated);
+            setLastSavedTime(stored.savedAt);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load local project on startup:', err);
+      } finally {
+        if (isMounted) {
+          setIsHydrating(false);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 2. Debounced Local Autosave on Project State Mutations
+  useEffect(() => {
+    if (isHydrating) return;
+
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(async () => {
+      setIsSavingLocal(true);
+      try {
+        await saveProjectLocal(projectRef.current);
+        setLastSavedTime(Date.now());
+      } catch (err) {
+        console.warn('Autosave error:', err);
+      } finally {
+        setIsSavingLocal(false);
+      }
+    }, 400);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [project, isHydrating]);
+
+  // 3. Page Lifecycle & Backgrounding Flush (visibilitychange, pagehide, beforeunload)
+  useEffect(() => {
+    const flushSave = async () => {
+      if (!isHydrating && projectRef.current) {
+        try {
+          await saveProjectLocal(projectRef.current);
+          setLastSavedTime(Date.now());
+        } catch (e) {
+          console.warn('Flush save error:', e);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushSave();
+      }
+    };
+
+    const handlePageHide = () => {
+      flushSave();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
+    };
+  }, [isHydrating]);
 
   // Initialize hidden audio element for voiceover playback synchronization
   useEffect(() => {
@@ -192,6 +295,13 @@ export function useProject() {
     const url = URL.createObjectURL(file);
     const id = `voiceover_${Date.now()}`;
 
+    // Persist audio blob to IndexedDB
+    try {
+      await saveMediaBlob(id, file, file.name, 'audio');
+    } catch (e) {
+      console.warn('Failed to persist voiceover blob:', e);
+    }
+
     // 1. Extract duration
     let duration = 0;
     try {
@@ -219,7 +329,10 @@ export function useProject() {
     }
 
     setProject((prev) => {
-      // Clean up previous voiceover blob URL
+      // Clean up previous voiceover blob URL and storage
+      if (prev.voiceover?.id && prev.voiceover.id !== id) {
+        deleteMediaBlob(prev.voiceover.id).catch(() => {});
+      }
       if (prev.voiceover?.url && prev.voiceover.url !== url) {
         safeRevokeObjectURL(prev.voiceover.url);
       }
@@ -257,6 +370,9 @@ export function useProject() {
       audioPlayerRef.current.src = '';
     }
     setProject((prev) => {
+      if (prev.voiceover?.id) {
+        deleteMediaBlob(prev.voiceover.id).catch(() => {});
+      }
       if (prev.voiceover?.url) {
         safeRevokeObjectURL(prev.voiceover.url);
       }
@@ -471,6 +587,13 @@ export function useProject() {
       const url = URL.createObjectURL(file);
       const id = `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+      // Persist binary blob into IndexedDB
+      try {
+        await saveMediaBlob(id, file, file.name, mediaType);
+      } catch (e) {
+        console.warn(`Failed to persist blob for ${file.name}:`, e);
+      }
+
       let width = 1920;
       let height = 1080;
       let duration = isImage ? 5 : 0;
@@ -675,6 +798,7 @@ export function useProject() {
   }, []);
 
   const removeMediaAsset = useCallback((mediaId: string) => {
+    deleteMediaBlob(mediaId).catch(() => {});
     setProject((prev) => {
       const target = prev.media.find((m) => m.id === mediaId);
       if (target?.url) {
@@ -992,6 +1116,15 @@ export function useProject() {
 
   // Relink a specific single Media Asset with a replacement file
   const relinkSingleMediaAsset = useCallback((mediaId: string, file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v', 'mkv'].includes(ext);
+    const isImage = file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg'].includes(ext);
+    const mediaType = isVideo ? 'video' : isImage ? 'image' : 'audio';
+
+    saveMediaBlob(mediaId, file, file.name, mediaType).catch((e) =>
+      console.warn('Failed to save relinked blob:', e)
+    );
+
     setProject((prev) => {
       const targetIndex = prev.media.findIndex((m) => m.id === mediaId);
       if (targetIndex === -1) return prev;
@@ -1022,6 +1155,10 @@ export function useProject() {
   const relinkVoiceover = useCallback((file: File) => {
     setProject((prev) => {
       if (!prev.voiceover) return prev;
+
+      saveMediaBlob(prev.voiceover.id, file, file.name, 'audio').catch((e) =>
+        console.warn('Failed to save relinked voiceover blob:', e)
+      );
 
       if (prev.voiceover.url) {
         safeRevokeObjectURL(prev.voiceover.url);
@@ -1064,6 +1201,7 @@ export function useProject() {
           );
         }
         if (matchedVoFile) {
+          saveMediaBlob(updatedVoiceover.id, matchedVoFile, matchedVoFile.name, 'audio').catch(() => {});
           if (updatedVoiceover.url) {
             safeRevokeObjectURL(updatedVoiceover.url);
           }
@@ -1086,6 +1224,7 @@ export function useProject() {
         }
 
         if (matchedFile) {
+          saveMediaBlob(m.id, matchedFile, matchedFile.name, m.type).catch(() => {});
           if (m.url) {
             safeRevokeObjectURL(m.url);
           }
@@ -1126,6 +1265,8 @@ export function useProject() {
       return imported;
     });
 
+    saveProjectLocal(imported).catch((e) => console.warn('Failed to persist imported project:', e));
+
     setSelectedItemId(null);
     setSelectedMediaId(null);
     setActiveFolderId(null);
@@ -1141,6 +1282,8 @@ export function useProject() {
       audioPlayerRef.current.pause();
       audioPlayerRef.current.src = '';
     }
+
+    clearLocalProject().catch((e) => console.warn('Failed to clear local project from IndexedDB:', e));
 
     setProject((prev) => {
       if (prev.voiceover?.url) {
@@ -1182,6 +1325,9 @@ export function useProject() {
     voiceover: project.voiceover,
     isDirty,
     markSaved,
+    isHydrating,
+    isSavingLocal,
+    lastSavedTime,
     selectedItemId,
     selectedMediaId,
     currentlyInspectedMedia,
