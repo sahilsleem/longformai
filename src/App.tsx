@@ -8,6 +8,7 @@ import { MediaPanel } from './components/MediaPanel';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { PreviewCanvas } from './components/PreviewCanvas';
 import { CropInspector } from './components/CropInspector';
+import { FramingEditorModal } from './components/FramingEditorModal';
 import { MediaInspector } from './components/MediaInspector';
 import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
@@ -83,6 +84,7 @@ export const App: React.FC = () => {
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isWorkerModalOpen, setIsWorkerModalOpen] = useState(false);
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
+  const [isFramingEditorOpen, setIsFramingEditorOpen] = useState(false);
   const [activeWorkers, setActiveWorkers] = useState(4);
 
   // Calculate unlinked missing files count
@@ -117,6 +119,28 @@ export const App: React.FC = () => {
       setRightTab('framing');
       setMobileTab('framing');
     }
+  };
+
+  // Open direct 16:9 Framing Editor for a specific clip or the currently active/selected clip
+  const handleOpenFramingEditor = (itemId?: string) => {
+    if (itemId) {
+      setSelectedItemId(itemId);
+      const target = project.timeline.find((t) => t.id === itemId);
+      if (target) {
+        setCurrentTime(target.startTime);
+      }
+    } else if (!selectedItemId && project.timeline.length > 0) {
+      const activeAtPlayhead = project.timeline.find(
+        (item) => item.startTime <= currentTime && item.startTime + item.duration > currentTime
+      );
+      const chosenId = activeAtPlayhead ? activeAtPlayhead.id : project.timeline[0].id;
+      setSelectedItemId(chosenId);
+      const chosenItem = project.timeline.find((t) => t.id === chosenId);
+      if (chosenItem) {
+        setCurrentTime(chosenItem.startTime);
+      }
+    }
+    setIsFramingEditorOpen(true);
   };
 
   // When user clicks a media asset in the library, show media analysis inspector
@@ -196,6 +220,7 @@ export const App: React.FC = () => {
         }}
         onOpenRenderModal={() => setIsRenderModalOpen(true)}
         onOpenWorkerDiagnostics={() => setIsWorkerModalOpen(true)}
+        onOpenFramingEditor={() => handleOpenFramingEditor()}
         onSwitchTab={(tab) => {
           setLeftTab(tab);
           setMobileTab(tab);
@@ -348,6 +373,7 @@ export const App: React.FC = () => {
                 onUpdateSourceStart={(id, srcStart) =>
                   updateTimelineItem(id, { sourceStart: srcStart })
                 }
+                onOpenFramingEditor={() => handleOpenFramingEditor(selectedTimelineItem?.id)}
               />
             ) : (
               <MediaInspector
@@ -491,6 +517,7 @@ export const App: React.FC = () => {
                 onUpdateSourceStart={(id, srcStart) =>
                   updateTimelineItem(id, { sourceStart: srcStart })
                 }
+                onOpenFramingEditor={() => handleOpenFramingEditor(selectedTimelineItem?.id)}
               />
             )}
             {mobileTab === 'analysis' && (
@@ -542,6 +569,7 @@ export const App: React.FC = () => {
         onSetTimelineScale={setTimelineScale}
         onGenerateAIDraft={generateAIDraft}
         onClearTimeline={clearTimeline}
+        onOpenFramingEditor={handleOpenFramingEditor}
         onUploadVoiceover={setVoiceoverAudio}
         onRemoveVoiceover={removeVoiceoverAudio}
         onSetVoiceoverVolume={setVoiceoverVolume}
@@ -549,6 +577,23 @@ export const App: React.FC = () => {
       />
 
       {/* 5. Modals */}
+      <FramingEditorModal
+        isOpen={isFramingEditorOpen}
+        activeItem={selectedTimelineItem || effectiveTimelineItem}
+        activeAsset={selectedMediaAsset || effectiveMediaAsset}
+        timeline={project.timeline}
+        mediaList={project.media}
+        onClose={() => setIsFramingEditorOpen(false)}
+        onUpdateTransform={updateItemTransform}
+        onSelectClip={(id) => {
+          setSelectedItemId(id);
+          const target = project.timeline.find((t) => t.id === id);
+          if (target) {
+            setCurrentTime(target.startTime);
+          }
+        }}
+      />
+
       <RenderModal
         isOpen={isRenderModalOpen}
         onClose={() => setIsRenderModalOpen(false)}

@@ -21,6 +21,7 @@ export interface WorkflowBarProps {
   onAnalyzeAllMedia?: () => void;
   onOpenRenderModal: () => void;
   onOpenWorkerDiagnostics: () => void;
+  onOpenFramingEditor?: () => void;
   onSwitchTab?: (tab: 'media' | 'transcript') => void;
   activeWorkersCount?: number;
   totalWorkersCount?: number;
@@ -35,6 +36,7 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
   onAnalyzeAllMedia,
   onOpenRenderModal,
   onOpenWorkerDiagnostics,
+  onOpenFramingEditor,
   onSwitchTab,
   activeWorkersCount = 4,
   totalWorkersCount = 4,
@@ -188,17 +190,28 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
         <span className="text-slate-600 text-xs shrink-0">→</span>
 
         {/* Step 5: Edit & Frame */}
-        <div
-          className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md whitespace-nowrap shrink-0 ${
-            isDraftReady
-              ? 'bg-indigo-950/40 text-indigo-300 border border-indigo-800/40'
-              : 'bg-slate-900/40 text-slate-500 border border-slate-800'
+        <button
+          onClick={onOpenFramingEditor}
+          disabled={timelineClipCount === 0}
+          className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md whitespace-nowrap shrink-0 transition-colors ${
+            timelineClipCount > 0
+              ? 'bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-200 border border-indigo-700/60 cursor-pointer shadow-sm active:bg-indigo-800'
+              : 'bg-slate-900/40 text-slate-500 border border-slate-800 cursor-not-allowed'
           }`}
-          title="Human framing & timing refinement"
+          title={
+            timelineClipCount > 0
+              ? 'Open 16:9 Framing Editor for selected footage'
+              : 'Generate AI Draft or add clips to timeline first'
+          }
         >
-          <Crop className="w-3 h-3 text-slate-400 shrink-0" />
+          <Crop className={`w-3 h-3 ${timelineClipCount > 0 ? 'text-indigo-400' : 'text-slate-500'} shrink-0`} />
           <span className="font-medium text-[11px]">5. 16:9 Framing</span>
-        </div>
+          {timelineClipCount > 0 && (
+            <span className="font-mono text-[10px] bg-indigo-900/70 px-1 rounded text-indigo-300">
+              {timelineClipCount}
+            </span>
+          )}
+        </button>
 
         <span className="text-slate-600 text-xs shrink-0">→</span>
 

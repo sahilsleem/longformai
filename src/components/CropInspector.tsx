@@ -26,6 +26,7 @@ interface CropInspectorProps {
   onUpdateTransform: (itemId: string, updates: Partial<TimelineItem['transform']>) => void;
   onUpdateDuration: (itemId: string, duration: number) => void;
   onUpdateSourceStart: (itemId: string, sourceStart: number) => void;
+  onOpenFramingEditor?: () => void;
 }
 
 export const CropInspector: React.FC<CropInspectorProps> = ({
@@ -34,6 +35,7 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
   onUpdateTransform,
   onUpdateDuration,
   onUpdateSourceStart,
+  onOpenFramingEditor,
 }) => {
   if (!selectedItem || !selectedAsset) {
     return (
@@ -397,6 +399,18 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
             <span>{selectedAsset.type.toUpperCase()}</span>
           </div>
         </div>
+
+        {/* Direct Touch / Drag Framing Editor Action Button */}
+        {onOpenFramingEditor && (
+          <button
+            onClick={onOpenFramingEditor}
+            className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer border border-indigo-400/40"
+            title="Open direct touch & drag framing editor"
+          >
+            <Crop className="w-4 h-4" />
+            <span>Open Direct 16:9 Framing Editor</span>
+          </button>
+        )}
 
         {/* 1. Fit Mode Switcher */}
         <div className="space-y-1.5">

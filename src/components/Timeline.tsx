@@ -21,6 +21,7 @@ import {
   Image as ImageIcon,
   Clock,
   CheckCircle2,
+  Crop,
 } from 'lucide-react';
 import { TimelineItem, MediaAsset, VoiceoverTrack, AudioSegment } from '../types/project';
 import { formatTimecode } from '../engine/schema';
@@ -45,6 +46,7 @@ interface TimelineProps {
   onSetTimelineScale: (scale: number) => void;
   onGenerateAIDraft?: (options?: DraftOptions) => void;
   onClearTimeline?: () => void;
+  onOpenFramingEditor?: (itemId?: string) => void;
   onUploadVoiceover?: (file: File) => void;
   onRemoveVoiceover?: () => void;
   onSetVoiceoverVolume?: (vol: number) => void;
@@ -70,6 +72,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   onSetTimelineScale,
   onGenerateAIDraft,
   onClearTimeline,
+  onOpenFramingEditor,
   onUploadVoiceover,
   onRemoveVoiceover,
   onSetVoiceoverVolume,
@@ -851,6 +854,23 @@ export const Timeline: React.FC<TimelineProps> = ({
             </div>
           )}
 
+          {/* Quick Adjust 16:9 Framing Action */}
+          {timeline.length > 0 && onOpenFramingEditor && (
+            <button
+              onClick={() => onOpenFramingEditor(selectedItemId || undefined)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold shadow-sm transition-all cursor-pointer ${
+                selectedItemId
+                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white ring-1 ring-indigo-400/50'
+                  : 'bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-800/50'
+              }`}
+              title="Open direct touch/drag 16:9 Framing Editor"
+            >
+              <Crop className="w-3.5 h-3.5 text-indigo-300" />
+              <span className="hidden sm:inline">Adjust Framing</span>
+              <span className="sm:hidden">Framing</span>
+            </button>
+          )}
+
           {/* Clear Timeline Action */}
           {timeline.length > 0 && onClearTimeline && (
             <button
@@ -1130,6 +1150,11 @@ export const Timeline: React.FC<TimelineProps> = ({
                         onSelectClip(item.id);
                         onSeek(item.startTime);
                       }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        onSelectClip(item.id);
+                        onOpenFramingEditor?.(item.id);
+                      }}
                       style={{
                         left: `${leftPx}px`,
                         width: `${Math.max(28, widthPx)}px`,
@@ -1139,6 +1164,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                           ? 'bg-blue-900/70 border-blue-400 ring-2 ring-blue-500 shadow-xl'
                           : 'bg-editor-clipBg hover:bg-slate-700/60 border-editor-clipBorder'
                       }`}
+                      title="Click to select • Double-click to adjust 16:9 framing"
                     >
                       {/* Clip Top Bar */}
                       <div className="flex items-center justify-between gap-1 pointer-events-none">
@@ -1179,16 +1205,36 @@ export const Timeline: React.FC<TimelineProps> = ({
                           )}
                         </div>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveClip(item.id);
-                          }}
-                          className="p-0.5 hover:bg-red-600/40 text-slate-400 hover:text-red-300 rounded transition-colors"
-                          title="Remove Clip from Timeline"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        <div className="flex items-center gap-0.5">
+                          {onOpenFramingEditor && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectClip(item.id);
+                                onOpenFramingEditor(item.id);
+                              }}
+                              className={`p-0.5 rounded transition-colors ${
+                                isSelected
+                                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                                  : 'hover:bg-indigo-600/40 text-slate-300 hover:text-indigo-200'
+                              }`}
+                              title="Adjust 16:9 Framing"
+                            >
+                              <Crop className="w-3 h-3" />
+                            </button>
+                          )}
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveClip(item.id);
+                            }}
+                            className="p-0.5 hover:bg-red-600/40 text-slate-400 hover:text-red-300 rounded transition-colors"
+                            title="Remove Clip from Timeline"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Right Resize Handle */}
