@@ -9,10 +9,11 @@ import {
   AlertCircle,
   ZoomIn,
   ZoomOut,
+  RotateCcw,
   Move,
 } from 'lucide-react';
-import { TimelineItem, MediaAsset } from '../types/project';
-import { calculatePanBounds } from '../engine/schema';
+import { TimelineItem, MediaAsset, TransformState } from '../types/project';
+import { calculatePanBounds, TARGET_ASPECT_RATIO } from '../engine/schema';
 
 interface PreviewCanvasProps {
   activeItem: TimelineItem | null;
@@ -37,19 +38,49 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+
   const [showGuides, setShowGuides] = useState(true);
   const [isInteractiveDragging, setIsInteractiveDragging] = useState(false);
   const [dragFeedback, setDragFeedback] = useState<string | null>(null);
+  const feedbackTimerRef = useRef<number | null>(null);
 
-  const dragStartPos = useRef<{ mouseX: number; mouseY: number; initialX: number; initialY: number }>({
+  const dragStartPos = useRef<{
+    mouseX: number;
+    mouseY: number;
+    initialX: number;
+    initialY: number;
+  }>({
     mouseX: 0,
     mouseY: 0,
     initialX: 0,
     initialY: 0,
   });
 
-  const touchStartDist = useRef<number | null>(null);
+  const touchPinchRef = useRef<{
+    initialDist: number;
+    initialScale: number;
+  } | null>(null);
+
   const [videoError, setVideoError] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setDragFeedback(msg);
+    if (feedbackTimerRef.current) {
+      window.clearTimeout(feedbackTimerRef.current);
+    }
+    feedbackTimerRef.current = window.setTimeout(() => {
+      setDragFeedback(null);
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        window.clearTimeout(feedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   // Reset video error when asset changes
   useEffect(() => {
@@ -66,7 +97,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     const video = videoRef.current;
     if (!video || !activeAsset || activeAsset.type !== 'video' || videoError) return;
 
-    // Only seek video if difference is significant to avoid stutter during continuous playback
     if (Math.abs(video.currentTime - clipTime) > 0.12) {
       video.currentTime = clipTime;
     }
@@ -80,7 +110,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
   }, [currentTime, isPlaying, clipTime, activeAsset, videoError]);
 
-  const transform = activeItem?.transform || {
+  const transform: TransformState = activeItem?.transform || {
     x: 0,
     y: 0,
     scale: 1.0,
@@ -88,9 +118,26 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     crop: { x: 0, y: 0, width: 1, height: 1 },
   };
 
-  // Direct mouse drag on 16:9 canvas to pan
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!activeItem || !onUpdateTransform || e.button !== 0) return;
+  const isNon16x9 =
+    activeAsset &&
+    activeAsset.aspectRatio &&
+    Math.abs(activeAsset.aspectRatio - TARGET_ASPECT_RATIO) > 0.05;
+
+  const isMissing = Boolean(
+    activeAsset && !activeAsset.file && (!activeAsset.url || activeAsset.url.length === 0)
+  );
+
+  // Direct Pointer Drag (Mouse & Touch single finger)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!activeItem || !onUpdateTransform || !activeAsset || isMissing) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+
     setIsInteractiveDragging(true);
     dragStartPos.current = {
       mouseX: e.clientX,
@@ -98,153 +145,124 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       initialX: transform.x || 0,
       initialY: transform.y || 0,
     };
-    setDragFeedback(`X: ${(transform.x || 0).toFixed(0)}% | Y: ${(transform.y || 0).toFixed(0)}%`);
   };
 
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isInteractiveDragging || !activeItem || !onUpdateTransform || !activeAsset) return;
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isInteractiveDragging || !activeItem || !onUpdateTransform || !activeAsset) return;
 
-      const deltaX = (e.clientX - dragStartPos.current.mouseX) * 0.22;
-      const deltaY = (e.clientY - dragStartPos.current.mouseY) * 0.22;
+    const rect = frameRef.current?.getBoundingClientRect();
+    const boxWidth = rect?.width || 800;
+    const boxHeight = rect?.height || 450;
 
-      const bounds = calculatePanBounds(
-        activeAsset.width,
-        activeAsset.height,
-        transform.scale || 1.0,
-        transform.fitMode || 'cover'
-      );
+    // Direct 1:1 screen mapping (percentage of 16:9 frame)
+    const deltaX = ((e.clientX - dragStartPos.current.mouseX) / boxWidth) * 100;
+    const deltaY = ((e.clientY - dragStartPos.current.mouseY) / boxHeight) * 100;
 
-      const targetX = dragStartPos.current.initialX + deltaX;
-      const targetY = dragStartPos.current.initialY + deltaY;
+    const bounds = calculatePanBounds(
+      activeAsset.width,
+      activeAsset.height,
+      transform.scale || 1.0,
+      transform.fitMode || 'cover'
+    );
 
-      const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, targetX));
-      const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, targetY));
+    const targetX = dragStartPos.current.initialX + deltaX;
+    const targetY = dragStartPos.current.initialY + deltaY;
 
-      const finalX = Math.round(clampedX * 10) / 10;
-      const finalY = Math.round(clampedY * 10) / 10;
+    const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, targetX));
+    const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, targetY));
 
-      onUpdateTransform({
-        x: finalX,
-        y: finalY,
-      });
+    const finalX = Math.round(clampedX * 10) / 10;
+    const finalY = Math.round(clampedY * 10) / 10;
 
-      setDragFeedback(`Pan X: ${finalX.toFixed(1)}% | Y: ${finalY.toFixed(1)}%`);
-    },
-    [isInteractiveDragging, activeItem, onUpdateTransform, activeAsset, transform.scale, transform.fitMode]
-  );
+    onUpdateTransform({
+      x: finalX,
+      y: finalY,
+    });
 
-  const handleMouseUp = useCallback(() => {
+    showToast(`Pan: X ${finalX > 0 ? '+' : ''}${finalX}% • Y ${finalY > 0 ? '+' : ''}${finalY}%`);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isInteractiveDragging) return;
     setIsInteractiveDragging(false);
-    setTimeout(() => setDragFeedback(null), 800);
-  }, []);
-
-  useEffect(() => {
-    if (isInteractiveDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Ignore
     }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isInteractiveDragging, handleMouseMove, handleMouseUp]);
+  };
 
-  // Direct mouse wheel zoom on 16:9 canvas
+  // Mouse wheel zoom on desktop
   const handleWheel = (e: React.WheelEvent) => {
-    if (!activeItem || !onUpdateTransform) return;
+    if (!activeItem || !onUpdateTransform || !activeAsset || isMissing) return;
     e.preventDefault();
-    const zoomDelta = e.deltaY < 0 ? 0.05 : -0.05;
+    const zoomDelta = e.deltaY < 0 ? 0.08 : -0.08;
     const newScale = Math.min(4.0, Math.max(1.0, (transform.scale || 1.0) + zoomDelta));
     const rounded = Math.round(newScale * 100) / 100;
-    
+
     onUpdateTransform({
       scale: rounded,
     });
-    setDragFeedback(`Zoom: ${(rounded * 100).toFixed(0)}%`);
-    setTimeout(() => setDragFeedback(null), 1200);
+    showToast(`Zoom: ${(rounded * 100).toFixed(0)}%`);
   };
 
-  // Touch drag & pinch zoom support
+  // Touch pinch zoom on mobile
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (!activeItem || !onUpdateTransform) return;
-    if (e.touches.length === 1) {
-      setIsInteractiveDragging(true);
-      dragStartPos.current = {
-        mouseX: e.touches[0].clientX,
-        mouseY: e.touches[0].clientY,
-        initialX: transform.x || 0,
-        initialY: transform.y || 0,
-      };
-    } else if (e.touches.length === 2) {
+    if (!activeItem || !onUpdateTransform || !activeAsset) return;
+    if (e.touches.length === 2) {
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      touchStartDist.current = dist;
+      touchPinchRef.current = {
+        initialDist: dist,
+        initialScale: transform.scale || 1.0,
+      };
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!activeItem || !onUpdateTransform || !activeAsset) return;
-    if (e.touches.length === 1 && isInteractiveDragging) {
-      const deltaX = (e.touches[0].clientX - dragStartPos.current.mouseX) * 0.22;
-      const deltaY = (e.touches[0].clientY - dragStartPos.current.mouseY) * 0.22;
-
-      const bounds = calculatePanBounds(
-        activeAsset.width,
-        activeAsset.height,
-        transform.scale || 1.0,
-        transform.fitMode || 'cover'
-      );
-
-      const targetX = dragStartPos.current.initialX + deltaX;
-      const targetY = dragStartPos.current.initialY + deltaY;
-
-      const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, targetX));
-      const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, targetY));
-
-      onUpdateTransform({
-        x: Math.round(clampedX * 10) / 10,
-        y: Math.round(clampedY * 10) / 10,
-      });
-    } else if (e.touches.length === 2 && touchStartDist.current !== null) {
+    if (e.touches.length === 2 && touchPinchRef.current) {
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      const factor = dist / touchStartDist.current;
-      const newScale = Math.min(4.0, Math.max(1.0, (transform.scale || 1.0) * factor));
+      const ratio = dist / Math.max(1, touchPinchRef.current.initialDist);
+      const newScale = Math.min(4.0, Math.max(1.0, touchPinchRef.current.initialScale * ratio));
+      const rounded = Math.round(newScale * 100) / 100;
+
       onUpdateTransform({
-        scale: Math.round(newScale * 100) / 100,
+        scale: rounded,
       });
-      touchStartDist.current = dist;
+      showToast(`Zoom: ${(rounded * 100).toFixed(0)}%`);
     }
   };
 
   const handleTouchEnd = () => {
-    setIsInteractiveDragging(false);
-    touchStartDist.current = null;
-    setTimeout(() => setDragFeedback(null), 800);
+    touchPinchRef.current = null;
   };
 
-  const isNon16x9 =
-    activeAsset &&
-    activeAsset.aspectRatio &&
-    Math.abs(activeAsset.aspectRatio - 16 / 9) > 0.05;
-
-  const isMissing = Boolean(
-    activeAsset && !activeAsset.file && (!activeAsset.url || activeAsset.url.length === 0)
-  );
+  // Reset framing
+  const handleResetFraming = () => {
+    if (!activeItem || !onUpdateTransform) return;
+    onUpdateTransform({
+      x: 0,
+      y: 0,
+      scale: 1.0,
+      fitMode: 'cover',
+    });
+    showToast('Framing reset');
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-editor-bg overflow-hidden relative select-none">
       {/* Top Preview Status Bar */}
       <div className="h-9 px-2.5 sm:px-4 flex items-center justify-between border-b border-editor-panelBorder/50 bg-editor-panel/50 text-xs text-slate-400 overflow-x-auto scrollbar-none gap-2 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
-          <span className="font-semibold text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">16:9 Canvas</span>
+          <span className="font-semibold text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">16:9 Frame</span>
           {activeAsset && (
-            <span className="text-slate-500 text-[10px] sm:text-[11px] truncate max-w-[120px] sm:max-w-[180px]">
+            <span className="text-slate-500 text-[10px] sm:text-[11px] truncate max-w-[140px] sm:max-w-[200px]">
               • {activeAsset.name}
             </span>
           )}
@@ -259,14 +277,20 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
               Framed ({activeAsset?.aspectRatioLabel})
             </span>
           ) : null}
-          {transform.fitMode && (
-            <span className="text-[9px] sm:text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 border border-slate-700 whitespace-nowrap">
-              {transform.fitMode}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {activeItem && onUpdateTransform && (
+            <button
+              onClick={handleResetFraming}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] text-slate-400 hover:text-slate-200 hover:bg-editor-surface transition-colors border border-slate-700/60 whitespace-nowrap"
+              title="Reset clip framing to default center (16:9)"
+            >
+              <RotateCcw className="w-3 h-3 text-slate-400" />
+              <span>Reset</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowGuides(!showGuides)}
             className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] transition-colors whitespace-nowrap ${
@@ -274,7 +298,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                 ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="Toggle 16:9 Framing / Rule-of-Thirds Guides"
+            title="Toggle 16:9 Rule-of-Thirds Guides"
           >
             <Grid className="w-3 h-3" />
             <span>Guides</span>
@@ -282,26 +306,39 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         </div>
       </div>
 
-      {/* Main 16:9 Preview Viewport */}
+      {/* Main Preview Container with Dimmed Surround & Fixed 16:9 Output Viewport */}
       <div
         ref={containerRef}
-        className="flex-1 p-2 sm:p-4 md:p-6 flex items-center justify-center relative overflow-hidden"
+        className="flex-1 p-2 sm:p-4 md:p-6 flex items-center justify-center relative overflow-hidden bg-slate-950/90"
       >
-        {/* The 16:9 Aspect Ratio Box (Represents 1920x1080 Output Frame) */}
+        {/* Fixed 16:9 YouTube Master Frame */}
         <div
-          className={`w-full max-w-4xl aspect-video bg-black rounded-lg shadow-2xl relative overflow-hidden border border-slate-700/60 flex items-center justify-center ${
-            activeItem && !isMissing ? (isInteractiveDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
-          }`}
-          onMouseDown={activeItem && !isMissing ? handleMouseDown : undefined}
-          onWheel={activeItem && !isMissing ? handleWheel : undefined}
-          onTouchStart={activeItem && !isMissing ? handleTouchStart : undefined}
-          onTouchMove={activeItem && !isMissing ? handleTouchMove : undefined}
+          ref={frameRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          title={activeItem && !isMissing ? 'Click & Drag to pan 16:9 framing • Scroll to Zoom' : undefined}
+          className={`w-full max-w-4xl aspect-video bg-black rounded-lg shadow-2xl relative overflow-hidden border-2 border-slate-700/80 flex items-center justify-center select-none ${
+            activeItem && !isMissing
+              ? isInteractiveDragging
+                ? 'cursor-grabbing border-blue-500/80 ring-2 ring-blue-500/40 shadow-blue-900/30'
+                : 'cursor-grab hover:border-slate-500'
+              : ''
+          }`}
+          style={{ touchAction: 'none' }}
+          title={
+            activeItem && !isMissing
+              ? 'Drag to reposition footage inside 16:9 frame • Scroll or pinch to zoom'
+              : undefined
+          }
         >
-          {/* Active Item Media Rendering */}
+          {/* Active Footage Inside the Fixed 16:9 Frame */}
           {activeAsset && activeItem ? (
-            <div className="w-full h-full relative overflow-hidden flex items-center justify-center bg-black">
+            <div className="w-full h-full relative overflow-hidden flex items-center justify-center bg-black pointer-events-none">
               {isMissing ? (
                 <div className="flex flex-col items-center justify-center p-6 text-center bg-amber-950/30 border border-amber-800/50 rounded-xl max-w-md mx-4 select-none">
                   <AlertCircle className="w-10 h-10 text-amber-400 mb-2 animate-pulse" />
@@ -310,7 +347,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                     {activeAsset.name}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-2.5 leading-relaxed">
-                    This file reference was imported from project JSON. Relink the local file using the Relink Manager to preview and edit footage.
+                    Relink this file using the Relink Manager to preview and frame footage.
                   </p>
                 </div>
               ) : videoError ? (
@@ -318,9 +355,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                   <AlertCircle className="w-10 h-10 text-amber-400 mb-2" />
                   <p className="text-sm font-semibold text-slate-200">Browser Video Codec Unsupported</p>
                   <p className="text-xs font-mono text-slate-400 mt-1 truncate max-w-xs">{activeAsset.name}</p>
-                  <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                    The browser cannot decode this video stream directly. The file remains intact and local FFmpeg rendering will decode it normally.
-                  </p>
                 </div>
               ) : activeAsset.type === 'video' ? (
                 <video
@@ -360,19 +394,18 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
               )}
             </div>
           ) : (
-            /* Empty State / Unassigned visual gap */
             <div className="flex flex-col items-center justify-center text-slate-500 p-6 text-center">
               <Eye className="w-10 h-10 mb-2 opacity-40 text-slate-400" />
               <p className="text-sm font-medium text-slate-400">No media at current timeline position</p>
               <p className="text-xs text-slate-600 mt-1 max-w-sm">
-                Unassigned visual gap. Add media from the Media Library or select a clip in the timeline.
+                Select any visual clip on the timeline to preview and directly frame it.
               </p>
             </div>
           )}
 
-          {/* 16:9 Framing / Rule of Thirds Overlays */}
+          {/* 16:9 Rule of Thirds & Output Frame Guides */}
           {showGuides && (
-            <div className="absolute inset-0 pointer-events-none border border-blue-500/20 grid grid-cols-3 grid-rows-3">
+            <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-blue-500/20">
               <div className="border-r border-b border-blue-500/15" />
               <div className="border-r border-b border-blue-500/15" />
               <div className="border-b border-blue-500/15" />
@@ -386,16 +419,16 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
               {/* 16:9 Safe Area Guide */}
               <div className="absolute inset-[5%] border border-blue-400/20 rounded pointer-events-none" />
 
-              {/* 1920x1080 Stamp */}
+              {/* 1920x1080 16:9 Final Output Stamp */}
               <div className="absolute top-2 left-2 bg-black/70 px-2 py-0.5 rounded text-[10px] font-mono text-slate-300 pointer-events-none border border-slate-700/50">
-                1920 × 1080 (16:9)
+                1920 × 1080 (16:9 Final Frame)
               </div>
             </div>
           )}
 
-          {/* Live Drag & Zoom Feedback Toast */}
+          {/* Live Drag & Zoom Floating Toast Feedback */}
           {activeItem && dragFeedback && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono font-medium shadow-lg pointer-events-none border border-blue-400/50 flex items-center gap-1.5 animate-fadeIn">
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono font-medium shadow-lg pointer-events-none border border-blue-400/50 flex items-center gap-1.5 animate-fadeIn z-20">
               <Move className="w-3 h-3" />
               <span>{dragFeedback}</span>
             </div>
@@ -403,7 +436,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         </div>
       </div>
 
-      {/* Bottom Transport Controls Bar */}
+      {/* Bottom Transport Controls & Quick Zoom Bar */}
       <div className="h-12 bg-editor-panel border-t border-editor-panelBorder px-3 sm:px-6 flex items-center justify-between shrink-0">
         {/* Playback Transport Buttons */}
         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -432,33 +465,37 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           </button>
         </div>
 
-        {/* Quick Framing Guide Hint */}
+        {/* Quick Direct Manipulation Instruction Hint */}
         <div className="text-[11px] text-slate-400 hidden md:block">
           {activeItem ? (
-            <span>💡 Click & drag canvas to pan 16:9 frame • Scroll wheel to zoom</span>
+            <span>💡 Drag footage to position inside 16:9 frame • Scroll wheel / pinch to zoom</span>
           ) : (
-            <span>1920×1080 16:9 Long-Form Canvas Ready</span>
+            <span>1920×1080 16:9 Long-Form Output Ready</span>
           )}
         </div>
 
-        {/* Zoom Quick Adjuster */}
+        {/* Zoom Scale Adjuster */}
         {activeItem && onUpdateTransform ? (
           <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-slate-400 font-mono">
             <button
               onClick={() =>
-                onUpdateTransform({ scale: Math.max(1.0, Math.round(((transform.scale || 1.0) - 0.1) * 10) / 10) })
+                onUpdateTransform({
+                  scale: Math.max(1.0, Math.round(((transform.scale || 1.0) - 0.1) * 10) / 10),
+                })
               }
               className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
               title="Zoom Out"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="min-w-[40px] sm:min-w-[48px] text-center text-[11px] sm:text-xs">
+            <span className="min-w-[40px] sm:min-w-[48px] text-center text-[11px] sm:text-xs text-blue-300">
               {Math.round((transform.scale || 1.0) * 100)}%
             </span>
             <button
               onClick={() =>
-                onUpdateTransform({ scale: Math.min(4.0, Math.round(((transform.scale || 1.0) + 0.1) * 10) / 10) })
+                onUpdateTransform({
+                  scale: Math.min(4.0, Math.round(((transform.scale || 1.0) + 0.1) * 10) / 10),
+                })
               }
               className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
               title="Zoom In"
