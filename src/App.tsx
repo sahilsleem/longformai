@@ -16,6 +16,15 @@ import { Film, FileText, Crop, Sparkles, Monitor } from 'lucide-react';
 export const App: React.FC = () => {
   const {
     project,
+    folders,
+    activeFolderId,
+    setActiveFolderId,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    assignMediaToFolder,
+    removeMediaFromFolder,
+    setMediaFolders,
     voiceover,
     isDirty,
     markSaved,
@@ -241,6 +250,8 @@ export const App: React.FC = () => {
             {leftTab === 'media' ? (
               <MediaPanel
                 mediaList={project.media}
+                folders={folders}
+                activeFolderId={activeFolderId}
                 voiceover={voiceover}
                 selectedMediaId={selectedMediaId}
                 unlinkedCount={unlinkedCount}
@@ -252,6 +263,13 @@ export const App: React.FC = () => {
                 onUploadVoiceover={setVoiceoverAudio}
                 onRemoveVoiceover={removeVoiceoverAudio}
                 onAnalyzeMedia={analyzeMedia}
+                onCreateFolder={createFolder}
+                onRenameFolder={renameFolder}
+                onDeleteFolder={deleteFolder}
+                onAssignMediaToFolder={assignMediaToFolder}
+                onRemoveMediaFromFolder={removeMediaFromFolder}
+                onSetMediaFolders={setMediaFolders}
+                onSetActiveFolderId={setActiveFolderId}
               />
             ) : (
               <TranscriptPanel
@@ -424,6 +442,8 @@ export const App: React.FC = () => {
             {mobileTab === 'media' && (
               <MediaPanel
                 mediaList={project.media}
+                folders={folders}
+                activeFolderId={activeFolderId}
                 voiceover={voiceover}
                 selectedMediaId={selectedMediaId}
                 unlinkedCount={unlinkedCount}
@@ -435,6 +455,13 @@ export const App: React.FC = () => {
                 onUploadVoiceover={setVoiceoverAudio}
                 onRemoveVoiceover={removeVoiceoverAudio}
                 onAnalyzeMedia={analyzeMedia}
+                onCreateFolder={createFolder}
+                onRenameFolder={renameFolder}
+                onDeleteFolder={deleteFolder}
+                onAssignMediaToFolder={assignMediaToFolder}
+                onRemoveMediaFromFolder={removeMediaFromFolder}
+                onSetMediaFolders={setMediaFolders}
+                onSetActiveFolderId={setActiveFolderId}
               />
             )}
             {mobileTab === 'transcript' && (

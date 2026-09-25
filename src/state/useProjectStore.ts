@@ -6,6 +6,15 @@ import { transcribeAudioFile } from '../engine/transcription';
 import { analyzeMediaAsset } from '../engine/mediaAnalysis';
 import { generateDraftTimeline, DraftOptions, DraftStats } from '../engine/draftTimeline';
 import { prepareProjectPipeline, PreparationProgress, PreparationResult } from '../engine/preparation';
+import {
+  createMediaFolder,
+  renameMediaFolder,
+  deleteMediaFolder,
+  cleanupDeletedFolderFromAssets,
+  assignMediaToFolder as assignFolderHelper,
+  removeMediaFromFolder as removeFolderHelper,
+  setMediaFolders as setFoldersHelper,
+} from '../engine/mediaFolders';
 
 /**
  * Safely revokes a browser blob object URL if valid to prevent memory leaks
@@ -28,6 +37,7 @@ export function useProject() {
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [timelineScale, setTimelineScale] = useState<number>(24); // pixels per second
@@ -445,7 +455,7 @@ export function useProject() {
   }, []);
 
   // Add uploaded media assets
-  const addMediaAssets = useCallback(async (files: FileList | File[]) => {
+  const addMediaAssets = useCallback(async (files: FileList | File[], targetFolderId?: string) => {
     const fileArray = Array.from(files);
     const newAssets: MediaAsset[] = [];
 
@@ -528,6 +538,7 @@ export function useProject() {
         aspectRatio: ratio,
         aspectRatioLabel: label,
         size: file.size,
+        folderIds: targetFolderId ? [targetFolderId] : undefined,
         createdAt: Date.now(),
       });
     }
@@ -602,6 +613,65 @@ export function useProject() {
         })();
       }
     }
+  }, []);
+
+  // Folder Operations
+  const createFolder = useCallback((name: string) => {
+    const newFolder = createMediaFolder(name);
+    setProject((prev) => ({
+      ...prev,
+      folders: [...(prev.folders || []), newFolder],
+      updatedAt: new Date().toISOString(),
+    }));
+    setIsDirty(true);
+    return newFolder;
+  }, []);
+
+  const renameFolder = useCallback((folderId: string, newName: string) => {
+    setProject((prev) => ({
+      ...prev,
+      folders: renameMediaFolder(prev.folders || [], folderId, newName),
+      updatedAt: new Date().toISOString(),
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const deleteFolder = useCallback((folderId: string) => {
+    setProject((prev) => ({
+      ...prev,
+      folders: deleteMediaFolder(prev.folders || [], folderId),
+      media: cleanupDeletedFolderFromAssets(prev.media, folderId),
+      updatedAt: new Date().toISOString(),
+    }));
+    setActiveFolderId((current) => (current === folderId ? null : current));
+    setIsDirty(true);
+  }, []);
+
+  const assignMediaToFolder = useCallback((mediaId: string, folderId: string) => {
+    setProject((prev) => ({
+      ...prev,
+      media: assignFolderHelper(prev.media, mediaId, folderId),
+      updatedAt: new Date().toISOString(),
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const removeMediaFromFolder = useCallback((mediaId: string, folderId: string) => {
+    setProject((prev) => ({
+      ...prev,
+      media: removeFolderHelper(prev.media, mediaId, folderId),
+      updatedAt: new Date().toISOString(),
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const setMediaFolders = useCallback((mediaId: string, folderIds: string[]) => {
+    setProject((prev) => ({
+      ...prev,
+      media: setFoldersHelper(prev.media, mediaId, folderIds),
+      updatedAt: new Date().toISOString(),
+    }));
+    setIsDirty(true);
   }, []);
 
   const removeMediaAsset = useCallback((mediaId: string) => {
@@ -744,7 +814,10 @@ export function useProject() {
         const result = await generateDraftTimeline(
           project.voiceover.segments,
           project.media,
-          options
+          {
+            folders: project.folders || [],
+            ...options,
+          }
         );
 
         setProject((prev) => ({
@@ -1055,6 +1128,7 @@ export function useProject() {
 
     setSelectedItemId(null);
     setSelectedMediaId(null);
+    setActiveFolderId(null);
     currentTimeRef.current = 0;
     setCurrentTime(0);
     setIsPlaying(false);
@@ -1082,6 +1156,7 @@ export function useProject() {
 
     setSelectedItemId(null);
     setSelectedMediaId(null);
+    setActiveFolderId(null);
     currentTimeRef.current = 0;
     setCurrentTime(0);
     setIsPlaying(false);
@@ -1095,6 +1170,15 @@ export function useProject() {
 
   return {
     project,
+    folders: project.folders || [],
+    activeFolderId,
+    setActiveFolderId,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    assignMediaToFolder,
+    removeMediaFromFolder,
+    setMediaFolders,
     voiceover: project.voiceover,
     isDirty,
     markSaved,

@@ -1,6 +1,7 @@
-import { AudioSegment, MediaAsset, TimelineItem, TransformState, SemanticMatchCandidate, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
+import { AudioSegment, MediaAsset, MediaFolder, TimelineItem, TransformState, SemanticMatchCandidate, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
 import { createDefaultTransform } from './schema';
 import { matchMediaForSegment, batchMatchMediaForSegments } from './matching';
+import { getMediaFolderNames } from './mediaFolders';
 
 export interface DraftOptions {
   similarityThreshold?: number;     // default: 0.30 (range 0.15 to 0.60)
@@ -8,6 +9,7 @@ export interface DraftOptions {
   continuityPreference?: number;    // default: 0.03 (range 0.00 to 0.10)
   preferVideoOverImage?: boolean;   // default: true (gives +0.03 bonus to video footage)
   workerUrl?: string;
+  folders?: MediaFolder[];          // User-created media folders for explicit identity matching
 }
 
 export interface MediaUsageItem {
@@ -1809,13 +1811,13 @@ export function calculateSubjectContinuityModifier(
 // ==========================================
 
 export const GENERIC_MEDIA_NAME_STOPWORDS = new Set([
-  'video', 'clip', 'footage', 'scene', 'shot', 'image', 'photo', 'photos', 'picture', 'pictures', 'broll', 'b-roll',
+  'video', 'clip', 'footage', 'scene', 'shot', 'image', 'photo', 'photos', 'picture', 'pictures', 'broll', 'b-roll', 'b_roll', 'roll',
   'track', 'media', 'asset', 'final', 'edit', 'draft', 'take', 'vlog', 'audio', 'mp4', 'mov',
   'jpg', 'jpeg', 'png', 'webp', 'mkv', 'hd', '4k', '1080p', '720p', 'raw', 'rec', 'recording',
   'cam', 'camera', 'cameras', 'cut', 'render', 'export', 'project', 'sequence', 'part', 'segment', 'frame',
-  'red', 'carpet', 'event', 'press', 'interview', 'conference', 'meeting', 'speech', 'presentation',
+  'red', 'carpet', 'event', 'events', 'press', 'interview', 'conference', 'meeting', 'speech', 'presentation',
   'arrival', 'celebration', 'background', 'overlay', 'stock', 'view', 'wallpaper', 'screen',
-  'screencast', 'thumbnail', 'thumb', 'img', 'vid',
+  'screencast', 'thumbnail', 'thumb', 'img', 'vid', 'folder', 'folders', 'misc', 'other', 'others', 'general', 'extra', 'extras',
   'person', 'people', 'man', 'woman', 'boy', 'girl', 'human', 'celebrity', 'subject', 'character',
   'mountain', 'mountains', 'landscape', 'nature', 'city', 'street', 'traffic', 'sky', 'ocean',
   'sea', 'beach', 'forest', 'trees', 'tree', 'water', 'sun', 'sunset', 'sunrise', 'room',
@@ -1825,7 +1827,7 @@ export const GENERIC_MEDIA_NAME_STOPWORDS = new Set([
   'through', 'about', 'after', 'before', 'without', 'during', 'against',
   'that', 'this', 'these', 'those', 'they', 'them', 'their', 'there', 'here',
   'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why', 'how',
-  'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such',
+  'all', 'any', 'both', 'each', 'few', 'more', 'most', 'some', 'such',
   'have', 'has', 'had', 'having', 'been', 'being', 'were', 'does', 'doing',
   'would', 'should', 'could', 'might', 'must', 'will', 'shall', 'inside', 'outside',
   'a', 'an', 'in', 'on', 'at', 'to', 'by', 'of', 'is', 'are', 'was', 'be',
@@ -1846,9 +1848,12 @@ export const SOCIAL_HANDLE_SUFFIXES = /(cutie|fanclub|fanpage|updates|update|off
 
 /**
  * Step 53: Extracts distinct identity tokens (e.g. celebrity names, characters, subjects)
- * from asset filename and explicit tags, filtering generic media and scene stopwords.
+ * from asset filename, explicit tags, and user-assigned media folders, filtering generic media and scene stopwords.
  */
-export function extractMediaIdentityTokens(asset: MediaAsset): string[] {
+export function extractMediaIdentityTokens(
+  asset: MediaAsset,
+  folders: MediaFolder[] = []
+): string[] {
   if (!asset || !asset.name) return [];
 
   const tokens = new Set<string>();
@@ -1871,7 +1876,25 @@ export function extractMediaIdentityTokens(asset: MediaAsset): string[] {
     }
   });
 
-  // 2. From explicit user tags if provided
+  // 2. From user-assigned media folders
+  if (asset.folderIds && asset.folderIds.length > 0 && folders.length > 0) {
+    const folderNames = getMediaFolderNames(asset, folders);
+    for (const folderName of folderNames) {
+      const cleanFolder = folderName.toLowerCase().replace(/[_\W]+/g, ' ');
+      const folderWords = cleanFolder
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
+      folderWords.forEach((w) => {
+        tokens.add(w);
+        const stripped = w.replace(SOCIAL_HANDLE_SUFFIXES, '');
+        if (stripped.length >= 3 && stripped !== w && !GENERIC_MEDIA_NAME_STOPWORDS.has(stripped)) {
+          tokens.add(stripped);
+        }
+      });
+    }
+  }
+
+  // 3. From explicit user tags if provided
   const allTags = [
     ...(asset.analysis?.tags || []),
     ...(asset.analysis?.semantic?.tags || []),
@@ -1898,14 +1921,15 @@ export interface DirectEntityConsistencyResult {
 /**
  * Step 53: Direct Entity & Subject Consistency Intelligence.
  * Evaluates whether candidate media asset represents the specific person/entity referenced in narration:
- * - Matching Identity: +0.15 bonus (e.g., narration mentions "Katrina Kaif", asset is "katrina_kaif.mp4")
- * - Confirmed Conflicting Identity: -0.15 penalty (e.g., narration mentions "Katrina Kaif", candidate is "salman_khan.mp4" where "salman khan" is another library entity)
- * - Neutral / Generic Identity: 0.0 modifier (e.g., candidate is "red_carpet_event.mp4" without conflicting identity)
+ * - Matching Identity: +0.15 bonus (e.g., narration mentions "Katrina Kaif", asset is "katrina_kaif.mp4" or in "Katrina Kaif" folder)
+ * - Confirmed Conflicting Identity: -0.15 penalty (e.g., narration mentions "Katrina Kaif", candidate is in "Salman Khan" folder / "salman_khan.mp4")
+ * - Neutral / Generic Identity: 0.0 modifier (e.g., candidate is in "B-Roll" folder / "red_carpet_event.mp4" without conflicting identity)
  */
 export function calculateDirectEntityConsistencyModifier(
   narrationText: string,
   candidateAsset: MediaAsset,
-  allMediaAssets: MediaAsset[] = []
+  allMediaAssets: MediaAsset[] = [],
+  folders: MediaFolder[] = []
 ): DirectEntityConsistencyResult {
   if (!narrationText || !candidateAsset) {
     return {
@@ -1918,7 +1942,7 @@ export function calculateDirectEntityConsistencyModifier(
   }
 
   const narrationTokens = extractSubjectTokens(narrationText);
-  const candidateIdentityTokens = extractMediaIdentityTokens(candidateAsset);
+  const candidateIdentityTokens = extractMediaIdentityTokens(candidateAsset, folders);
 
   // If candidate asset has no identity tokens, it is neutral (generic footage)
   if (candidateIdentityTokens.length === 0) {
@@ -1970,7 +1994,7 @@ export function calculateDirectEntityConsistencyModifier(
   // - AND the narration matches the identity tokens of another media asset in the pool
   if (allMediaAssets.length > 0) {
     const otherAssets = allMediaAssets.filter((a) => a.id !== candidateAsset.id);
-    const poolOtherEntities = otherAssets.flatMap((a) => extractMediaIdentityTokens(a));
+    const poolOtherEntities = otherAssets.flatMap((a) => extractMediaIdentityTokens(a, folders));
 
     const narrationMatchesOtherEntity = poolOtherEntities.some((token) => {
       if (narrationTokens.includes(token) || textLower.includes(token)) return true;
@@ -9968,6 +9992,7 @@ export async function generateDraftTimeline(
   const continuityPreference = options.continuityPreference ?? DEFAULT_CONTINUITY_PREFERENCE;
   const preferVideo = options.preferVideoOverImage ?? true;
   const workerUrl = options.workerUrl;
+  const folders = options.folders || [];
 
   segments = groupAudioSegmentsForVisualDraft(segments);
 
@@ -10157,7 +10182,8 @@ export async function generateDraftTimeline(
           const entityIntel = calculateDirectEntityConsistencyModifier(
             segment.text,
             asset,
-            validAnalyzedMedia
+            validAnalyzedMedia,
+            folders
           );
           if (entityIntel.status === 'MATCH') {
             candidatesToEvaluate.push({
@@ -10196,7 +10222,8 @@ export async function generateDraftTimeline(
           const entityIntel = calculateDirectEntityConsistencyModifier(
             segment.text,
             asset,
-            validAnalyzedMedia
+            validAnalyzedMedia,
+            folders
           );
           if (entityIntel.status === 'MATCH') {
             return true;
@@ -10559,7 +10586,8 @@ export async function generateDraftTimeline(
           const entityConsistencyIntel = calculateDirectEntityConsistencyModifier(
             segment.text,
             asset,
-            validAnalyzedMedia
+            validAnalyzedMedia,
+            folders
           );
 
           // N. Final Composite Score (Semantic is dominant, visual micro-modifiers bounded by Step 46 budget)

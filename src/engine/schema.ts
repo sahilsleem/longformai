@@ -127,6 +127,7 @@ export function createInitialProject(name: string = 'Untitled LongForm Project')
     fps: 30,
     timeline: [],
     media: [],
+    folders: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -193,6 +194,7 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
       aspectRatio: m.aspectRatio,
       aspectRatioLabel: m.aspectRatioLabel,
       size: m.size,
+      folderIds: m.folderIds && m.folderIds.length > 0 ? m.folderIds : undefined,
       analysis: sanitizedAnalysis,
       createdAt: m.createdAt,
     };
@@ -397,6 +399,7 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
       resolution: project.resolution,
       fps: project.fps,
       media: sanitizedMedia,
+      folders: project.folders || [],
       timeline: sanitizedTimeline,
       voiceover: sanitizedVoiceover,
       createdAt: project.createdAt,
@@ -499,9 +502,28 @@ export function validateAndParseProjectJSON(jsonString: string): ParseProjectRes
         aspectRatio: m.aspectRatio || (m.width && m.height ? m.width / m.height : TARGET_ASPECT_RATIO),
         aspectRatioLabel: m.aspectRatioLabel || classifyAspectRatio(m.width, m.height).label,
         size: typeof m.size === 'number' ? m.size : undefined,
+        folderIds: Array.isArray(m.folderIds)
+          ? m.folderIds.filter((fid: any) => typeof fid === 'string' && fid.trim().length > 0)
+          : undefined,
         analysis: m.analysis,
         createdAt: typeof m.createdAt === 'number' ? m.createdAt : Date.now(),
       });
+    }
+  }
+
+  // Validate Media Folders (if present)
+  const parsedFolders: NonNullable<LongFormProject['folders']> = [];
+  if (Array.isArray(proj.folders)) {
+    for (let fIdx = 0; fIdx < proj.folders.length; fIdx++) {
+      const f = proj.folders[fIdx];
+      if (f && typeof f.id === 'string' && typeof f.name === 'string') {
+        parsedFolders.push({
+          id: f.id,
+          name: f.name.trim() || 'Untitled Folder',
+          createdAt: typeof f.createdAt === 'number' ? f.createdAt : Date.now(),
+          updatedAt: typeof f.updatedAt === 'number' ? f.updatedAt : undefined,
+        });
+      }
     }
   }
 
@@ -778,6 +800,7 @@ export function validateAndParseProjectJSON(jsonString: string): ParseProjectRes
     },
     fps: proj.fps || 30,
     media: parsedMedia,
+    folders: parsedFolders,
     voiceover: parsedVoiceover,
     timeline: parsedTimeline,
     createdAt: proj.createdAt || new Date().toISOString(),
