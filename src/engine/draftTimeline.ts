@@ -1,7 +1,6 @@
 import { AudioSegment, MediaAsset, MediaFolder, TimelineItem, TransformState, SemanticMatchCandidate, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
 import { createDefaultTransform } from './schema';
 import { matchMediaForSegment, batchMatchMediaForSegments } from './matching';
-import { getMediaFolderNames } from './mediaFolders';
 
 export interface DraftOptions {
   similarityThreshold?: number;     // default: 0.30 (range 0.15 to 0.60)
@@ -1542,7 +1541,7 @@ export function extractSubjectTokens(text: string): string[] {
   if (!text || typeof text !== 'string') return [];
   const words = text
     .toLowerCase()
-    .replace(/[^\w\s]/g, ' ')
+    .replace(/[^\p{L}\p{M}\p{N}\s]+/gu, ' ')
     .split(/\s+/)
     .filter((w) => w.length >= 4 && !COMMON_STOPWORDS.has(w));
 
@@ -1862,7 +1861,7 @@ export function extractMediaIdentityTokens(
   const cleanName = asset.name
     .replace(/\.[a-zA-Z0-9]+$/, '') // strip file extension
     .toLowerCase()
-    .replace(/[_\W]+/g, ' '); // replace dashes, underscores, etc. with space
+    .replace(/[^\p{L}\p{M}\p{N}\s]+/gu, ' '); // replace dashes, underscores, punctuation with space
 
   const nameWords = cleanName
     .split(/\s+/)
@@ -1876,21 +1875,24 @@ export function extractMediaIdentityTokens(
     }
   });
 
-  // 2. From user-assigned media folders
+  // 2. From user-assigned media folders (names and aliases)
   if (asset.folderIds && asset.folderIds.length > 0 && folders.length > 0) {
-    const folderNames = getMediaFolderNames(asset, folders);
-    for (const folderName of folderNames) {
-      const cleanFolder = folderName.toLowerCase().replace(/[_\W]+/g, ' ');
-      const folderWords = cleanFolder
-        .split(/\s+/)
-        .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
-      folderWords.forEach((w) => {
-        tokens.add(w);
-        const stripped = w.replace(SOCIAL_HANDLE_SUFFIXES, '');
-        if (stripped.length >= 3 && stripped !== w && !GENERIC_MEDIA_NAME_STOPWORDS.has(stripped)) {
-          tokens.add(stripped);
-        }
-      });
+    const assignedFolders = folders.filter((f) => asset.folderIds?.includes(f.id));
+    for (const folder of assignedFolders) {
+      const identityStrings = [folder.name, ...(folder.aliases || [])];
+      for (const rawStr of identityStrings) {
+        const cleanStr = rawStr.toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]+/gu, ' ');
+        const words = cleanStr
+          .split(/\s+/)
+          .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
+        words.forEach((w) => {
+          tokens.add(w);
+          const stripped = w.replace(SOCIAL_HANDLE_SUFFIXES, '');
+          if (stripped.length >= 3 && stripped !== w && !GENERIC_MEDIA_NAME_STOPWORDS.has(stripped)) {
+            tokens.add(stripped);
+          }
+        });
+      }
     }
   }
 
@@ -1900,7 +1902,7 @@ export function extractMediaIdentityTokens(
     ...(asset.analysis?.semantic?.tags || []),
   ];
   for (const tag of allTags) {
-    const cleanTag = tag.toLowerCase().replace(/[_\W]+/g, ' ');
+    const cleanTag = tag.toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]+/gu, ' ');
     const tagWords = cleanTag
       .split(/\s+/)
       .filter((w) => w.length >= 3 && !GENERIC_MEDIA_NAME_STOPWORDS.has(w) && !/^\d+$/.test(w));
@@ -9916,58 +9918,6 @@ export function refineShotDuration(
   };
 }
 
-function groupAudioSegmentsForVisualDraft(input: AudioSegment[]): AudioSegment[] {
-  const grouped: AudioSegment[] = [];
-  let i = 0;
-
-  while (i < input.length) {
-    const first = input[i];
-    const group: AudioSegment[] = [first];
-    let j = i + 1;
-
-    while (j < input.length) {
-      const current = group[group.length - 1];
-      const next = input[j];
-
-      const gap = Math.max(0, next.startTime - current.endTime);
-      const duration = next.endTime - first.startTime;
-
-      const speakerChanged =
-        first.speaker !== undefined &&
-        next.speaker !== undefined &&
-        first.speaker !== next.speaker;
-
-      if (speakerChanged || gap > 0.75 || duration > 8) {
-        break;
-      }
-
-      group.push(next);
-      j++;
-    }
-
-    grouped.push({
-      ...group[0],
-      id:
-        group.length === 1
-          ? group[0].id
-          : "grouped_" + group[0].id,
-      startTime: group[0].startTime,
-      endTime: group[group.length - 1].endTime,
-      text: group
-        .map((x) => x.text.trim())
-        .filter(Boolean)
-        .join(" "),
-      words: group.some((x) => x.words && x.words.length > 0)
-        ? group.flatMap((x) => x.words || [])
-        : undefined,
-    });
-
-    i = j;
-  }
-
-  return grouped;
-}
-
 /**
  * Deterministically generates a first draft 16:9 timeline from:
  * 1. Transcript segments (Step 3)
@@ -9989,8 +9939,6 @@ export async function generateDraftTimeline(
   const preferVideo = options.preferVideoOverImage ?? true;
   const workerUrl = options.workerUrl;
   const folders = options.folders || [];
-
-  segments = groupAudioSegmentsForVisualDraft(segments);
 
   const totalSegments = segments.length;
   const totalDuration = segments.reduce(

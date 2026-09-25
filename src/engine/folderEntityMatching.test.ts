@@ -256,4 +256,124 @@ describe('Media Folders as Explicit Identity Metadata in Draft Matching', () => 
     expect(run1.timeline[0].mediaId).toBe('vid_sal');
     expect(run1.timeline[1].mediaId).toBe('vid_kat');
   });
+
+  // 11. Cross-script folder aliases: English folder with Urdu alias
+  it('extracts tokens from folder aliases and matches Urdu narration for Katrina', async () => {
+    const foldersWithUrdu: MediaFolder[] = [
+      { id: 'f_kat', name: 'Katrina Kaif', aliases: ['کترینہ کیف', 'کترینہ'], createdAt: 1, updatedAt: 1 },
+      { id: 'f_sal', name: 'Salman Khan', aliases: ['سلمان خان', 'سلمان'], createdAt: 2, updatedAt: 2 },
+    ];
+
+    const katrinaMedia = makeMedia({ id: 'vid_kat', name: 'clip1.mp4', folderIds: ['f_kat'] });
+    const salmanMedia = makeMedia({ id: 'vid_sal', name: 'clip2.mp4', folderIds: ['f_sal'] });
+
+    // Verify token extraction includes alias tokens
+    const katTokens = extractMediaIdentityTokens(katrinaMedia, foldersWithUrdu);
+    expect(katTokens).toContain('katrina');
+    expect(katTokens).toContain('kaif');
+    expect(katTokens).toContain('کترینہ');
+    expect(katTokens).toContain('کیف');
+
+    // Test Urdu narration matching Katrina
+    const urduKatrinaNarration = 'یہ کترینہ کیف کی ایک شاندار کارکردگی تھی۔';
+    const modKat = calculateDirectEntityConsistencyModifier(urduKatrinaNarration, katrinaMedia, [], foldersWithUrdu);
+    expect(modKat.status).toBe('MATCH');
+    expect(modKat.modifier).toBe(0.15);
+    expect(modKat.matchedTokens).toContain('کترینہ');
+
+    // Test timeline generation with Urdu segments
+    const segments = [
+      makeSegment({ id: 'seg-1', text: 'یہ کترینہ کیف کی ایک شاندار جھلک ہے۔', startTime: 0, endTime: 5 }),
+    ];
+
+    const result = await generateDraftTimeline(segments, [salmanMedia, katrinaMedia], { folders: foldersWithUrdu });
+    expect(result.timeline.length).toBe(1);
+    expect(result.timeline[0].mediaId).toBe('vid_kat');
+  });
+
+  // 12. Cross-script folder aliases: Salman equivalent
+  it('matches Salman Urdu alias when Salman is mentioned in Urdu narration', async () => {
+    const foldersWithUrdu: MediaFolder[] = [
+      { id: 'f_kat', name: 'Katrina Kaif', aliases: ['کترینہ'], createdAt: 1, updatedAt: 1 },
+      { id: 'f_sal', name: 'Salman Khan', aliases: ['سلمان'], createdAt: 2, updatedAt: 2 },
+    ];
+
+    const katrinaMedia = makeMedia({ id: 'vid_kat', name: 'clip1.mp4', folderIds: ['f_kat'] });
+    const salmanMedia = makeMedia({ id: 'vid_sal', name: 'clip2.mp4', folderIds: ['f_sal'] });
+
+    const urduSalmanNarration = 'سلمان خان نے تقریب میں شرکت کی۔';
+    const modSal = calculateDirectEntityConsistencyModifier(urduSalmanNarration, salmanMedia, [], foldersWithUrdu);
+    expect(modSal.status).toBe('MATCH');
+    expect(modSal.modifier).toBe(0.15);
+    expect(modSal.matchedTokens).toContain('سلمان');
+
+    const segments = [
+      makeSegment({ id: 'seg-1', text: 'سلمان خان نے اسٹیج پر انٹری دی۔', startTime: 0, endTime: 5 }),
+    ];
+
+    const result = await generateDraftTimeline(segments, [katrinaMedia, salmanMedia], { folders: foldersWithUrdu });
+    expect(result.timeline.length).toBe(1);
+    expect(result.timeline[0].mediaId).toBe('vid_sal');
+  });
+
+  // 13. Multiple aliases across different scripts (Urdu + Hindi + Roman)
+  it('supports multiple aliases across different scripts on a single folder', () => {
+    const multiScriptFolder: MediaFolder[] = [
+      {
+        id: 'f_kat',
+        name: 'Katrina Kaif',
+        aliases: ['کترینہ', 'कैटरीना', 'katty'],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+
+    const media = makeMedia({ id: 'vid_kat', name: 'raw_01.mp4', folderIds: ['f_kat'] });
+    const tokens = extractMediaIdentityTokens(media, multiScriptFolder);
+
+    expect(tokens).toContain('katrina');
+    expect(tokens).toContain('kaif');
+    expect(tokens).toContain('کترینہ');
+    expect(tokens).toContain('कैटरीना');
+    expect(tokens).toContain('katty');
+
+    // Match via Urdu
+    const urduRes = calculateDirectEntityConsistencyModifier('یہ کترینہ کی فلم ہے', media, [], multiScriptFolder);
+    expect(urduRes.status).toBe('MATCH');
+
+    // Match via Hindi
+    const hindiRes = calculateDirectEntityConsistencyModifier('यह कैटरीना की फिल्म है', media, [], multiScriptFolder);
+    expect(hindiRes.status).toBe('MATCH');
+  });
+
+  // 14. Unrelated Urdu entity does NOT match folder alias
+  it('does not match when narration mentions an unrelated Urdu entity', () => {
+    const foldersWithUrdu: MediaFolder[] = [
+      { id: 'f_kat', name: 'Katrina Kaif', aliases: ['کترینہ'], createdAt: 1, updatedAt: 1 },
+    ];
+
+    const katrinaMedia = makeMedia({ id: 'vid_kat', name: 'clip1.mp4', folderIds: ['f_kat'] });
+    // "سہیل خان" (Sohail Khan) does not contain "کترینہ"
+    const narration = 'سہیل خان نے تقریب کے دوران خطاب کیا۔';
+
+    const result = calculateDirectEntityConsistencyModifier(narration, katrinaMedia, [], foldersWithUrdu);
+    expect(result.status).toBe('NEUTRAL');
+    expect(result.modifier).toBe(0.0);
+    expect(result.matchedTokens).toEqual([]);
+  });
+
+  // 15. Folders without aliases continue to work identically (backward compatible)
+  it('preserves existing English folder matching when aliases are undefined', () => {
+    const legacyFolders: MediaFolder[] = [
+      { id: 'f_kat', name: 'Katrina Kaif', createdAt: 1 },
+    ];
+
+    const media = makeMedia({ id: 'vid_kat', name: 'clip.mp4', folderIds: ['f_kat'] });
+    const tokens = extractMediaIdentityTokens(media, legacyFolders);
+    expect(tokens).toEqual(['katrina', 'kaif']);
+
+    const result = calculateDirectEntityConsistencyModifier('Katrina Kaif attended the show.', media, [], legacyFolders);
+    expect(result.status).toBe('MATCH');
+    expect(result.modifier).toBe(0.15);
+  });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   createMediaFolder,
+  setMediaFolderAliases,
   renameMediaFolder,
   deleteMediaFolder,
   cleanupDeletedFolderFromAssets,
@@ -79,6 +80,36 @@ describe('Media Folders Engine', () => {
 
       const emptyFolder = createMediaFolder('   ');
       expect(emptyFolder.name).toBe('Untitled Folder');
+    });
+
+    it('creates folder with optional cleaned aliases', () => {
+      const folder = createMediaFolder('Katrina Kaif', [' کترینہ ', 'کترینہ کیف', '  ', 'کترینہ']);
+      expect(folder.aliases).toEqual(['کترینہ', 'کترینہ کیف']);
+    });
+  });
+
+  describe('setMediaFolderAliases', () => {
+    it('sets aliases immutably, trimming, deduplicating, and removing empty values', () => {
+      const updated = setMediaFolderAliases(sampleFolders, 'folder_katrina', [
+        ' کترینہ ',
+        'کترینہ کیف',
+        '',
+        '   ',
+        'کترینہ',
+      ]);
+      const target = updated.find((f) => f.id === 'folder_katrina');
+      expect(target?.aliases).toEqual(['کترینہ', 'کترینہ کیف']);
+      expect(target?.updatedAt).toBeGreaterThan(0);
+      // Other folder untouched
+      expect(updated.find((f) => f.id === 'folder_salman')?.aliases).toBeUndefined();
+    });
+
+    it('removes aliases property if only empty aliases provided', () => {
+      const folderWithAliases: MediaFolder[] = [
+        { id: 'f1', name: 'Katrina Kaif', aliases: ['کترینہ'], createdAt: 1000 },
+      ];
+      const updated = setMediaFolderAliases(folderWithAliases, 'f1', ['', '  ']);
+      expect(updated[0].aliases).toBeUndefined();
     });
   });
 
@@ -206,6 +237,42 @@ describe('Media Folders Engine', () => {
       expect(parsedMedia[0].folderIds).toBeUndefined();
       expect(parsedMedia[1].folderIds).toEqual(['folder_katrina']);
       expect(parsedMedia[2].folderIds).toEqual(['folder_salman', 'folder_katrina']);
+    });
+
+    it('exports and validates projects with folder aliases and preserves Unicode scripts', () => {
+      const foldersWithAliases: MediaFolder[] = [
+        {
+          id: 'folder_katrina',
+          name: 'Katrina Kaif',
+          aliases: ['کترینہ کیف', 'کترینہ', 'कैटरीना कैफ'],
+          createdAt: 1001,
+        },
+        {
+          id: 'folder_salman',
+          name: 'Salman Khan',
+          createdAt: 1000,
+        },
+      ];
+
+      const project: LongFormProject = {
+        ...createInitialProject('Celebrity Showcase with Aliases'),
+        folders: foldersWithAliases,
+        media: sampleMedia,
+      };
+
+      const exportedJSON = exportProjectToPortableJSON(project);
+      const parsedResult = validateAndParseProjectJSON(exportedJSON);
+
+      expect(parsedResult.isValid).toBe(true);
+      expect(parsedResult.project).toBeDefined();
+      expect(parsedResult.project?.folders).toEqual(foldersWithAliases);
+      const parsedFolders = parsedResult.project?.folders || [];
+      expect(parsedFolders[0]?.aliases).toEqual([
+        'کترینہ کیف',
+        'کترینہ',
+        'कैटरीना कैफ',
+      ]);
+      expect(parsedFolders[1]?.aliases).toBeUndefined();
     });
 
     it('provides backward compatibility for legacy project JSON without folders or folderIds', () => {

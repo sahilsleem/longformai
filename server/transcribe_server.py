@@ -600,10 +600,6 @@ def run_transcription(
         else:
             cmd.extend(["-l", "auto"])
 
-        if word_timestamps:
-            cmd.append("-ml")
-            cmd.append("1")
-
         res = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,

@@ -17,16 +17,57 @@ export function getMediaFolderNames(asset: MediaAsset, folders: MediaFolder[] = 
 }
 
 /**
- * Creates a new MediaFolder entity with a unique ID.
+ * Creates a new MediaFolder entity with a unique ID and optional aliases.
  */
-export function createMediaFolder(name: string): MediaFolder {
+export function createMediaFolder(name: string, aliases?: string[]): MediaFolder {
   const trimmed = name.trim();
+  const cleanedAliases = Array.isArray(aliases)
+    ? Array.from(
+        new Set(
+          aliases
+            .filter((a) => typeof a === 'string' && a.trim().length > 0)
+            .map((a) => a.trim())
+        )
+      )
+    : undefined;
+
   return {
     id: `folder_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
     name: trimmed || 'Untitled Folder',
+    aliases: cleanedAliases && cleanedAliases.length > 0 ? cleanedAliases : undefined,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
+}
+
+/**
+ * Sets user/project-defined aliases on an existing folder immutably.
+ * Trims, deduplicates, and removes empty values while preserving Unicode scripts.
+ */
+export function setMediaFolderAliases(
+  folders: MediaFolder[],
+  folderId: string,
+  aliases: string[]
+): MediaFolder[] {
+  const cleanedAliases = Array.isArray(aliases)
+    ? Array.from(
+        new Set(
+          aliases
+            .filter((a) => typeof a === 'string' && a.trim().length > 0)
+            .map((a) => a.trim())
+        )
+      )
+    : [];
+
+  return folders.map((f) =>
+    f.id === folderId
+      ? {
+          ...f,
+          aliases: cleanedAliases.length > 0 ? cleanedAliases : undefined,
+          updatedAt: Date.now(),
+        }
+      : f
+  );
 }
 
 /**

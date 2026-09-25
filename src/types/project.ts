@@ -83,6 +83,7 @@ export interface MediaAnalysis {
 export interface MediaFolder {
   id: string;
   name: string;
+  aliases?: string[];
   createdAt: number;
   updatedAt?: number;
 }

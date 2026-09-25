@@ -517,9 +517,20 @@ export function validateAndParseProjectJSON(jsonString: string): ParseProjectRes
     for (let fIdx = 0; fIdx < proj.folders.length; fIdx++) {
       const f = proj.folders[fIdx];
       if (f && typeof f.id === 'string' && typeof f.name === 'string') {
+        const rawAliases = Array.isArray(f.aliases)
+          ? Array.from(
+              new Set(
+                (f.aliases as unknown[])
+                  .filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
+                  .map((a: string) => a.trim())
+              )
+            )
+          : undefined;
+
         parsedFolders.push({
           id: f.id,
           name: f.name.trim() || 'Untitled Folder',
+          aliases: rawAliases && rawAliases.length > 0 ? rawAliases : undefined,
           createdAt: typeof f.createdAt === 'number' ? f.createdAt : Date.now(),
           updatedAt: typeof f.updatedAt === 'number' ? f.updatedAt : undefined,
         });
