@@ -151,33 +151,33 @@ export const CropInspector: React.FC<CropInspectorProps> = ({
               <span>Center</span>
             </button>
             <button
-              onClick={() => setPresetPan(0, bounds.minY)}
+              onClick={() => setPresetPan(0, bounds.maxY)}
               className="min-h-[40px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
-              title="Align Top"
+              title="Align Top (Frame Upper Area)"
             >
               <ArrowUp className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Top</span>
             </button>
             <button
-              onClick={() => setPresetPan(0, bounds.maxY)}
+              onClick={() => setPresetPan(0, bounds.minY)}
               className="min-h-[40px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
-              title="Align Bottom"
+              title="Align Bottom (Frame Lower Area)"
             >
               <ArrowDown className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Bottom</span>
             </button>
             <button
-              onClick={() => setPresetPan(bounds.minX, 0)}
+              onClick={() => setPresetPan(bounds.maxX, 0)}
               className="min-h-[40px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
-              title="Align Left"
+              title="Align Left (Frame Left Area)"
             >
               <ArrowLeft className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Left</span>
             </button>
             <button
-              onClick={() => setPresetPan(bounds.maxX, 0)}
+              onClick={() => setPresetPan(bounds.minX, 0)}
               className="min-h-[40px] sm:min-h-0 py-2 sm:py-1 rounded bg-editor-surface hover:bg-editor-surfaceHover active:bg-slate-700 border border-editor-panelBorder text-[10px] text-slate-300 flex flex-col items-center justify-center gap-0.5 touch-manipulation"
-              title="Align Right"
+              title="Align Right (Frame Right Area)"
             >
               <ArrowRight className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-blue-400" />
               <span>Right</span>

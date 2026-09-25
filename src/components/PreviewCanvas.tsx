@@ -38,7 +38,11 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef<HTMLDivElement>(null);
+
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: 800,
+    height: 500,
+  });
 
   const [showGuides, setShowGuides] = useState(true);
   const [isInteractiveDragging, setIsInteractiveDragging] = useState(false);
@@ -63,6 +67,24 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   } | null>(null);
 
   const [videoError, setVideoError] = useState<string | null>(null);
+
+  // ResizeObserver to track container viewport size in real-time
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setContainerSize({ width, height });
+        }
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setDragFeedback(msg);
@@ -127,6 +149,52 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     activeAsset && !activeAsset.file && (!activeAsset.url || activeAsset.url.length === 0)
   );
 
+  // Determine source aspect ratio
+  const sourceWidth = activeAsset?.width || (activeAsset?.aspectRatio ? activeAsset.aspectRatio * 1080 : 1920);
+  const sourceHeight = activeAsset?.height || 1080;
+  const sourceRatio =
+    sourceWidth && sourceHeight && sourceHeight > 0
+      ? sourceWidth / sourceHeight
+      : TARGET_ASPECT_RATIO;
+
+  // Available stage dimensions inside container (with margin padding)
+  const padX = 24;
+  const padY = 24;
+  const availW = Math.max(160, containerSize.width - padX * 2);
+  const availH = Math.max(90, containerSize.height - padY * 2);
+
+  // Sizing the 16:9 Output Window and Full Source Media so the entire uncropped source is visible
+  let frameW: number;
+  let frameH: number;
+  let sourceDisplayW: number;
+  let sourceDisplayH: number;
+
+  if (sourceRatio < TARGET_ASPECT_RATIO) {
+    // Vertical / squarish source (e.g. 9:16, 1:1, 4:3)
+    // To fit the full vertical height of the source inside availH:
+    frameW = Math.min(availW, availH * sourceRatio);
+    frameW = Math.max(120, frameW);
+    frameH = frameW / TARGET_ASPECT_RATIO;
+    sourceDisplayW = frameW;
+    sourceDisplayH = frameW / sourceRatio;
+  } else {
+    // Horizontal / wide source (e.g. 16:9, 21:9)
+    // To fit the full horizontal width of the source inside availW:
+    frameH = Math.min(availH, availW / sourceRatio);
+    frameH = Math.max(67.5, frameH);
+    frameW = frameH * TARGET_ASPECT_RATIO;
+    sourceDisplayH = frameH;
+    sourceDisplayW = frameH * sourceRatio;
+  }
+
+  // Calculate pan limits
+  const bounds = calculatePanBounds(
+    sourceWidth,
+    sourceHeight,
+    transform.scale || 1.0,
+    transform.fitMode || 'cover'
+  );
+
   // Direct Pointer Drag (Mouse & Touch single finger)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!activeItem || !onUpdateTransform || !activeAsset || isMissing) return;
@@ -150,20 +218,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isInteractiveDragging || !activeItem || !onUpdateTransform || !activeAsset) return;
 
-    const rect = frameRef.current?.getBoundingClientRect();
-    const boxWidth = rect?.width || 800;
-    const boxHeight = rect?.height || 450;
-
     // Direct 1:1 screen mapping (percentage of 16:9 frame)
-    const deltaX = ((e.clientX - dragStartPos.current.mouseX) / boxWidth) * 100;
-    const deltaY = ((e.clientY - dragStartPos.current.mouseY) / boxHeight) * 100;
-
-    const bounds = calculatePanBounds(
-      activeAsset.width,
-      activeAsset.height,
-      transform.scale || 1.0,
-      transform.fitMode || 'cover'
-    );
+    const deltaX = ((e.clientX - dragStartPos.current.mouseX) / frameW) * 100;
+    const deltaY = ((e.clientY - dragStartPos.current.mouseY) / frameH) * 100;
 
     const targetX = dragStartPos.current.initialX + deltaX;
     const targetY = dragStartPos.current.initialY + deltaY;
@@ -255,12 +312,19 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     showToast('Framing reset');
   };
 
+  // Pixel translations for the media element relative to the 16:9 frame center
+  const panXPx = frameW * ((transform.x || 0) / 100);
+  const panYPx = frameH * ((transform.y || 0) / 100);
+  const scale = transform.scale || 1.0;
+
   return (
     <div className="flex-1 flex flex-col h-full bg-editor-bg overflow-hidden relative select-none">
       {/* Top Preview Status Bar */}
       <div className="h-9 px-2.5 sm:px-4 flex items-center justify-between border-b border-editor-panelBorder/50 bg-editor-panel/50 text-xs text-slate-400 overflow-x-auto scrollbar-none gap-2 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
-          <span className="font-semibold text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">16:9 Frame</span>
+          <span className="font-semibold text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">
+            16:9 Output Frame
+          </span>
           {activeAsset && (
             <span className="text-slate-500 text-[10px] sm:text-[11px] truncate max-w-[140px] sm:max-w-[200px]">
               • {activeAsset.name}
@@ -274,7 +338,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           ) : isNon16x9 ? (
             <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-amber-400 bg-amber-950/60 px-1.5 sm:px-2 py-0.5 rounded border border-amber-800/40 whitespace-nowrap">
               <AlertCircle className="w-3 h-3 shrink-0" />
-              Framed ({activeAsset?.aspectRatioLabel})
+              Source {activeAsset?.aspectRatioLabel || 'Custom'}
             </span>
           ) : null}
         </div>
@@ -284,7 +348,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             <button
               onClick={handleResetFraming}
               className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] text-slate-400 hover:text-slate-200 hover:bg-editor-surface transition-colors border border-slate-700/60 whitespace-nowrap"
-              title="Reset clip framing to default center (16:9)"
+              title="Reset clip framing to default center"
             >
               <RotateCcw className="w-3 h-3 text-slate-400" />
               <span>Reset</span>
@@ -306,52 +370,60 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         </div>
       </div>
 
-      {/* Main Preview Container with Dimmed Surround & Fixed 16:9 Output Viewport */}
+      {/* Main Workspace Stage: Displays the FULL original source media with 16:9 output mask over it */}
       <div
         ref={containerRef}
-        className="flex-1 p-2 sm:p-4 md:p-6 flex items-center justify-center relative overflow-hidden bg-slate-950/90"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={`flex-1 relative overflow-hidden bg-slate-950 flex items-center justify-center select-none ${
+          activeItem && !isMissing
+            ? isInteractiveDragging
+              ? 'cursor-grabbing'
+              : 'cursor-grab'
+            : ''
+        }`}
+        style={{ touchAction: 'none' }}
+        title={
+          activeItem && !isMissing
+            ? 'Drag source footage up/down/left/right to choose 16:9 framing • Scroll or pinch to zoom'
+            : undefined
+        }
       >
-        {/* Fixed 16:9 YouTube Master Frame */}
-        <div
-          ref={frameRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          onWheel={handleWheel}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          className={`w-full max-w-4xl aspect-video bg-black rounded-lg shadow-2xl relative overflow-hidden border-2 border-slate-700/80 flex items-center justify-center select-none ${
-            activeItem && !isMissing
-              ? isInteractiveDragging
-                ? 'cursor-grabbing border-blue-500/80 ring-2 ring-blue-500/40 shadow-blue-900/30'
-                : 'cursor-grab hover:border-slate-500'
-              : ''
-          }`}
-          style={{ touchAction: 'none' }}
-          title={
-            activeItem && !isMissing
-              ? 'Drag to reposition footage inside 16:9 frame • Scroll or pinch to zoom'
-              : undefined
-          }
-        >
-          {/* Active Footage Inside the Fixed 16:9 Frame */}
-          {activeAsset && activeItem ? (
-            <div className="w-full h-full relative overflow-hidden flex items-center justify-center bg-black pointer-events-none">
+        {activeAsset && activeItem ? (
+          /* Staging Canvas centered around the 16:9 Frame */
+          <div
+            className="relative flex items-center justify-center"
+            style={{
+              width: `${frameW}px`,
+              height: `${frameH}px`,
+            }}
+          >
+            {/* 1. SOURCE FOOTAGE LAYER (Full uncropped source media moving behind the 16:9 window) */}
+            <div
+              className="absolute pointer-events-none transition-transform duration-75"
+              style={{
+                width: `${sourceDisplayW}px`,
+                height: `${sourceDisplayH}px`,
+                transform: `translate(${panXPx}px, ${panYPx}px) scale(${scale})`,
+                transformOrigin: 'center center',
+              }}
+            >
               {isMissing ? (
-                <div className="flex flex-col items-center justify-center p-6 text-center bg-amber-950/30 border border-amber-800/50 rounded-xl max-w-md mx-4 select-none">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-amber-950/40 border border-amber-800/50 rounded-lg select-none">
                   <AlertCircle className="w-10 h-10 text-amber-400 mb-2 animate-pulse" />
                   <p className="text-sm font-semibold text-amber-200">Local Media File Unlinked</p>
                   <p className="text-xs font-mono text-amber-300/80 mt-1 max-w-xs truncate" title={activeAsset.name}>
                     {activeAsset.name}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-2.5 leading-relaxed">
-                    Relink this file using the Relink Manager to preview and frame footage.
-                  </p>
                 </div>
               ) : videoError ? (
-                <div className="flex flex-col items-center justify-center p-6 text-center bg-slate-900/90 border border-slate-700 rounded-xl max-w-md mx-4 select-none">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-900/90 border border-slate-700 rounded-lg select-none">
                   <AlertCircle className="w-10 h-10 text-amber-400 mb-2" />
                   <p className="text-sm font-semibold text-slate-200">Browser Video Codec Unsupported</p>
                   <p className="text-xs font-mono text-slate-400 mt-1 truncate max-w-xs">{activeAsset.name}</p>
@@ -363,13 +435,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                   onError={() => {
                     setVideoError('Video format or codec not decodable in this browser.');
                   }}
-                  className={`w-full h-full pointer-events-none transition-transform duration-75 ${
-                    transform.fitMode === 'contain' ? 'object-contain' : 'object-cover'
-                  }`}
-                  style={{
-                    transform: `translate(${transform.x || 0}%, ${transform.y || 0}%) scale(${transform.scale || 1.0})`,
-                    transformOrigin: 'center center',
-                  }}
+                  className="w-full h-full object-fill pointer-events-none rounded-sm shadow-lg"
                   playsInline
                   muted
                 />
@@ -377,63 +443,88 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                 <img
                   src={activeAsset.url}
                   alt={activeAsset.name}
-                  className={`w-full h-full pointer-events-none transition-transform duration-75 ${
-                    transform.fitMode === 'contain' ? 'object-contain' : 'object-cover'
-                  }`}
-                  style={{
-                    transform: `translate(${transform.x || 0}%, ${transform.y || 0}%) scale(${transform.scale || 1.0})`,
-                    transformOrigin: 'center center',
-                  }}
+                  className="w-full h-full object-fill pointer-events-none rounded-sm shadow-lg"
                   draggable={false}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-slate-400">
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-900/60 rounded-lg border border-slate-800">
                   <span className="text-sm font-medium">Audio Track Playing</span>
                   <span className="text-xs text-slate-500 font-mono mt-1">{activeAsset.name}</span>
                 </div>
               )}
+
+              {/* Source Footage Outline & Label */}
+              {isNon16x9 && (
+                <div className="absolute inset-0 border border-slate-500/40 rounded-sm pointer-events-none">
+                  <div className="absolute top-1 right-1 bg-black/70 backdrop-blur-xs text-[9px] font-mono text-slate-300 px-1.5 py-0.5 rounded border border-slate-700/60">
+                    Full Source ({activeAsset.aspectRatioLabel || 'Custom'})
+                  </div>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center text-slate-500 p-6 text-center">
-              <Eye className="w-10 h-10 mb-2 opacity-40 text-slate-400" />
-              <p className="text-sm font-medium text-slate-400">No media at current timeline position</p>
-              <p className="text-xs text-slate-600 mt-1 max-w-sm">
-                Select any visual clip on the timeline to preview and directly frame it.
-              </p>
+
+            {/* 2. FIXED 16:9 OUTPUT SELECTION WINDOW / MASK (Theatrical Cutout) */}
+            <div
+              className={`absolute inset-0 pointer-events-none border-2 rounded transition-colors ${
+                isInteractiveDragging
+                  ? 'border-blue-400 ring-2 ring-blue-500/50'
+                  : 'border-blue-500/80 hover:border-blue-400'
+              }`}
+              style={{
+                /* Box shadow dims the entire area outside the 16:9 rectangle by ~75% */
+                boxShadow: '0 0 0 9999px rgba(2, 6, 23, 0.72)',
+              }}
+            >
+              {/* Corner Brackets / Viewfinder Marks */}
+              <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-white pointer-events-none" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-white pointer-events-none" />
+              <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-white pointer-events-none" />
+              <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-white pointer-events-none" />
+
+              {/* 16:9 Rule of Thirds & Output Guides */}
+              {showGuides && (
+                <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-blue-400/20">
+                  <div className="border-r border-b border-blue-400/15" />
+                  <div className="border-r border-b border-blue-400/15" />
+                  <div className="border-b border-blue-400/15" />
+                  <div className="border-r border-b border-blue-400/15" />
+                  <div className="border-r border-b border-blue-400/15" />
+                  <div className="border-b border-blue-400/15" />
+                  <div className="border-r border-b border-blue-400/15" />
+                  <div className="border-r border-b border-blue-400/15" />
+                  <div className="" />
+
+                  {/* 16:9 Safe Action Margin */}
+                  <div className="absolute inset-[5%] border border-blue-300/20 rounded pointer-events-none" />
+
+                  {/* 16:9 Final Output Stamp */}
+                  <div className="absolute top-2 left-2 bg-slate-900/85 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] font-mono text-blue-300 pointer-events-none border border-blue-500/40 shadow-sm">
+                    16:9 Output Window (1920 × 1080)
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* 16:9 Rule of Thirds & Output Frame Guides */}
-          {showGuides && (
-            <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-blue-500/20">
-              <div className="border-r border-b border-blue-500/15" />
-              <div className="border-r border-b border-blue-500/15" />
-              <div className="border-b border-blue-500/15" />
-              <div className="border-r border-b border-blue-500/15" />
-              <div className="border-r border-b border-blue-500/15" />
-              <div className="border-b border-blue-500/15" />
-              <div className="border-r border-b border-blue-500/15" />
-              <div className="border-r border-b border-blue-500/15" />
-              <div className="" />
-
-              {/* 16:9 Safe Area Guide */}
-              <div className="absolute inset-[5%] border border-blue-400/20 rounded pointer-events-none" />
-
-              {/* 1920x1080 16:9 Final Output Stamp */}
-              <div className="absolute top-2 left-2 bg-black/70 px-2 py-0.5 rounded text-[10px] font-mono text-slate-300 pointer-events-none border border-slate-700/50">
-                1920 × 1080 (16:9 Final Frame)
+            {/* Live Drag & Zoom Floating Toast Feedback */}
+            {dragFeedback && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600/95 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono font-medium shadow-xl pointer-events-none border border-blue-400/50 flex items-center gap-1.5 animate-fadeIn z-30">
+                <Move className="w-3 h-3" />
+                <span>{dragFeedback}</span>
               </div>
-            </div>
-          )}
-
-          {/* Live Drag & Zoom Floating Toast Feedback */}
-          {activeItem && dragFeedback && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono font-medium shadow-lg pointer-events-none border border-blue-400/50 flex items-center gap-1.5 animate-fadeIn z-20">
-              <Move className="w-3 h-3" />
-              <span>{dragFeedback}</span>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          /* Empty Timeline Placeholder */
+          <div
+            className="w-full max-w-2xl aspect-video rounded-lg border-2 border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 p-6 text-center bg-slate-900/30"
+          >
+            <Eye className="w-10 h-10 mb-2 opacity-40 text-slate-400" />
+            <p className="text-sm font-medium text-slate-400">No media at current timeline position</p>
+            <p className="text-xs text-slate-600 mt-1 max-w-sm">
+              Select any visual clip on the timeline to preview its full source and choose 16:9 framing.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Bottom Transport Controls & Quick Zoom Bar */}
@@ -450,10 +541,10 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
           <button
             onClick={onPlayPause}
-            className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-colors shadow-md"
-            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+            className="p-2 sm:p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-all shadow-md active:scale-95"
+            title="Play / Pause (Space)"
           >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 translate-x-0.5" />}
           </button>
 
           <button
@@ -504,7 +595,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             </button>
           </div>
         ) : (
-          <div className="text-xs text-slate-500 font-mono">100% Fit</div>
+          <div className="text-xs font-mono text-slate-500">100%</div>
         )}
       </div>
     </div>

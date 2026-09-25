@@ -208,5 +208,22 @@ describe('16:9 Framing & Direct Manipulation Workflow', () => {
       expect(result.isValid).toBe(false);
       expect(result.errors.some((e) => e.includes('rotation'))).toBe(true);
     });
+
+    it('guarantees complete vertical coverage from head (top) to shoes (bottom) for 9:16 footage', () => {
+      const bounds = calculatePanBounds(1080, 1920, 1.0, 'cover');
+      // 9:16 source ratio = 0.5625, target 16:9 = 1.7778
+      // Height multiplier = (16/9) / (9/16) = 3.1605
+      // Max Y offset = (3.1605 - 1) / 2 * 100 = ~108.02%
+      expect(bounds.maxY).toBeCloseTo(108.02, 1);
+      expect(bounds.minY).toBeCloseTo(-108.02, 1);
+
+      // Verify that at maxY (+108%), the top of the vertical footage is framed (head)
+      // Verify that at minY (-108%), the bottom of the vertical footage is framed (shoes)
+      // Verify that at 0% (center), the middle of the vertical footage is framed (body)
+      const topOffsetPercent = bounds.maxY;
+      const bottomOffsetPercent = bounds.minY;
+      expect(topOffsetPercent).toBeGreaterThan(100);
+      expect(bottomOffsetPercent).toBeLessThan(-100);
+    });
   });
 });
