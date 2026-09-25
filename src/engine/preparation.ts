@@ -1,7 +1,7 @@
 import { LongFormProject, MediaAsset, VoiceoverTrack } from '../types/project';
 import { transcribeAudioFile } from './transcription';
 import { analyzeMediaAsset } from './mediaAnalysis';
-import { matchMediaForSegment } from './matching';
+import { matchMediaForSegment, batchMatchMediaForSegments } from './matching';
 
 export interface PreparationProgress {
   stage: 'checking' | 'transcribing' | 'analyzing_media' | 'semantic_matching' | 'complete' | 'error';
@@ -132,6 +132,7 @@ export async function prepareProjectPipeline(
         message: 'Pre-computing semantic matches for transcript segments with MiniLM model...',
       });
 
+      await batchMatchMediaForSegments(updatedVoiceover.segments, analyzedMediaAssets, { topK: 5 });
       const updatedSegments = [...updatedVoiceover.segments];
       for (let s = 0; s < updatedSegments.length; s++) {
         const seg = updatedSegments[s];

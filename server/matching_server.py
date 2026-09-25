@@ -193,7 +193,7 @@ class BertWordPieceTokenizer:
 
 
 class OnnxMiniLMEngine:
-    """Self-contained ONNX Runtime MiniLM inference engine."""
+    """Self-contained ONNX Runtime MiniLM inference engine with LRU embedding caching."""
     def __init__(self):
         self.model_dir: Optional[str] = None
         self.session: Optional[Any] = None
@@ -202,6 +202,7 @@ class OnnxMiniLMEngine:
         self.loaded: bool = False
         self.error: Optional[str] = None
         self.lock = threading.Lock()
+        self.embedding_cache: Dict[str, Any] = {}
 
     def get_providers(self) -> List[str]:
         if ort is None:
@@ -269,6 +270,11 @@ class OnnxMiniLMEngine:
         if not self.loaded or self.session is None:
             raise RuntimeError(f"MiniLM model is not loaded: {self.error or 'Session uninitialized'}")
 
+        cache_key = f"{text}_{max_length}"
+        with self.lock:
+            if cache_key in self.embedding_cache:
+                return self.embedding_cache[cache_key]
+
         encoded = self.tokenizer.encode(text, max_length=max_length)
         input_feed = {}
         for inp in self.session.get_inputs():
@@ -303,6 +309,11 @@ class OnnxMiniLMEngine:
             norm = np.linalg.norm(sentence_embedding, axis=1, keepdims=True)
             norm = np.clip(norm, a_min=1e-9, a_max=None)
             normalized_emb = (sentence_embedding / norm)[0]
+
+        with self.lock:
+            if len(self.embedding_cache) >= 10000:
+                self.embedding_cache.clear()
+            self.embedding_cache[cache_key] = normalized_emb
 
         return normalized_emb
 
@@ -377,27 +388,7 @@ def expand_numeric_text(text: str) -> str:
     return trimmed
 
 
-def match_media_items(
-    segment_text: str,
-    media_items: List[Dict[str, Any]],
-    top_k: int = 5
-) -> Dict[str, Any]:
-    """Matches a transcript segment against media items using genuine Step 5 semantic analysis."""
-    if not segment_text or not segment_text.strip():
-        raise ValueError("Transcript segment text cannot be empty.")
-
-    # Lazy-load ONNX model if not already loaded
-    if not MINILM_ENGINE.loaded:
-        resolved_dir = resolve_model_dir()
-        if resolved_dir:
-            MINILM_ENGINE.load(resolved_dir, CONFIG["device"])
-
-    if not MINILM_ENGINE.loaded:
-        raise RuntimeError(
-            f"Semantic matching unavailable: {MINILM_ENGINE.error or 'Matching model not installed or loaded'}"
-        )
-
-    # 1. Filter media items that have genuine Step 5 semantic analysis (or OCR)
+def filter_valid_media_items(media_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
     valid_items: List[Dict[str, Any]] = []
     unavailable_count = 0
 
@@ -419,21 +410,11 @@ def match_media_items(
         else:
             unavailable_count += 1
 
-    if not valid_items:
-        return {
-            "status": "no_analyzed_media",
-            "segmentText": segment_text,
-            "candidates": [],
-            "unavailableCount": unavailable_count,
-            "modelUsed": CONFIG["model_name"]
-        }
+    return valid_items, unavailable_count
 
-    # 2. Encode transcript segment with numeric expansion
-    expanded_segment = expand_numeric_text(segment_text.strip())
-    segment_emb = MINILM_ENGINE.compute_embedding(expanded_segment)
 
-    # 3. Build semantic texts from genuine Step 5 information
-    candidates_scored: List[Dict[str, Any]] = []
+def prepare_media_items(valid_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    prepared: List[Dict[str, Any]] = []
 
     for item in valid_items:
         desc_text = str(item.get("description", "") or "").strip()
@@ -452,37 +433,36 @@ def match_media_items(
 
         combined_raw = ". ".join(parts) if parts else (desc_text or ocr_text)
         combined_text = expand_numeric_text(combined_raw)
-
-        # Compute overall embedding
         main_emb = MINILM_ENGINE.compute_embedding(combined_text)
-        best_score = float(np.dot(segment_emb, main_emb))
-        if ocr_text:
-            best_explanation = f'Visible text: "{ocr_text}"; Description: "{desc_text}"' if desc_text else f'Visible text: "{ocr_text}"'
-        else:
-            best_explanation = f'Media description mentions: "{desc_text}"' if desc_text else f"Visual tags: {tags_text}"
-        best_snippet = ocr_text or desc_text
 
-        # Check direct OCR text embedding if present
+        if ocr_text:
+            main_explanation = f'Visible text: "{ocr_text}"; Description: "{desc_text}"' if desc_text else f'Visible text: "{ocr_text}"'
+        else:
+            main_explanation = f'Media description mentions: "{desc_text}"' if desc_text else f"Visual tags: {tags_text}"
+        main_snippet = ocr_text or desc_text
+
+        # OCR embedding
+        ocr_emb = None
+        ocr_explanation = ""
+        ocr_snippet = ""
         if ocr_text:
             ocr_expanded = expand_numeric_text(f"Visible text: {ocr_text}")
             ocr_emb = MINILM_ENGINE.compute_embedding(ocr_expanded)
-            ocr_score = float(np.dot(segment_emb, ocr_emb))
-            if ocr_score > best_score:
-                best_score = ocr_score
-                best_explanation = f'Visible on-screen text matches: "{ocr_text}"'
-                best_snippet = ocr_text
+            ocr_explanation = f'Visible on-screen text matches: "{ocr_text}"'
+            ocr_snippet = ocr_text
 
-        # Check temporal summary if present
+        # Temporal summary embedding
+        temp_emb = None
+        temp_explanation = ""
+        temp_snippet = ""
         temporal_sum = item.get("temporalSummary")
         if temporal_sum and str(temporal_sum).strip():
             temp_emb = MINILM_ENGINE.compute_embedding(str(temporal_sum).strip())
-            temp_score = float(np.dot(segment_emb, temp_emb))
-            if temp_score > best_score:
-                best_score = temp_score
-                best_explanation = f'Temporal video narrative shows: "{temporal_sum}"'
-                best_snippet = str(temporal_sum)
+            temp_explanation = f'Temporal video narrative shows: "{temporal_sum}"'
+            temp_snippet = str(temporal_sum)
 
-        # Check keyframe descriptions
+        # Keyframe embeddings
+        keyframes_prepared: List[Tuple[np.ndarray, str, str]] = []
         keyframes = item.get("keyframeDescriptions") or []
         for kd in keyframes:
             kf_desc = kd.get("description", "")
@@ -497,32 +477,195 @@ def match_media_items(
             if kf_parts:
                 kf_combined = expand_numeric_text(". ".join(kf_parts))
                 kf_emb = MINILM_ENGINE.compute_embedding(kf_combined)
-                kf_score = float(np.dot(segment_emb, kf_emb))
-                if kf_score > best_score:
-                    best_score = kf_score
-                    best_explanation = f'Frame @ {kf_time:.1f}s shows: "{kf_desc or kf_ocr}"'
-                    best_snippet = kf_ocr or kf_desc
+                kf_exp = f'Frame @ {kf_time:.1f}s shows: "{kf_desc or kf_ocr}"'
+                kf_snip = kf_ocr or kf_desc
+                keyframes_prepared.append((kf_emb, kf_exp, kf_snip))
+
+        prepared.append({
+            "mediaId": item.get("mediaId", ""),
+            "mediaName": item.get("mediaName", ""),
+            "main_emb": main_emb,
+            "main_explanation": main_explanation,
+            "main_snippet": main_snippet,
+            "ocr_emb": ocr_emb,
+            "ocr_explanation": ocr_explanation,
+            "ocr_snippet": ocr_snippet,
+            "temp_emb": temp_emb,
+            "temp_explanation": temp_explanation,
+            "temp_snippet": temp_snippet,
+            "keyframes": keyframes_prepared,
+        })
+
+    return prepared
+
+
+def score_segment_against_prepared_media(
+    segment_emb: "np.ndarray",
+    prepared_items: List[Dict[str, Any]],
+    top_k: int = 5
+) -> List[Dict[str, Any]]:
+    candidates_scored: List[Dict[str, Any]] = []
+
+    for p in prepared_items:
+        best_score = float(np.dot(segment_emb, p["main_emb"]))
+        best_explanation = p["main_explanation"]
+        best_snippet = p["main_snippet"]
+
+        if p.get("ocr_emb") is not None:
+            ocr_score = float(np.dot(segment_emb, p["ocr_emb"]))
+            if ocr_score > best_score:
+                best_score = ocr_score
+                best_explanation = p["ocr_explanation"]
+                best_snippet = p["ocr_snippet"]
+
+        if p.get("temp_emb") is not None:
+            temp_score = float(np.dot(segment_emb, p["temp_emb"]))
+            if temp_score > best_score:
+                best_score = temp_score
+                best_explanation = p["temp_explanation"]
+                best_snippet = p["temp_snippet"]
+
+        for kf_emb, kf_exp, kf_snip in p.get("keyframes", []):
+            kf_score = float(np.dot(segment_emb, kf_emb))
+            if kf_score > best_score:
+                best_score = kf_score
+                best_explanation = kf_exp
+                best_snippet = kf_snip
 
         # Normalize score between 0.00 and 1.00
         normalized_score = max(0.0, min(1.0, round(best_score, 2)))
 
         candidates_scored.append({
-            "mediaId": item.get("mediaId", ""),
-            "mediaName": item.get("mediaName", ""),
+            "mediaId": p["mediaId"],
+            "mediaName": p["mediaName"],
             "score": normalized_score,
             "explanation": best_explanation,
             "matchedSnippet": best_snippet or None
         })
 
-    # 4. Sort by highest score first
+    # Sort by highest score first
     candidates_scored.sort(key=lambda c: c["score"], reverse=True)
     limit = top_k or 5
-    selected_candidates = candidates_scored[:limit]
+    return candidates_scored[:limit]
+
+
+def match_media_items(
+    segment_text: str,
+    media_items: List[Dict[str, Any]],
+    top_k: int = 5
+) -> Dict[str, Any]:
+    """Matches a transcript segment against media items using genuine Step 5 semantic analysis."""
+    if not segment_text or not segment_text.strip():
+        raise ValueError("Transcript segment text cannot be empty.")
+
+    # Lazy-load ONNX model if not already loaded
+    if not MINILM_ENGINE.loaded:
+        resolved_dir = resolve_model_dir()
+        if resolved_dir:
+            MINILM_ENGINE.load(resolved_dir, CONFIG["device"])
+
+    if not MINILM_ENGINE.loaded:
+        raise RuntimeError(
+            f"Semantic matching unavailable: {MINILM_ENGINE.error or 'Matching model not installed or loaded'}"
+        )
+
+    valid_items, unavailable_count = filter_valid_media_items(media_items)
+
+    if not valid_items:
+        return {
+            "status": "no_analyzed_media",
+            "segmentText": segment_text,
+            "candidates": [],
+            "unavailableCount": unavailable_count,
+            "modelUsed": CONFIG["model_name"]
+        }
+
+    # 2. Encode transcript segment with numeric expansion
+    expanded_segment = expand_numeric_text(segment_text.strip())
+    segment_emb = MINILM_ENGINE.compute_embedding(expanded_segment)
+
+    # 3. Prepare media items and score
+    prepared_items = prepare_media_items(valid_items)
+    selected_candidates = score_segment_against_prepared_media(segment_emb, prepared_items, top_k=top_k)
 
     return {
         "status": "success",
         "segmentText": segment_text,
         "candidates": selected_candidates,
+        "unavailableCount": unavailable_count,
+        "modelUsed": CONFIG["model_name"]
+    }
+
+
+def match_batch_segments(
+    segments: List[Dict[str, Any]],
+    media_items: List[Dict[str, Any]],
+    top_k: int = 5
+) -> Dict[str, Any]:
+    """Batch-matches multiple transcript segments against media items in a single call."""
+    if not segments:
+        return {
+            "status": "success",
+            "results": [],
+            "unavailableCount": 0,
+            "modelUsed": CONFIG["model_name"]
+        }
+
+    # Lazy-load ONNX model if not already loaded
+    if not MINILM_ENGINE.loaded:
+        resolved_dir = resolve_model_dir()
+        if resolved_dir:
+            MINILM_ENGINE.load(resolved_dir, CONFIG["device"])
+
+    if not MINILM_ENGINE.loaded:
+        raise RuntimeError(
+            f"Semantic matching unavailable: {MINILM_ENGINE.error or 'Matching model not installed or loaded'}"
+        )
+
+    valid_items, unavailable_count = filter_valid_media_items(media_items)
+
+    if not valid_items:
+        return {
+            "status": "no_analyzed_media",
+            "results": [
+                {
+                    "segmentId": seg.get("id", ""),
+                    "segmentText": seg.get("text", ""),
+                    "candidates": []
+                }
+                for seg in segments
+            ],
+            "unavailableCount": unavailable_count,
+            "modelUsed": CONFIG["model_name"]
+        }
+
+    # Prepare media items once across all segments
+    prepared_items = prepare_media_items(valid_items)
+    results: List[Dict[str, Any]] = []
+
+    for seg in segments:
+        seg_id = seg.get("id", "")
+        seg_text = seg.get("text", "")
+        if not seg_text or not str(seg_text).strip():
+            results.append({
+                "segmentId": seg_id,
+                "segmentText": seg_text,
+                "candidates": []
+            })
+            continue
+
+        expanded = expand_numeric_text(str(seg_text).strip())
+        seg_emb = MINILM_ENGINE.compute_embedding(expanded)
+        candidates = score_segment_against_prepared_media(seg_emb, prepared_items, top_k=top_k)
+        results.append({
+            "segmentId": seg_id,
+            "segmentText": seg_text,
+            "candidates": candidates
+        })
+
+    return {
+        "status": "success",
+        "results": results,
         "unavailableCount": unavailable_count,
         "modelUsed": CONFIG["model_name"]
     }
@@ -746,6 +889,31 @@ class MatchingRequestHandler(BaseHTTPRequestHandler):
             payload = json.loads(body_bytes.decode("utf-8"))
         except Exception as e:
             self.send_json_response(400, {"detail": f"Malformed JSON request: {str(e)}"})
+            return
+
+        if parsed_url.path in ("/match/batch", "/batch-match", "/match-batch"):
+            segments = payload.get("segments", [])
+            media_items = payload.get("mediaItems", [])
+            top_k = payload.get("topK", 5)
+
+            if not isinstance(segments, list):
+                self.send_json_response(400, {"detail": "segments must be a list."})
+                return
+
+            if not isinstance(media_items, list):
+                self.send_json_response(400, {"detail": "mediaItems must be a list."})
+                return
+
+            try:
+                result = match_batch_segments(segments, media_items, top_k=top_k)
+                self.send_json_response(200, result)
+            except RuntimeError as e:
+                self.send_json_response(503, {"detail": str(e)})
+            except ValueError as e:
+                self.send_json_response(400, {"detail": str(e)})
+            except Exception as e:
+                print(f"[Matching Worker Error] Batch match failed: {e}")
+                self.send_json_response(500, {"detail": f"Batch semantic matching failed: {str(e)}"})
             return
 
         if parsed_url.path == "/match":

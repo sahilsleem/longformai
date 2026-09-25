@@ -1,6 +1,6 @@
 import { AudioSegment, MediaAsset, TimelineItem, TransformState, SemanticMatchCandidate, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
 import { createDefaultTransform } from './schema';
-import { matchMediaForSegment } from './matching';
+import { matchMediaForSegment, batchMatchMediaForSegments } from './matching';
 
 export interface DraftOptions {
   similarityThreshold?: number;     // default: 0.30 (range 0.15 to 0.60)
@@ -10083,6 +10083,12 @@ export async function generateDraftTimeline(
     return classifyNarrationRole(seg.text, idx, segments.length, prevText, nextText).role;
   });
   const beatResults = detectNarrationBeats(segments, narrationRoles);
+
+  // Step 6: Batch pre-fetch semantic matches for all grouped segments to minimize network roundtrips & reuse cached ONNX embeddings
+  await batchMatchMediaForSegments(segments, validAnalyzedMedia, {
+    workerUrl,
+    topK: 15,
+  });
 
   // 2. Iterate through each transcript segment in chronological order
   for (let sIdx = 0; sIdx < segments.length; sIdx++) {
