@@ -74,32 +74,29 @@ export function calculatePanBounds(
   mediaWidth: number,
   mediaHeight: number,
   scale: number,
-  fitMode: 'cover' | 'contain' | 'custom'
+  _fitMode: 'cover' | 'contain' | 'custom' = 'cover'
 ): { minX: number; maxX: number; minY: number; maxY: number } {
-  if (fitMode !== 'cover') {
-    return { minX: -50, maxX: 50, minY: -50, maxY: 50 };
-  }
-
-  const sourceRatio = (mediaWidth && mediaHeight) ? mediaWidth / mediaHeight : TARGET_ASPECT_RATIO;
+  const safeScale = Math.max(1.0, scale || 1.0);
+  const sourceRatio = (mediaWidth && mediaHeight && mediaHeight > 0) ? mediaWidth / mediaHeight : TARGET_ASPECT_RATIO;
 
   let excessX = 0;
   let excessY = 0;
 
   if (sourceRatio >= TARGET_ASPECT_RATIO) {
-    const widthMultiplier = (sourceRatio / TARGET_ASPECT_RATIO) * scale;
+    const widthMultiplier = (sourceRatio / TARGET_ASPECT_RATIO) * safeScale;
     excessX = Math.max(0, (widthMultiplier - 1) / 2) * 100;
-    excessY = Math.max(0, (scale - 1) / 2) * 100;
+    excessY = Math.max(0, (safeScale - 1) / 2) * 100;
   } else {
-    const heightMultiplier = (TARGET_ASPECT_RATIO / sourceRatio) * scale;
-    excessX = Math.max(0, (scale - 1) / 2) * 100;
+    const heightMultiplier = (TARGET_ASPECT_RATIO / sourceRatio) * safeScale;
+    excessX = Math.max(0, (safeScale - 1) / 2) * 100;
     excessY = Math.max(0, (heightMultiplier - 1) / 2) * 100;
   }
 
   return {
-    minX: -Math.max(5, excessX),
-    maxX: Math.max(5, excessX),
-    minY: -Math.max(5, excessY),
-    maxY: Math.max(5, excessY),
+    minX: excessX === 0 ? 0 : -excessX,
+    maxX: excessX,
+    minY: excessY === 0 ? 0 : -excessY,
+    maxY: excessY,
   };
 }
 

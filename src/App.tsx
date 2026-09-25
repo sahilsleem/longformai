@@ -431,7 +431,7 @@ export const App: React.FC = () => {
             }`}
           >
             <Crop className="w-3.5 h-3.5" />
-            <span>16:9 Crop</span>
+            <span>16:9 Framing</span>
           </button>
 
           <button
@@ -460,8 +460,8 @@ export const App: React.FC = () => {
           </button>
         </div>
 
-        {/* TOP: Current Working Panel (Media, Transcript, Crop, or Media Info) */}
-        {mobileTab !== 'preview-only' && (
+        {/* TOP: Current Working Panel (Media, Transcript, or Media Info) */}
+        {mobileTab !== 'preview-only' && mobileTab !== 'framing' && (
           <div className="h-52 sm:h-64 border-b border-editor-panelBorder overflow-hidden shrink-0 flex flex-col bg-editor-panel">
             {mobileTab === 'media' && (
               <MediaPanel
@@ -504,17 +504,6 @@ export const App: React.FC = () => {
                 onUpdateSegmentText={updateTranscriptSegmentText}
                 isTranscribing={isTranscribing}
                 transcriptionError={transcriptionError}
-              />
-            )}
-            {mobileTab === 'framing' && (
-              <CropInspector
-                selectedItem={selectedTimelineItem}
-                selectedAsset={selectedMediaAsset}
-                onUpdateTransform={updateItemTransform}
-                onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
-                onUpdateSourceStart={(id, srcStart) =>
-                  updateTimelineItem(id, { sourceStart: srcStart })
-                }
               />
             )}
             {mobileTab === 'analysis' && (

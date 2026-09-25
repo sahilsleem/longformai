@@ -149,7 +149,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     activeAsset && !activeAsset.file && (!activeAsset.url || activeAsset.url.length === 0)
   );
 
-  // Determine source aspect ratio
+  // Determine source dimensions & aspect ratio
   const sourceWidth = activeAsset?.width || (activeAsset?.aspectRatio ? activeAsset.aspectRatio * 1080 : 1920);
   const sourceHeight = activeAsset?.height || 1080;
   const sourceRatio =
@@ -157,11 +157,11 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       ? sourceWidth / sourceHeight
       : TARGET_ASPECT_RATIO;
 
-  // Available stage dimensions inside container (with margin padding)
-  const padX = 24;
-  const padY = 24;
-  const availW = Math.max(160, containerSize.width - padX * 2);
-  const availH = Math.max(90, containerSize.height - padY * 2);
+  // Available stage dimensions inside container (optimized tight padding to maximize screen usage)
+  const padX = 8;
+  const padY = 8;
+  const availW = Math.max(120, containerSize.width - padX * 2);
+  const availH = Math.max(80, containerSize.height - padY * 2);
 
   // Sizing the 16:9 Output Window and Full Source Media so the entire uncropped source is visible
   let frameW: number;
@@ -173,7 +173,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // Vertical / squarish source (e.g. 9:16, 1:1, 4:3)
     // To fit the full vertical height of the source inside availH:
     frameW = Math.min(availW, availH * sourceRatio);
-    frameW = Math.max(120, frameW);
+    frameW = Math.max(100, frameW);
     frameH = frameW / TARGET_ASPECT_RATIO;
     sourceDisplayW = frameW;
     sourceDisplayH = frameW / sourceRatio;
@@ -181,13 +181,13 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     // Horizontal / wide source (e.g. 16:9, 21:9)
     // To fit the full horizontal width of the source inside availW:
     frameH = Math.min(availH, availW / sourceRatio);
-    frameH = Math.max(67.5, frameH);
+    frameH = Math.max(56.25, frameH);
     frameW = frameH * TARGET_ASPECT_RATIO;
     sourceDisplayH = frameH;
     sourceDisplayW = frameH * sourceRatio;
   }
 
-  // Calculate pan limits
+  // Calculate pan limits strictly guaranteeing 100% video pixel coverage of 16:9 frame
   const bounds = calculatePanBounds(
     sourceWidth,
     sourceHeight,
@@ -225,6 +225,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     const targetX = dragStartPos.current.initialX + deltaX;
     const targetY = dragStartPos.current.initialY + deltaY;
 
+    // Strictly clamp pan coordinates so 16:9 frame never contains empty/black space
     const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, targetX));
     const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, targetY));
 
@@ -249,18 +250,43 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
   };
 
+  // Safe Zoom function with simultaneous pan bounds re-clamping to prevent black borders
+  const updateZoom = useCallback(
+    (targetScale: number) => {
+      if (!activeItem || !onUpdateTransform || !activeAsset || isMissing) return;
+      const newScale = Math.min(4.0, Math.max(1.0, Math.round(targetScale * 100) / 100));
+      const newBounds = calculatePanBounds(sourceWidth, sourceHeight, newScale, 'cover');
+
+      const clampedX = Math.max(newBounds.minX, Math.min(newBounds.maxX, transform.x || 0));
+      const clampedY = Math.max(newBounds.minY, Math.min(newBounds.maxY, transform.y || 0));
+
+      onUpdateTransform({
+        scale: newScale,
+        x: Math.round(clampedX * 10) / 10,
+        y: Math.round(clampedY * 10) / 10,
+      });
+
+      showToast(`Zoom: ${(newScale * 100).toFixed(0)}%`);
+    },
+    [
+      activeItem,
+      onUpdateTransform,
+      activeAsset,
+      isMissing,
+      sourceWidth,
+      sourceHeight,
+      transform.x,
+      transform.y,
+      showToast,
+    ]
+  );
+
   // Mouse wheel zoom on desktop
   const handleWheel = (e: React.WheelEvent) => {
     if (!activeItem || !onUpdateTransform || !activeAsset || isMissing) return;
     e.preventDefault();
     const zoomDelta = e.deltaY < 0 ? 0.08 : -0.08;
-    const newScale = Math.min(4.0, Math.max(1.0, (transform.scale || 1.0) + zoomDelta));
-    const rounded = Math.round(newScale * 100) / 100;
-
-    onUpdateTransform({
-      scale: rounded,
-    });
-    showToast(`Zoom: ${(rounded * 100).toFixed(0)}%`);
+    updateZoom((transform.scale || 1.0) + zoomDelta);
   };
 
   // Touch pinch zoom on mobile
@@ -286,13 +312,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         e.touches[0].clientY - e.touches[1].clientY
       );
       const ratio = dist / Math.max(1, touchPinchRef.current.initialDist);
-      const newScale = Math.min(4.0, Math.max(1.0, touchPinchRef.current.initialScale * ratio));
-      const rounded = Math.round(newScale * 100) / 100;
-
-      onUpdateTransform({
-        scale: rounded,
-      });
-      showToast(`Zoom: ${(rounded * 100).toFixed(0)}%`);
+      updateZoom(touchPinchRef.current.initialScale * ratio);
     }
   };
 
@@ -569,11 +589,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         {activeItem && onUpdateTransform ? (
           <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-slate-400 font-mono">
             <button
-              onClick={() =>
-                onUpdateTransform({
-                  scale: Math.max(1.0, Math.round(((transform.scale || 1.0) - 0.1) * 10) / 10),
-                })
-              }
+              onClick={() => updateZoom((transform.scale || 1.0) - 0.1)}
               className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
               title="Zoom Out"
             >
@@ -583,11 +599,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
               {Math.round((transform.scale || 1.0) * 100)}%
             </span>
             <button
-              onClick={() =>
-                onUpdateTransform({
-                  scale: Math.min(4.0, Math.round(((transform.scale || 1.0) + 0.1) * 10) / 10),
-                })
-              }
+              onClick={() => updateZoom((transform.scale || 1.0) + 0.1)}
               className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
               title="Zoom In"
             >

@@ -47,51 +47,61 @@ describe('16:9 Framing & Direct Manipulation Workflow', () => {
   });
 
   describe('Pan Bounds & Constraint Calculations', () => {
-    it('restricts vertical pan on 16:9 footage at 1.0x zoom to prevent black borders', () => {
+    it('strictly locks pan on 16:9 footage at 1.0x zoom to prevent any black borders', () => {
       const bounds = calculatePanBounds(1920, 1080, 1.0, 'cover');
-      expect(bounds.minX).toBe(-5);
-      expect(bounds.maxX).toBe(5);
-      expect(bounds.minY).toBe(-5);
-      expect(bounds.maxY).toBe(5);
+      expect(bounds.minX).toBe(0);
+      expect(bounds.maxX).toBe(0);
+      expect(bounds.minY).toBe(0);
+      expect(bounds.maxY).toBe(0);
     });
 
-    it('allows vertical panning on 9:16 vertical footage in cover mode', () => {
+    it('locks horizontal pan to 0 on 9:16 vertical footage at 1.0x and allows full vertical panning', () => {
       const bounds = calculatePanBounds(1080, 1920, 1.0, 'cover');
-      // For 9:16 in 16:9 cover mode, height is significantly taller, allowing substantial Y panning
-      expect(bounds.maxY).toBeGreaterThan(50);
-      expect(bounds.minY).toBeLessThan(-50);
-      expect(bounds.maxX).toBe(5);
-      expect(bounds.minX).toBe(-5);
+      // For 9:16 in 16:9 cover mode, width matches 16:9 frame at 1.0x zoom (excessX = 0)
+      expect(bounds.minX).toBe(0);
+      expect(bounds.maxX).toBe(0);
+      // Vertical excess is exactly (3.1605 - 1) / 2 = 108.02%
+      expect(bounds.maxY).toBeCloseTo(108.02, 1);
+      expect(bounds.minY).toBeCloseTo(-108.02, 1);
     });
 
-    it('allows horizontal panning on 21:9 ultrawide footage in cover mode', () => {
+    it('locks horizontal pan to 0 on 1:1 square footage at 1.0x and bounds vertical pan', () => {
+      const bounds = calculatePanBounds(1080, 1080, 1.0, 'cover');
+      expect(bounds.minX).toBe(0);
+      expect(bounds.maxX).toBe(0);
+      // Height multiplier is 1.7778, excess is (1.7778 - 1) / 2 = 38.89%
+      expect(bounds.maxY).toBeCloseTo(38.89, 1);
+      expect(bounds.minY).toBeCloseTo(-38.89, 1);
+    });
+
+    it('locks horizontal pan to 0 on 4:3 standard footage at 1.0x and bounds vertical pan', () => {
+      const bounds = calculatePanBounds(1440, 1080, 1.0, 'cover');
+      expect(bounds.minX).toBe(0);
+      expect(bounds.maxX).toBe(0);
+      // Height multiplier is (16/9)/(4/3) = 1.3333, excess is (1.3333 - 1) / 2 = 16.67%
+      expect(bounds.maxY).toBeCloseTo(16.67, 1);
+      expect(bounds.minY).toBeCloseTo(-16.67, 1);
+    });
+
+    it('locks vertical pan to 0 on 21:9 ultrawide footage at 1.0x and bounds horizontal pan', () => {
       const bounds = calculatePanBounds(2560, 1080, 1.0, 'cover');
-      expect(bounds.maxX).toBeGreaterThan(15);
-      expect(bounds.minX).toBeLessThan(-15);
-      expect(bounds.maxY).toBe(5);
-      expect(bounds.minY).toBe(-5);
+      expect(bounds.minY).toBe(0);
+      expect(bounds.maxY).toBe(0);
+      // Width multiplier is (2560/1080) / (16/9) = 1.3333, excess is 16.67%
+      expect(bounds.maxX).toBeCloseTo(16.67, 1);
+      expect(bounds.minX).toBeCloseTo(-16.67, 1);
     });
 
     it('expands pan bounds in both axes when zoom scale increases', () => {
       const baseBounds = calculatePanBounds(1920, 1080, 1.0, 'cover');
       const zoomedBounds = calculatePanBounds(1920, 1080, 2.0, 'cover');
 
-      expect(zoomedBounds.maxX).toBeGreaterThan(baseBounds.maxX);
-      expect(zoomedBounds.maxY).toBeGreaterThan(baseBounds.maxY);
+      expect(baseBounds.maxX).toBe(0);
+      expect(baseBounds.maxY).toBe(0);
       expect(zoomedBounds.maxX).toBeCloseTo(50, 1);
       expect(zoomedBounds.maxY).toBeCloseTo(50, 1);
-    });
-
-    it('returns permissive -50 to +50 bounds for contain and custom modes', () => {
-      const containBounds = calculatePanBounds(1920, 1080, 1.0, 'contain');
-      expect(containBounds.minX).toBe(-50);
-      expect(containBounds.maxX).toBe(50);
-      expect(containBounds.minY).toBe(-50);
-      expect(containBounds.maxY).toBe(50);
-
-      const customBounds = calculatePanBounds(1080, 1920, 1.5, 'custom');
-      expect(customBounds.minX).toBe(-50);
-      expect(customBounds.maxX).toBe(50);
+      expect(zoomedBounds.minX).toBeCloseTo(-50, 1);
+      expect(zoomedBounds.minY).toBeCloseTo(-50, 1);
     });
   });
 
