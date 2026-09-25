@@ -13,7 +13,6 @@ import {
   VolumeX,
   Upload,
   Loader2,
-  Sliders,
   AlertTriangle,
   X,
   Info,
@@ -84,14 +83,10 @@ export const Timeline: React.FC<TimelineProps> = ({
   const resizeStartXRef = useRef<number>(0);
   const initialDurationRef = useRef<number>(0);
 
-  // AI Draft Modal State
-  const [showDraftModal, setShowDraftModal] = useState(false);
+  // AI Draft Review Modal State
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewTab, setReviewTab] = useState<'overview' | 'usage' | 'gaps'>('overview');
   const [inspectedGap, setInspectedGap] = useState<AudioSegment | null>(null);
-  const [similarityThreshold, setSimilarityThreshold] = useState<number>(0.30);
-  const [reusePenalty, setReusePenalty] = useState<number>(0.08);
-  const [continuityPreference, setContinuityPreference] = useState<number>(0.03);
 
   const getAsset = (mediaId: string) => mediaList.find((m) => m.id === mediaId);
 
@@ -199,17 +194,6 @@ export const Timeline: React.FC<TimelineProps> = ({
     e.target.value = '';
   };
 
-  const handleTriggerGenerateDraft = () => {
-    if (onGenerateAIDraft) {
-      onGenerateAIDraft({
-        similarityThreshold,
-        reusePenalty,
-        continuityPreference,
-      });
-      setShowDraftModal(false);
-    }
-  };
-
   const totalWidthPx = Math.max(maxTime * timelineScale, (voiceover?.duration || 0) * timelineScale + 100);
 
   // Find unassigned transcript segments that have no overlapping visual timeline clip
@@ -221,7 +205,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   });
 
   return (
-    <div className="h-56 sm:h-64 lg:h-72 bg-editor-panel border-t border-editor-panelBorder flex flex-col shrink-0 select-none relative">
+    <div className="h-48 sm:h-56 lg:h-64 bg-editor-panel border-t border-editor-panelBorder flex flex-col shrink-0 select-none relative">
       <input
         type="file"
         ref={audioInputRef}
@@ -230,171 +214,29 @@ export const Timeline: React.FC<TimelineProps> = ({
         className="hidden"
       />
 
-      {/* AI Draft Review & Settings Modal */}
-      {showDraftModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-md w-full max-h-[92vh] sm:max-h-[85vh] p-4 sm:p-5 space-y-4 overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-editor-panelBorder pb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-400" />
-                <h3 className="font-semibold text-sm text-slate-100 uppercase tracking-wider">
-                  Generate AI Draft Timeline
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowDraftModal(false)}
-                className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-editor-surface"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Principle & Notice */}
-            <div className="space-y-2 text-xs text-slate-300">
-              <div className="p-2.5 rounded bg-purple-950/40 border border-purple-800/40 text-purple-200 space-y-1">
-                <p className="font-semibold flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Principle: AI chooses WHAT, you choose HOW.</span>
-                </p>
-                <p className="text-[11px] text-purple-300/90 leading-relaxed">
-                  The AI matches your analyzed photos and videos to transcript segments based on semantic similarity. You remain fully in control to drag, crop, zoom, and re-time afterward.
-                </p>
-              </div>
-
-              {timeline.length > 0 && (
-                <div className="p-2 rounded bg-amber-950/40 border border-amber-800/40 text-amber-300 text-[11px] flex items-start gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                  <span>Generating a new draft will replace the current visual timeline clips.</span>
-                </div>
-              )}
-            </div>
-
-            {/* Config Sliders */}
-            <div className="space-y-3 bg-editor-surface/50 p-3 rounded-lg border border-editor-panelBorder text-xs">
-              {/* 1. Similarity Threshold */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-slate-300">
-                  <span className="flex items-center gap-1">
-                    <Sliders className="w-3 h-3 text-purple-400" />
-                    <span>Minimum Semantic Similarity:</span>
-                  </span>
-                  <span className="font-mono text-purple-300 font-semibold">{similarityThreshold.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.15"
-                  max="0.65"
-                  step="0.05"
-                  value={similarityThreshold}
-                  onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-slate-800 rounded appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                  <span>0.15 (Permissive)</span>
-                  <span>0.30 (Recommended)</span>
-                  <span>0.65 (Strict)</span>
-                </div>
-              </div>
-
-              {/* 2. Reuse Penalty */}
-              <div className="space-y-1 pt-2 border-t border-editor-panelBorder/50">
-                <div className="flex items-center justify-between text-slate-300">
-                  <span>Media Reuse Penalty:</span>
-                  <span className="font-mono text-purple-300 font-semibold">{reusePenalty.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.00"
-                  max="0.20"
-                  step="0.02"
-                  value={reusePenalty}
-                  onChange={(e) => setReusePenalty(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-slate-800 rounded appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                  <span>0.00 (Repeat freely)</span>
-                  <span>0.08 (Balanced)</span>
-                  <span>0.20 (Prefer diversity)</span>
-                </div>
-              </div>
-
-              {/* 3. Continuity Preference */}
-              <div className="space-y-1 pt-2 border-t border-editor-panelBorder/50">
-                <div className="flex items-center justify-between text-slate-300">
-                  <span>Visual Continuity Preference:</span>
-                  <span className="font-mono text-purple-300 font-semibold">{continuityPreference.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.00"
-                  max="0.08"
-                  step="0.01"
-                  value={continuityPreference}
-                  onChange={(e) => setContinuityPreference(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-slate-800 rounded appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                  <span>0.00 (Off)</span>
-                  <span>0.03 (Gentle flow)</span>
-                  <span>0.08 (Strong flow)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowDraftModal(false)}
-                className="px-3 py-1.5 rounded text-xs text-slate-400 hover:text-slate-200 hover:bg-editor-surface transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleTriggerGenerateDraft}
-                disabled={isGeneratingDraft}
-                className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-semibold flex items-center gap-1.5 shadow transition-all"
-              >
-                {isGeneratingDraft ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Generating Draft...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Generate AI Draft</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Timeline Controls Header */}
-      <div className="h-10 border-b border-editor-panelBorder px-4 flex items-center justify-between bg-editor-panel">
-        <div className="flex items-center gap-2 sm:gap-3">
+      <div className="h-9 border-b border-editor-panelBorder px-3 sm:px-4 flex items-center justify-between bg-editor-panel">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-            <Layers className="w-4 h-4 text-blue-400" />
+            <Layers className="w-3.5 h-3.5 text-blue-400" />
             <span>Timeline</span>
           </div>
 
-          <span className="text-[11px] text-slate-400 bg-editor-surface px-2 py-0.5 rounded border border-editor-panelBorder">
+          <span className="text-[10px] text-slate-400 bg-editor-surface px-1.5 py-0.5 rounded border border-editor-panelBorder">
             {timeline.length} {timeline.length === 1 ? 'clip' : 'clips'}
           </span>
 
           {/* AI Draft Trigger Button */}
           {onGenerateAIDraft && (
             <button
-              onClick={() => setShowDraftModal(true)}
+              onClick={() => onGenerateAIDraft()}
               disabled={isGeneratingDraft || !voiceover?.segments || voiceover.segments.length === 0}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all ${
+              className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded text-xs font-medium transition-all ${
                 isGeneratingDraft
                   ? 'bg-purple-950 text-purple-300 cursor-wait border border-purple-800'
                   : !voiceover?.segments || voiceover.segments.length === 0
                   ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
-                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-sm'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-xs'
               }`}
               title={
                 !voiceover?.segments || voiceover.segments.length === 0

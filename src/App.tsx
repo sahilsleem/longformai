@@ -384,85 +384,103 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* 3B. MOBILE & TABLET WORKSPACE (< 1024px): Single-Column Layout */}
+      {/* 3B. MOBILE & TABLET WORKSPACE (< 1024px): Preview First + Timeline + Contextual Drawer */}
       <div className="flex lg:hidden flex-col flex-1 overflow-hidden min-h-0">
-        {/* Mobile Section / Panel Tab Switcher */}
-        <div className="h-10 bg-editor-panel border-b border-editor-panelBorder flex items-center px-2 gap-1 overflow-x-auto scrollbar-none shrink-0">
+        {/* 1. DOMINANT PREVIEW VIEWPORT (Top Visual Focus) */}
+        <div className="flex-1 min-h-[180px] overflow-hidden flex flex-col bg-slate-950">
+          <PreviewCanvas
+            activeItem={effectiveTimelineItem}
+            activeAsset={effectiveMediaAsset}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            onPlayPause={() => setIsPlaying(!isPlaying)}
+            onSeek={setCurrentTime}
+            totalDuration={totalDuration}
+            onUpdateTransform={
+              effectiveTimelineItem
+                ? (updates) => updateItemTransform(effectiveTimelineItem.id, updates)
+                : undefined
+            }
+          />
+        </div>
+
+        {/* 2. MOBILE CONTEXTUAL TABS STRIP */}
+        <div className="h-9 bg-editor-panel border-t border-b border-editor-panelBorder flex items-center px-2 gap-1 overflow-x-auto scrollbar-none shrink-0">
           <button
-            onClick={() => setMobileTab('media')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+            onClick={() => setMobileTab(mobileTab === 'media' ? 'preview-only' : 'media')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
               mobileTab === 'media'
-                ? 'bg-editor-surface text-blue-400 font-semibold shadow-sm'
+                ? 'bg-editor-surface text-blue-400 font-semibold shadow-xs border border-blue-500/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Film className="w-3.5 h-3.5" />
+            <Film className="w-3 h-3" />
             <span>Media</span>
             {project.media.length > 0 && (
-              <span className="text-[10px] bg-slate-800 text-slate-400 px-1 rounded font-mono">
+              <span className="text-[9px] bg-slate-800 text-slate-400 px-1 rounded font-mono">
                 {project.media.length}
               </span>
             )}
           </button>
 
           <button
-            onClick={() => setMobileTab('transcript')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+            onClick={() => setMobileTab(mobileTab === 'transcript' ? 'preview-only' : 'transcript')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
               mobileTab === 'transcript'
-                ? 'bg-editor-surface text-purple-400 font-semibold shadow-sm'
+                ? 'bg-editor-surface text-purple-400 font-semibold shadow-xs border border-purple-500/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
+            <FileText className="w-3 h-3" />
             <span>Transcript</span>
             {voiceover?.segments && voiceover.segments.length > 0 && (
-              <span className="text-[10px] bg-purple-950 text-purple-300 px-1 rounded font-mono">
+              <span className="text-[9px] bg-purple-950 text-purple-300 px-1 rounded font-mono">
                 {voiceover.segments.length}
               </span>
             )}
           </button>
 
           <button
-            onClick={() => setMobileTab('framing')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+            onClick={() => setMobileTab(mobileTab === 'framing' ? 'preview-only' : 'framing')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
               mobileTab === 'framing'
-                ? 'bg-editor-surface text-blue-400 font-semibold shadow-sm'
+                ? 'bg-editor-surface text-blue-400 font-semibold shadow-xs border border-blue-500/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Crop className="w-3.5 h-3.5" />
-            <span>16:9 Framing</span>
+            <Crop className="w-3 h-3" />
+            <span>Framing</span>
           </button>
 
           <button
-            onClick={() => setMobileTab('analysis')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+            onClick={() => setMobileTab(mobileTab === 'analysis' ? 'preview-only' : 'analysis')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
               mobileTab === 'analysis'
-                ? 'bg-editor-surface text-blue-400 font-semibold shadow-sm'
+                ? 'bg-editor-surface text-blue-400 font-semibold shadow-xs border border-blue-500/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Media Info</span>
+            <Sparkles className="w-3 h-3" />
+            <span>Info</span>
           </button>
 
           <button
             onClick={() => setMobileTab(mobileTab === 'preview-only' ? 'media' : 'preview-only')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ml-auto ${
+            className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ml-auto ${
               mobileTab === 'preview-only'
-                ? 'bg-blue-600/30 text-blue-300 font-semibold shadow-sm border border-blue-500/30'
+                ? 'bg-blue-600/30 text-blue-300 font-semibold shadow-xs border border-blue-500/40'
                 : 'text-slate-500 hover:text-slate-300'
             }`}
-            title={mobileTab === 'preview-only' ? 'Restore panels' : 'Maximize preview viewport'}
+            title={mobileTab === 'preview-only' ? 'Open Drawer' : 'Full Screen Preview'}
           >
-            <Monitor className="w-3.5 h-3.5" />
-            <span>{mobileTab === 'preview-only' ? 'Show Panels' : 'Full Preview'}</span>
+            <Monitor className="w-3 h-3" />
+            <span>{mobileTab === 'preview-only' ? 'Panels' : 'Full'}</span>
           </button>
         </div>
 
-        {/* TOP: Current Working Panel (Media, Transcript, or Media Info) */}
-        {mobileTab !== 'preview-only' && mobileTab !== 'framing' && (
-          <div className="h-52 sm:h-64 border-b border-editor-panelBorder overflow-hidden shrink-0 flex flex-col bg-editor-panel">
+        {/* 3. CONTEXTUAL DRAWER (Bottom Panel on Mobile when expanded) */}
+        {mobileTab !== 'preview-only' && (
+          <div className="h-44 sm:h-52 border-b border-editor-panelBorder overflow-hidden shrink-0 flex flex-col bg-editor-panel">
             {mobileTab === 'media' && (
               <MediaPanel
                 mediaList={project.media}
@@ -506,6 +524,17 @@ export const App: React.FC = () => {
                 transcriptionError={transcriptionError}
               />
             )}
+            {mobileTab === 'framing' && (
+              <CropInspector
+                selectedItem={selectedTimelineItem}
+                selectedAsset={selectedMediaAsset}
+                onUpdateTransform={updateItemTransform}
+                onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
+                onUpdateSourceStart={(id, srcStart) =>
+                  updateTimelineItem(id, { sourceStart: srcStart })
+                }
+              />
+            )}
             {mobileTab === 'analysis' && (
               <MediaInspector
                 asset={currentlyInspectedMedia || selectedMediaAsset}
@@ -515,24 +544,6 @@ export const App: React.FC = () => {
             )}
           </div>
         )}
-
-        {/* MIDDLE: 16:9 Preview Viewport */}
-        <div className="flex-1 min-h-[160px] overflow-hidden flex flex-col">
-          <PreviewCanvas
-            activeItem={effectiveTimelineItem}
-            activeAsset={effectiveMediaAsset}
-            currentTime={currentTime}
-            isPlaying={isPlaying}
-            onPlayPause={() => setIsPlaying(!isPlaying)}
-            onSeek={setCurrentTime}
-            totalDuration={totalDuration}
-            onUpdateTransform={
-              effectiveTimelineItem
-                ? (updates) => updateItemTransform(effectiveTimelineItem.id, updates)
-                : undefined
-            }
-          />
-        </div>
       </div>
 
       {/* 4. Bottom Timeline (Horizontally scrollable with local overflow) */}

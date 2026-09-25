@@ -67,7 +67,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
   onAddToTimeline,
   onUploadVoiceover,
   onRemoveVoiceover,
-  onAnalyzeMedia,
+  onAnalyzeMedia: _onAnalyzeMedia,
   onCreateFolder,
   onRenameFolder,
   onDeleteFolder,
@@ -416,30 +416,16 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
               Relink
             </button>
           ) : (
-            <>
-              {onAnalyzeMedia && !isAnalyzed && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAnalyzeMedia(asset.id);
-                  }}
-                  className="p-1.5 hover:bg-blue-600/20 text-slate-400 hover:text-blue-300 rounded transition-colors"
-                  title="Analyze Keyframes & Features"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAddToTimeline(asset.id);
-                }}
-                className="p-1.5 bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white rounded border border-blue-500/30 transition-colors"
-                title="Add to Timeline"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToTimeline(asset.id);
+              }}
+              className="p-1.5 bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white rounded border border-blue-500/30 transition-colors"
+              title="Add to Timeline"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
           )}
 
           {/* If inside folder, option to remove from folder */}

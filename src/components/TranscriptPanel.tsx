@@ -17,10 +17,6 @@ import {
 import { VoiceoverTrack, AudioSegment, MediaAsset, SegmentMatchResult, TimelineItem } from '../types/project';
 import { formatTimecode } from '../engine/schema';
 import {
-  checkTranscriptionWorkerHealth,
-  TranscriptionWorkerStatus,
-} from '../engine/transcription';
-import {
   checkMatchingWorkerHealth,
   matchMediaForSegment,
   MatchingWorkerStatus,
@@ -59,9 +55,7 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
   isTranscribing,
   transcriptionError,
 }) => {
-  const [transcribeWorkerStatus, setTranscribeWorkerStatus] = useState<TranscriptionWorkerStatus>({ online: false });
   const [matchingWorkerStatus, setMatchingWorkerStatus] = useState<MatchingWorkerStatus>({ online: false });
-  const [modelSize, setModelSize] = useState<'tiny' | 'base' | 'small'>('base');
   const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -77,10 +71,8 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
   useEffect(() => {
     let mounted = true;
     const check = async () => {
-      const tStatus = await checkTranscriptionWorkerHealth();
       const mStatus = await checkMatchingWorkerHealth();
       if (mounted) {
-        setTranscribeWorkerStatus(tStatus);
         setMatchingWorkerStatus(mStatus);
       }
     };
@@ -221,27 +213,22 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
 
       {/* Transcription Control Bar */}
       <div className="p-3 border-b border-editor-panelBorder bg-editor-surface/30 space-y-2 shrink-0">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          {/* Model Selector */}
-          <div className="flex items-center gap-1 text-[11px] text-slate-400">
-            <span>Model:</span>
-            <select
-              value={modelSize}
-              onChange={(e) => setModelSize(e.target.value as 'tiny' | 'base' | 'small')}
-              disabled={isTranscribing}
-              className="bg-editor-surface border border-editor-panelBorder rounded px-1.5 py-0.5 text-[11px] text-slate-200 focus:outline-none focus:border-purple-500"
-            >
-              <option value="tiny">tiny (fastest)</option>
-              <option value="base">base (balanced)</option>
-              <option value="small">small (accurate)</option>
-            </select>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] text-slate-400">
+            {segments.length > 0 ? (
+              <span>{segments.length} segments timestamped</span>
+            ) : voiceover ? (
+              <span>Voiceover audio loaded</span>
+            ) : (
+              <span>Import voiceover to begin</span>
+            )}
           </div>
 
           {/* Transcribe Button */}
           <button
-            onClick={() => onTranscribe({ modelSize })}
+            onClick={() => onTranscribe({ modelSize: 'base' })}
             disabled={!voiceover || isTranscribing}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded shadow transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded shadow transition-all ${
               !voiceover
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
                 : isTranscribing
@@ -262,19 +249,6 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
             )}
           </button>
         </div>
-
-        {/* Offline Worker Help Banner */}
-        {!transcribeWorkerStatus.online && (
-          <div className="p-2 rounded bg-amber-950/40 border border-amber-800/40 text-[10px] text-amber-300 flex items-start gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <div className="leading-tight">
-              <span>Transcription worker offline:</span>
-              <code className="block mt-0.5 bg-black/60 px-1 py-0.5 rounded text-amber-200 font-mono text-[9px]">
-                python server/transcribe_server.py
-              </code>
-            </div>
-          </div>
-        )}
 
         {/* Error Banner */}
         {transcriptionError && (
