@@ -9943,10 +9943,6 @@ function groupAudioSegmentsForVisualDraft(input: AudioSegment[]): AudioSegment[]
 
       group.push(next);
       j++;
-
-      if (duration >= 5) {
-        break;
-      }
     }
 
     grouped.push({
