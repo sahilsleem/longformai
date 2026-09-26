@@ -76,7 +76,7 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
           <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-600/70 px-2.5 py-1 rounded text-blue-200 shrink-0 text-[11px] font-medium animate-pulse">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
             <span className="truncate max-w-[130px] sm:max-w-[190px]">
-              {preparationMessage || 'Preparing...'}
+              {preparationMessage || 'Analyzing...'}
             </span>
           </div>
         ) : isProjectPrepared ? (
@@ -85,7 +85,7 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
             title="All media and voiceover are prepared and ready for drafting"
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Prepared</span>
+            <span>Analyzed</span>
           </div>
         ) : (
           <button
@@ -96,10 +96,10 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
                 ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-xs'
                 : 'bg-slate-900/40 text-slate-500 border border-slate-800 cursor-not-allowed'
             }`}
-            title="Prepare media and voiceover for AI drafting"
+            title="Read audio & visuals to prepare for drafting"
           >
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>Prepare</span>
+            <span>Analyze Content</span>
           </button>
         )}
 

@@ -10,6 +10,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  Move,
 } from 'lucide-react';
 import { TimelineItem, MediaAsset, TransformState } from '../types/project';
 import { calculatePanBounds, TARGET_ASPECT_RATIO } from '../engine/schema';
@@ -70,6 +71,23 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   } | null>(null);
 
   const [videoError, setVideoError] = useState<string | null>(null);
+
+  const [showFramingHint, setShowFramingHint] = useState(false);
+
+  useEffect(() => {
+    if (activeItem && activeAsset && onUpdateTransform) {
+      const hintKey = 'longformai_framing_hint_seen';
+      const hasSeen = localStorage.getItem(hintKey);
+      if (!hasSeen) {
+        setShowFramingHint(true);
+        localStorage.setItem(hintKey, 'true');
+        const timer = setTimeout(() => setShowFramingHint(false), 4000);
+        return () => clearTimeout(timer);
+      }
+    } else {
+      setShowFramingHint(false);
+    }
+  }, [activeItem?.id, activeAsset?.id]);
 
   // ResizeObserver to track container viewport size in real-time
   useEffect(() => {
@@ -381,6 +399,15 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             : undefined
         }
       >
+        
+        {/* Subtle Framing Hint */}
+        {showFramingHint && !isInteractiveDragging && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none z-50 animate-in fade-in zoom-in duration-300">
+            <Move className="w-4 h-4 text-white/80" />
+            <span className="text-xs font-medium tracking-wide">Drag to reframe</span>
+          </div>
+        )}
+
         {activeAsset && activeItem ? (
           /* Staging Canvas centered around the 16:9 Frame */
           <div

@@ -19,10 +19,9 @@ import {
   CheckSquare,
   Square,
   Tag,
-  CheckCircle2,
 } from 'lucide-react';
 import { MediaAsset, MediaFolder, VoiceoverTrack } from '../types/project';
-import { formatSecondsToMinutes, formatTimecode } from '../engine/schema';
+import { formatSecondsToMinutes } from '../engine/schema';
 import {
   getMediaFolderNames,
   getAssetsInFolder,
@@ -57,7 +56,6 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
   mediaList,
   folders = [],
   activeFolderId = null,
-  voiceover,
   selectedMediaId,
   unlinkedCount = 0,
   onOpenRelinkModal,
@@ -66,7 +64,6 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
   onRemove,
   onAddToTimeline,
   onUploadVoiceover,
-  onRemoveVoiceover,
   onAnalyzeMedia: _onAnalyzeMedia,
   onCreateFolder,
   onRenameFolder,
@@ -153,9 +150,6 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
     return asset.aspectRatioLabel || `${asset.width}:${asset.height}`;
   };
 
-  const isVoiceoverMissing = Boolean(
-    voiceover && !voiceover.file && (!voiceover.url || voiceover.url.length === 0)
-  );
 
   const handleCreateFolderSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -508,79 +502,6 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
         </div>
       )}
 
-      {/* 1. Voiceover Audio Section */}
-      <div className="p-3 border-b border-editor-panelBorder bg-editor-surface/30 shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <Music className="w-3.5 h-3.5 text-purple-400" />
-            <span className="font-semibold text-xs text-purple-300 uppercase tracking-wider">
-              Voiceover Audio
-            </span>
-          </div>
-
-          {voiceover && (
-            <span className="text-[10px] font-mono bg-purple-950/70 text-purple-300 px-1.5 py-0.5 rounded border border-purple-800/40">
-              {formatTimecode(voiceover.duration)}
-            </span>
-          )}
-        </div>
-
-        {voiceover ? (
-          <div
-            className={`border rounded-lg p-2.5 flex items-center justify-between ${
-              isVoiceoverMissing
-                ? 'bg-amber-950/30 border-amber-800/50'
-                : 'bg-purple-950/30 border-purple-800/40'
-            }`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div
-                className={`w-8 h-8 rounded border flex items-center justify-center shrink-0 ${
-                  isVoiceoverMissing
-                    ? 'bg-amber-900/60 border-amber-700/50'
-                    : 'bg-purple-900/60 border-purple-700/50'
-                }`}
-              >
-                <Music className="w-4 h-4 text-purple-300" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs font-semibold text-slate-200 truncate">{voiceover.name}</p>
-                  <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-0.5 shrink-0">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>Added</span>
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-400 font-mono">
-                  {formatSecondsToMinutes(voiceover.duration)} • {voiceover.format?.toUpperCase()}
-                </p>
-              </div>
-            </div>
-
-            {onRemoveVoiceover && (
-              <button
-                onClick={onRemoveVoiceover}
-                className="p-1.5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded transition-colors"
-                title="Remove Voiceover"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        ) : (
-          <div
-            onClick={() => voiceoverInputRef.current?.click()}
-            className="border border-dashed border-purple-500/30 hover:border-purple-400 rounded-lg p-2.5 flex items-center justify-center gap-2 text-center cursor-pointer bg-purple-950/15 hover:bg-purple-950/30 transition-colors"
-          >
-            <Upload className="w-4 h-4 text-purple-400 shrink-0" />
-            <div className="text-left">
-              <p className="text-xs font-medium text-purple-200">Import Voiceover Audio</p>
-              <p className="text-[10px] text-slate-400">MP3, WAV, M4A, AAC</p>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* 2. Media Folders & Visual Media Section */}
       {currentFolderId && currentFolder ? (
         /* INSIDE FOLDER VIEW */
@@ -762,7 +683,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
               {unlinkedCount > 0 && onOpenRelinkModal && (
                 <button
                   onClick={onOpenRelinkModal}
@@ -785,7 +706,15 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Upload</span>
+                <span>Media</span>
+              </button>
+              <button
+                onClick={() => voiceoverInputRef.current?.click()}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-300 border border-slate-700/60 rounded transition-colors shadow-sm"
+                title="Voiceover drives the automatic edit"
+              >
+                <Music className="w-3.5 h-3.5 text-purple-400" />
+                <span>Voiceover</span>
               </button>
             </div>
           </div>
