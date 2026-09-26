@@ -282,7 +282,7 @@ def render_project(
         total_segments = len(segments_to_render)
         
         for idx, seg in enumerate(segments_to_render):
-            seg_out = os.path.join(temp_dir, f"seg_{idx:04d}.ts")
+            seg_out = os.path.join(temp_dir, f"seg_{idx:04d}.mp4")
             rendered_segment_paths.append(seg_out)
             
             if seg["is_gap"]:
@@ -291,7 +291,7 @@ def render_project(
                     pct = 10.0 + (idx / total_segments) * 60.0
                     progress_callback(pct, f"Rendering gap segment {idx+1}/{total_segments} ({dur:.2f}s)...")
                     
-                # Render neutral 16:9 black video segment
+                # Render neutral 16:9 black video segment with zero-based timestamp
                 cmd = [
                     "ffmpeg",
                     "-y",
@@ -301,6 +301,8 @@ def render_project(
                     "-preset", "ultrafast",
                     "-pix_fmt", "yuv420p",
                     "-r", str(TARGET_FPS),
+                    "-avoid_negative_ts", "make_zero",
+                    "-movflags", "+faststart",
                     seg_out,
                 ]
                 res = subprocess.run(cmd, capture_output=True, text=True)
@@ -334,6 +336,8 @@ def render_project(
                         "-preset", "ultrafast",
                         "-pix_fmt", "yuv420p",
                         "-r", str(TARGET_FPS),
+                        "-avoid_negative_ts", "make_zero",
+                        "-movflags", "+faststart",
                         seg_out,
                     ]
                     subprocess.run(cmd, check=True, capture_output=True)
@@ -399,6 +403,8 @@ def render_project(
                     "-pix_fmt", "yuv420p",
                     "-r", str(TARGET_FPS),
                     "-t", str(dur),
+                    "-avoid_negative_ts", "make_zero",
+                    "-movflags", "+faststart",
                     seg_out,
                 ]
                 
@@ -410,6 +416,7 @@ def render_project(
                         "ffmpeg", "-y", "-f", "lavfi",
                         "-i", f"color=c=black:s={TARGET_WIDTH}x{TARGET_HEIGHT}:r={TARGET_FPS}:d={dur}",
                         "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-r", str(TARGET_FPS),
+                        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
                         seg_out,
                     ]
                     subprocess.run(fb_cmd, check=True, capture_output=True)
@@ -425,10 +432,11 @@ def render_project(
                 norm_p = os.path.abspath(p).replace("\\", "/")
                 f.write(f"file '{norm_p}'\n")
                 
-        # Prepare final FFmpeg assembly command
+        # Prepare final FFmpeg assembly command with +genpts to ensure seamless timeline progression
         final_cmd = [
             "ffmpeg",
             "-y",
+            "-fflags", "+genpts",
             "-f", "concat",
             "-safe", "0",
             "-i", concat_list_path,

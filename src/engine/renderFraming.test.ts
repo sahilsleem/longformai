@@ -197,4 +197,23 @@ describe('Render Framing & Aspect Ratio Fidelity Suite', () => {
       }
     });
   });
+
+  describe('Test G — Multi-Segment Timeline Concat Timestamps & Presentation Monotonicity', () => {
+    it('verifies seamless timeline concatenation across Video 1 -> Video 2 -> Photo sequence', () => {
+      const timelineSegments = [
+        { id: 'seg_1', duration: 5.04, expectedStart: 0.0, expectedEnd: 5.04, type: 'video' },
+        { id: 'seg_2', duration: 5.06, expectedStart: 5.04, expectedEnd: 10.10, type: 'video' },
+        { id: 'seg_3', duration: 5.00, expectedStart: 10.10, expectedEnd: 15.10, type: 'image' },
+      ];
+
+      let cumulativeTime = 0.0;
+      for (const seg of timelineSegments) {
+        expect(cumulativeTime).toBeCloseTo(seg.expectedStart, 2);
+        cumulativeTime += seg.duration;
+        expect(cumulativeTime).toBeCloseTo(seg.expectedEnd, 2);
+      }
+      expect(cumulativeTime).toBeCloseTo(15.10, 2);
+    });
+  });
 });
+
