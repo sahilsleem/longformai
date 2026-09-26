@@ -3,7 +3,6 @@ import {
   Film,
   Sparkles,
   Layers,
-  Crop,
   Video,
   CheckCircle2,
   Loader2,
@@ -21,7 +20,6 @@ export interface WorkflowBarProps {
   isGeneratingDraft?: boolean;
   onOpenRenderModal: () => void;
   onOpenWorkerDiagnostics: () => void;
-  onOpenFramingEditor?: () => void;
   onSwitchTab?: (tab: 'media') => void;
   activeWorkersCount?: number;
   totalWorkersCount?: number;
@@ -37,7 +35,6 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
   isGeneratingDraft = false,
   onOpenRenderModal,
   onOpenWorkerDiagnostics,
-  onOpenFramingEditor,
   onSwitchTab,
   activeWorkersCount = 4,
   totalWorkersCount = 4,
@@ -164,35 +161,14 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
 
         <span className="text-slate-600 text-[10px] shrink-0">→</span>
 
-        {/* Step 4: Framing */}
-        <button
-          onClick={onOpenFramingEditor}
-          disabled={timelineClipCount === 0}
-          className={`flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 rounded whitespace-nowrap shrink-0 transition-colors text-[11px] ${
-            timelineClipCount > 0
-              ? 'bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-200 border border-indigo-700/60 cursor-pointer shadow-xs active:bg-indigo-800'
-              : 'bg-slate-900/40 text-slate-500 border border-slate-800 cursor-not-allowed'
-          }`}
-          title={
-            timelineClipCount > 0
-              ? 'Preview and adjust 16:9 Framing for selected footage'
-              : 'Generate AI Draft or add clips to timeline first'
-          }
-        >
-          <Crop className={`w-3 h-3 ${timelineClipCount > 0 ? 'text-indigo-400' : 'text-slate-500'} shrink-0`} />
-          <span className="font-medium">4. Framing</span>
-        </button>
-
-        <span className="text-slate-600 text-[10px] shrink-0">→</span>
-
-        {/* Step 5: Render */}
+        {/* Step 4: Render */}
         <button
           onClick={onOpenRenderModal}
           className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 rounded bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30 transition-colors whitespace-nowrap shrink-0 text-[11px]"
           title="Render Final 1920x1080 MP4 Video"
         >
           <Video className="w-3 h-3 text-blue-400 shrink-0" />
-          <span className="font-semibold">5. Render</span>
+          <span className="font-semibold">4. Render</span>
         </button>
       </div>
 

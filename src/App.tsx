@@ -6,11 +6,10 @@ import { RenderModal } from './components/RenderModal';
 import { RelinkModal } from './components/RelinkModal';
 import { MediaPanel } from './components/MediaPanel';
 import { PreviewCanvas } from './components/PreviewCanvas';
-import { CropInspector } from './components/CropInspector';
 import { MediaInspector } from './components/MediaInspector';
 import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
-import { Film, Crop, Sparkles } from 'lucide-react';
+import { Film, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -38,7 +37,6 @@ export const App: React.FC = () => {
     timelineScale,
     totalDuration,
     effectiveTimelineItem,
-    selectedTimelineItem,
     effectiveMediaAsset,
     selectedMediaAsset,
     isGeneratingDraft,
@@ -74,7 +72,6 @@ export const App: React.FC = () => {
     setProjectName,
   } = useProject();
 
-  const [rightTab, setRightTab] = useState<'framing' | 'analysis'>('framing');
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isWorkerModalOpen, setIsWorkerModalOpen] = useState(false);
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
@@ -97,48 +94,14 @@ export const App: React.FC = () => {
     }
   };
 
-  // When user selects a timeline clip, show framing inspector
+  // When user selects a timeline clip
   const handleSelectTimelineClip = (id: string | null) => {
     setSelectedItemId(id);
-    if (id) {
-      setRightTab('framing');
-    }
   };
 
-  // Focus direct 16:9 framing for a specific clip or the currently active/selected clip
-  const handleFocusFraming = (itemId?: string) => {
-    if (itemId) {
-      setSelectedItemId(itemId);
-      const target = project.timeline.find((t) => t.id === itemId);
-      if (target) {
-        setCurrentTime(target.startTime);
-      }
-    } else if (!selectedItemId && project.timeline.length > 0) {
-      const activeAtPlayhead = project.timeline.find(
-        (item) => item.startTime <= currentTime && item.startTime + item.duration > currentTime
-      );
-      const chosenId = activeAtPlayhead ? activeAtPlayhead.id : project.timeline[0].id;
-      setSelectedItemId(chosenId);
-      const chosenItem = project.timeline.find((t) => t.id === chosenId);
-      if (chosenItem) {
-        setCurrentTime(chosenItem.startTime);
-      }
-    }
-    setRightTab('framing');
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      const el = document.getElementById('mobile-section-framing');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-  };
-
-  // When user clicks a media asset in the library, show media analysis inspector
+  // When user clicks a media asset in the library, select it for inspection
   const handleSelectMediaAsset = (id: string | null) => {
     setSelectedMediaId(id);
-    if (id) {
-      setRightTab('analysis');
-    }
   };
 
   // Keyboard Shortcuts (Space to play/pause, Delete to remove clip, Arrow keys to step)
@@ -222,7 +185,6 @@ export const App: React.FC = () => {
         isGeneratingDraft={isGeneratingDraft}
         onOpenRenderModal={() => setIsRenderModalOpen(true)}
         onOpenWorkerDiagnostics={() => setIsWorkerModalOpen(true)}
-        onOpenFramingEditor={() => handleFocusFraming()}
         onSwitchTab={() => {
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
             const el = document.getElementById('mobile-section-media');
@@ -280,55 +242,13 @@ export const App: React.FC = () => {
           }
         />
 
-        {/* Right Side: Tabbed Container for 16:9 Framing Inspector & Media Intelligence Inspector */}
+        {/* Right Side: Dedicated Media Intelligence Inspector */}
         <div className="flex flex-col h-full bg-editor-panel border-l border-editor-panelBorder w-76 xl:w-80 shrink-0 overflow-hidden">
-          {/* Right Tab Buttons */}
-          <div className="h-10 bg-editor-panel border-b border-editor-panelBorder flex items-center px-2 gap-1 shrink-0">
-            <button
-              onClick={() => setRightTab('framing')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                rightTab === 'framing'
-                  ? 'bg-editor-surface text-blue-400 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-editor-surface/50'
-              }`}
-            >
-              <Crop className="w-3.5 h-3.5" />
-              <span>16:9 Crop</span>
-            </button>
-
-            <button
-              onClick={() => setRightTab('analysis')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                rightTab === 'analysis'
-                  ? 'bg-editor-surface text-blue-400 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-editor-surface/50'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Media Info</span>
-            </button>
-          </div>
-
-          {/* Right Tab Content */}
-          <div className="flex-1 overflow-hidden">
-            {rightTab === 'framing' ? (
-              <CropInspector
-                selectedItem={selectedTimelineItem}
-                selectedAsset={selectedMediaAsset}
-                onUpdateTransform={updateItemTransform}
-                onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
-                onUpdateSourceStart={(id, srcStart) =>
-                  updateTimelineItem(id, { sourceStart: srcStart })
-                }
-              />
-            ) : (
-              <MediaInspector
-                asset={currentlyInspectedMedia || selectedMediaAsset}
-                onAnalyze={analyzeMedia}
-                onAddToTimeline={addMediaToTimeline}
-              />
-            )}
-          </div>
+          <MediaInspector
+            asset={currentlyInspectedMedia || selectedMediaAsset}
+            onAnalyze={analyzeMedia}
+            onAddToTimeline={addMediaToTimeline}
+          />
         </div>
       </div>
 
@@ -395,18 +315,6 @@ export const App: React.FC = () => {
           </a>
 
           <a
-            href="#mobile-section-framing"
-            onClick={(e) => {
-              e.preventDefault();
-              document.getElementById('mobile-section-framing')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
-          >
-            <Crop className="w-3.5 h-3.5 text-emerald-400" />
-            <span>16:9 Framing</span>
-          </a>
-
-          <a
             href="#mobile-section-info"
             onClick={(e) => {
               e.preventDefault();
@@ -459,37 +367,7 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 2: 16:9 Framing Inspector */}
-          <div id="mobile-section-framing" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
-            <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Crop className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">16:9 Framing Inspector</h3>
-              </div>
-              {selectedTimelineItem ? (
-                <span className="text-[11px] text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-                  Clip Selected
-                </span>
-              ) : (
-                <span className="text-[11px] text-slate-400">
-                  Tap a clip in timeline
-                </span>
-              )}
-            </div>
-            <div className="min-h-[260px]">
-              <CropInspector
-                selectedItem={selectedTimelineItem}
-                selectedAsset={selectedMediaAsset}
-                onUpdateTransform={updateItemTransform}
-                onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
-                onUpdateSourceStart={(id, srcStart) =>
-                  updateTimelineItem(id, { sourceStart: srcStart })
-                }
-              />
-            </div>
-          </div>
-
-          {/* Section 3: Media Info & Intelligence */}
+          {/* Section 2: Media Info & Intelligence */}
           <div id="mobile-section-info" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
             <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
               <div className="flex items-center gap-2">
