@@ -438,7 +438,7 @@ export interface ProjectFrameConfig {
   enabled: boolean;
   id?: string;            // e.g. 'bollywood_broadcast_frame'
   name?: string;          // e.g. 'Bollywood Broadcast Frame'
-  src?: string;           // Asset path e.g. '/assets/frames/bollywood_frame_overlay.png'
+  src?: string;           // Asset path e.g. '/assets/frames/pip.png'
 }
 
 export interface LongFormProject {

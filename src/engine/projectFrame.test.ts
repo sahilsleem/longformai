@@ -24,7 +24,7 @@ describe('Project-Level Persistent Broadcast Frame', () => {
     expect(project.frame).toBeDefined();
     expect(project.frame?.enabled).toBe(true);
     expect(project.frame?.id).toBe('bollywood_broadcast_frame');
-    expect(project.frame?.src).toBe('/assets/frames/bollywood_frame_overlay_1080p.png');
+    expect(project.frame?.src).toBe('/assets/frames/pip.png');
   });
 
   it('exports and validates frame configuration in portable JSON interchange', () => {

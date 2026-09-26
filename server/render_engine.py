@@ -450,16 +450,22 @@ def render_project(
                     pass
                 
         if not overlay_asset_path:
+            server_pip = os.path.join(os.path.dirname(__file__), "assets", "pip.png")
             server_asset_1080p = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay_1080p.png")
             server_asset = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay.png")
-            if os.path.isfile(server_asset_1080p):
+            if os.path.isfile(server_pip):
+                overlay_asset_path = server_pip
+            elif os.path.isfile(server_asset_1080p):
                 overlay_asset_path = server_asset_1080p
             elif os.path.isfile(server_asset):
                 overlay_asset_path = server_asset
             else:
+                alt_pip = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "pip.png")
                 alt_overlay_1080p = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay_1080p.png")
                 alt_overlay = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay.png")
-                if os.path.isfile(alt_overlay_1080p):
+                if os.path.isfile(alt_pip):
+                    overlay_asset_path = alt_pip
+                elif os.path.isfile(alt_overlay_1080p):
                     overlay_asset_path = alt_overlay_1080p
                 elif os.path.isfile(alt_overlay):
                     overlay_asset_path = alt_overlay
@@ -494,7 +500,7 @@ def render_project(
         if apply_frame_overlay:
             final_cmd += [
                 "-i", overlay_asset_path,
-                "-filter_complex", "[0:v][2:v]overlay=0:0[outv]",
+                "-filter_complex", "[2:v]scale=1920:1080:flags=lanczos[frame_overlay];[0:v][frame_overlay]overlay=0:0[outv]",
                 "-map", "[outv]",
                 "-map", "1:a:0",
             ]

@@ -39,7 +39,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   totalDuration,
   onUpdateTransform,
   frameEnabled = true,
-  frameSrc = '/assets/frames/bollywood_frame_overlay.png',
+  frameSrc = '/assets/frames/pip.png',
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

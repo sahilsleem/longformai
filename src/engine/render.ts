@@ -117,7 +117,7 @@ export async function requestVideoRender(
   if (frameConfig.enabled) {
     try {
       const frameBlob = await getBollywoodFrameBlob(frameConfig.src);
-      formData.append('frame_overlay', frameBlob, 'bollywood_frame_overlay.png');
+      formData.append('frame_overlay', frameBlob, 'pip.png');
       console.log('FRAME DEBUG CLIENT', {
         enabled: true,
         frameConfig,
