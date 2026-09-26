@@ -6,7 +6,6 @@ import {
   Video,
   CheckCircle2,
   Loader2,
-  Cpu,
   ChevronRight,
 } from 'lucide-react';
 import { LongFormProject } from '../types/project';
@@ -19,10 +18,7 @@ export interface WorkflowBarProps {
   onGenerateAIDraft?: () => void;
   isGeneratingDraft?: boolean;
   onOpenRenderModal: () => void;
-  onOpenWorkerDiagnostics: () => void;
   onSwitchTab?: (tab: 'media') => void;
-  activeWorkersCount?: number;
-  totalWorkersCount?: number;
 }
 
 export const WorkflowBar: React.FC<WorkflowBarProps> = ({
@@ -33,10 +29,7 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
   onGenerateAIDraft,
   isGeneratingDraft = false,
   onOpenRenderModal,
-  onOpenWorkerDiagnostics,
   onSwitchTab,
-  activeWorkersCount = 4,
-  totalWorkersCount = 4,
 }) => {
   // Genuine ingredient & preparation states
   const mediaCount = project.media.length;
@@ -168,25 +161,6 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
         </button>
       </div>
 
-      {/* Right Actions: System Diagnostics */}
-      <div className="flex items-center gap-1.5 shrink-0 py-0.5">
-        <button
-          onClick={onOpenWorkerDiagnostics}
-          className="p-1 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-slate-400 hover:text-slate-200 transition-colors shrink-0 flex items-center gap-1 text-[11px]"
-          title="System & Worker Diagnostics"
-        >
-          <Cpu className="w-3.5 h-3.5 text-slate-400" />
-          <span
-            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-              activeWorkersCount === totalWorkersCount
-                ? 'bg-emerald-400'
-                : activeWorkersCount > 0
-                ? 'bg-amber-400'
-                : 'bg-rose-400'
-            }`}
-          />
-        </button>
-      </div>
     </div>
   );
 };

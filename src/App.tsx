@@ -78,7 +78,6 @@ export const App: React.FC = () => {
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isWorkerModalOpen, setIsWorkerModalOpen] = useState(false);
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
-  const [activeWorkers, setActiveWorkers] = useState(4);
 
   // Calculate unlinked missing files count
   const unlinkedCount =
@@ -188,7 +187,6 @@ export const App: React.FC = () => {
         onGenerateAIDraft={generateAIDraft}
         isGeneratingDraft={isGeneratingDraft}
         onOpenRenderModal={() => setIsRenderModalOpen(true)}
-        onOpenWorkerDiagnostics={() => setIsWorkerModalOpen(true)}
         onSwitchTab={() => {
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
             const el = document.getElementById('mobile-section-media');
@@ -197,8 +195,6 @@ export const App: React.FC = () => {
             }
           }
         }}
-        activeWorkersCount={activeWorkers}
-        totalWorkersCount={4}
       />
 
       {/* 3A. DESKTOP WORKSPACE (>= 1024px): 3-Column Workstation Layout */}
@@ -446,7 +442,6 @@ export const App: React.FC = () => {
       <WorkerDiagnosticsModal
         isOpen={isWorkerModalOpen}
         onClose={() => setIsWorkerModalOpen(false)}
-        onWorkersUpdated={(active) => setActiveWorkers(active)}
       />
 
       <RelinkModal

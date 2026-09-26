@@ -11,15 +11,11 @@ import {
   Check,
   Image as ImageIcon,
   Film,
-  ArrowRight,
-  Sparkle,
 } from 'lucide-react';
 import { VoiceoverTrack, AudioSegment, MediaAsset, SegmentMatchResult, TimelineItem } from '../types/project';
 import { formatTimecode } from '../engine/schema';
 import {
-  checkMatchingWorkerHealth,
   matchMediaForSegment,
-  MatchingWorkerStatus,
 } from '../engine/matching';
 
 interface TranscriptPanelProps {
@@ -45,17 +41,14 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
   timeline = [],
   selectedTimelineItemId,
   currentTime,
-  selectedMediaId,
   unassignedReasons = {},
   onSeek,
-  onSelectMedia,
   onSelectTimelineItem,
   onTranscribe,
   onUpdateSegmentText,
   isTranscribing,
   transcriptionError,
 }) => {
-  const [matchingWorkerStatus, setMatchingWorkerStatus] = useState<MatchingWorkerStatus>({ online: false });
   const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -67,22 +60,7 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
 
   const activeSegmentRef = useRef<HTMLDivElement | null>(null);
 
-  // Periodically check local workers health
-  useEffect(() => {
-    let mounted = true;
-    const check = async () => {
-      const mStatus = await checkMatchingWorkerHealth();
-      if (mounted) {
-        setMatchingWorkerStatus(mStatus);
-      }
-    };
-    check();
-    const interval = setInterval(check, 6000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+
 
   const segments = voiceover?.segments || [];
 
@@ -171,9 +149,6 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const analyzedMediaCount = mediaAssets.filter(
-    (m) => Boolean(m.analysis?.semantic?.description || (m.analysis?.tags && m.analysis.tags.length > 0))
-  ).length;
 
   return (
     <div className="flex flex-col h-full bg-editor-panel w-full select-none overflow-hidden">
@@ -191,24 +166,6 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
           )}
         </div>
 
-        {/* Worker Status Badges */}
-        <div className="flex items-center gap-1.5">
-          <div
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border ${
-              matchingWorkerStatus.online
-                ? 'bg-purple-950/60 text-purple-300 border-purple-800/40'
-                : 'bg-slate-800/80 text-slate-400 border-slate-700'
-            }`}
-            title={
-              matchingWorkerStatus.online
-                ? `Matching worker ready (${matchingWorkerStatus.defaultModel})`
-                : 'Matching worker offline (port 8767)'
-            }
-          >
-            <Sparkle className={`w-2 h-2 ${matchingWorkerStatus.online ? 'text-purple-400' : 'text-slate-500'}`} />
-            <span>{matchingWorkerStatus.online ? 'Matcher Ready' : 'Matcher Offline'}</span>
-          </div>
-        </div>
       </div>
 
       {/* Transcription Control Bar */}
@@ -292,8 +249,7 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
                 const isPlaybackActive = idx === activeSegmentIndex;
                 const isSelected = selectedSegmentId === segment.id;
                 const isEditing = editingSegmentId === segment.id;
-                const segmentMatches = matchResults[segment.id];
-                const matchingInProgress = isMatching[segment.id];
+
 
                 const assignedClip = timeline.find(
                   (t) => (t.provenance?.sourceSegmentId && t.provenance.sourceSegmentId === segment.id) ||
@@ -411,136 +367,6 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
                       </div>
                     )}
 
-                    {/* 5. MEDIA SUGGESTIONS SECTION (WHEN SEGMENT IS SELECTED) */}
-                    {isSelected && (
-                      <div
-                        className="mt-3 pt-2.5 border-t border-editor-panelBorder/70 space-y-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                            <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
-                              Media Suggestions
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={() => handleFetchMatches(segment, true)}
-                            disabled={matchingInProgress}
-                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 border border-purple-800/40 transition-colors"
-                            title="Recalculate semantic match scores"
-                          >
-                            {matchingInProgress ? (
-                              <Loader2 className="w-2.5 h-2.5 animate-spin text-purple-300" />
-                            ) : (
-                              <Sparkles className="w-2.5 h-2.5" />
-                            )}
-                            <span>{matchingInProgress ? 'Matching...' : 'Find Matches'}</span>
-                          </button>
-                        </div>
-
-                        {/* Loading State */}
-                        {matchingInProgress ? (
-                          <div className="p-3 bg-slate-900/60 rounded border border-slate-800 flex items-center justify-center gap-2 text-slate-400 text-[11px]">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
-                            <span>Computing text & media embeddings...</span>
-                          </div>
-                        ) : segmentMatches?.error ? (
-                          <div className="p-2 rounded bg-amber-950/40 border border-amber-800/40 text-[10px] text-amber-300 flex items-start gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                            <span>{segmentMatches.error}</span>
-                          </div>
-                        ) : analyzedMediaCount === 0 ? (
-                          <div className="p-2.5 bg-slate-900/40 rounded border border-dashed border-editor-panelBorder text-center text-slate-400 text-[10px] space-y-1">
-                            <p className="font-medium text-slate-300">No Analyzed Media Available</p>
-                            <p className="text-slate-500">
-                              Click on your media in the Media Library and select "Analyze" to extract semantic descriptions before matching.
-                            </p>
-                          </div>
-                        ) : segmentMatches?.candidates && segmentMatches.candidates.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {segmentMatches.candidates.map((candidate, rankIdx) => {
-                              const asset = mediaAssets.find((m) => m.id === candidate.mediaId);
-                              const isAssetSelected = selectedMediaId === candidate.mediaId;
-
-                              // Score color classification
-                              const scorePercent = Math.round(candidate.score * 100);
-                              const scoreColorClass =
-                                candidate.score >= 0.55
-                                  ? 'text-emerald-400 border-emerald-800/50 bg-emerald-950/60'
-                                  : candidate.score >= 0.35
-                                  ? 'text-blue-400 border-blue-800/50 bg-blue-950/60'
-                                  : 'text-slate-400 border-slate-700 bg-slate-900/60';
-
-                              return (
-                                <div
-                                  key={candidate.mediaId}
-                                  onClick={() => onSelectMedia && onSelectMedia(candidate.mediaId)}
-                                  className={`p-2 rounded bg-black/40 border transition-all cursor-pointer ${
-                                    isAssetSelected
-                                      ? 'border-blue-500 bg-blue-950/30'
-                                      : 'border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
-                                  }`}
-                                  title="Click to highlight and inspect this media in the library (does not change timeline)"
-                                >
-                                  {/* Candidate Header */}
-                                  <div className="flex items-center justify-between gap-1 mb-1">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <span className="text-[10px] font-mono text-purple-400 font-bold shrink-0">
-                                        #{rankIdx + 1}
-                                      </span>
-                                      {asset?.type === 'video' ? (
-                                        <Film className="w-3 h-3 text-blue-400 shrink-0" />
-                                      ) : (
-                                        <ImageIcon className="w-3 h-3 text-emerald-400 shrink-0" />
-                                      )}
-                                      <span className="text-[11px] font-semibold text-slate-200 truncate" title={candidate.mediaName}>
-                                        {candidate.mediaName}
-                                      </span>
-                                    </div>
-
-                                    {/* Semantic Match Score */}
-                                    <span
-                                      className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-medium border ${scoreColorClass}`}
-                                    >
-                                      Semantic match: {candidate.score.toFixed(2)}
-                                    </span>
-                                  </div>
-
-                                  {/* Grounded Explanation */}
-                                  <p className="text-[10px] text-slate-400 italic leading-snug pl-4 border-l border-slate-800 mb-1.5">
-                                    "{candidate.explanation}"
-                                  </p>
-
-                                  {/* Highlight / Select Action */}
-                                  <div className="flex items-center justify-between text-[9px] text-slate-500 pl-4">
-                                    <span>{scorePercent}% similarity score</span>
-                                    <span className="flex items-center gap-0.5 text-blue-400 hover:underline">
-                                      <span>Inspect media</span>
-                                      <ArrowRight className="w-2.5 h-2.5" />
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {/* Unanalyzed Media Notice if any */}
-                            {segmentMatches.unavailableCount > 0 && (
-                              <div className="text-[9px] text-slate-500 text-right pr-1">
-                                <span>{segmentMatches.unavailableCount} unanalyzed media excluded</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="p-2.5 bg-slate-900/40 rounded border border-dashed border-editor-panelBorder text-center text-slate-500 text-[10px]">
-                            {segmentMatches
-                              ? 'No meaningful matches found for this segment.'
-                              : 'Click "Find Matches" to rank supplied media for this segment.'}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}

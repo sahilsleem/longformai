@@ -118,23 +118,11 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="font-bold text-xs sm:text-sm tracking-wide text-white">LongFormAI</span>
           </div>
 
-          <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 hidden sm:inline-block shrink-0">
-            16:9 Master
-          </span>
         </div>
 
-        {/* Desktop Center: 16:9 Spec & Timecode */}
-        <div className="hidden lg:flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-editor-surface px-2.5 py-1 rounded border border-editor-panelBorder text-xs text-slate-300">
-            <Monitor className="w-3.5 h-3.5 text-blue-400" />
-            <span className="font-semibold text-white">1920 × 1080</span>
-            <span className="text-slate-500">|</span>
-            <span className="font-mono text-blue-300 font-medium">16:9 YouTube</span>
-            <span className="text-slate-500">|</span>
-            <span className="text-slate-400">{project.fps} FPS</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 font-mono text-xs bg-editor-surface px-2.5 py-1 rounded border border-editor-panelBorder">
+        {/* Desktop Center: Timecode */}
+        <div className="hidden lg:flex items-center justify-center absolute inset-x-0 pointer-events-none">
+          <div className="flex items-center gap-1.5 font-mono text-xs bg-editor-surface px-2.5 py-1 rounded border border-editor-panelBorder pointer-events-auto shadow-sm">
             <span className="text-blue-400 font-semibold">{formatTimecode(currentTime)}</span>
             <span className="text-slate-500">/</span>
             <span className="text-slate-400">{formatTimecode(totalDuration)}</span>

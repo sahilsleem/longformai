@@ -38,7 +38,6 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   totalDuration,
 }) => {
   const [workerHealth, setWorkerHealth] = useState<RenderHealth | null>(null);
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
@@ -55,10 +54,8 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   }, [isOpen, project]);
 
   const checkHealth = async () => {
-    setIsCheckingHealth(true);
     const health = await checkRenderWorkerHealth();
     setWorkerHealth(health);
-    setIsCheckingHealth(false);
   };
 
   const handleStartRender = async () => {
@@ -106,8 +103,8 @@ export const RenderModal: React.FC<RenderModalProps> = ({
               <Video className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-semibold text-white truncate">Master Video Export (1080p MP4)</h2>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Local FFmpeg Rendering Engine • 100% Private</p>
+              <h2 className="text-sm sm:text-base font-semibold text-white truncate">Master Video Export</h2>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Local Rendering • 100% Private</p>
             </div>
           </div>
           <button
@@ -121,40 +118,14 @@ export const RenderModal: React.FC<RenderModalProps> = ({
 
         {/* Content */}
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
-          {/* Worker Status Banner */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-editor-surface border border-editor-panelBorder text-xs">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  workerHealth?.ffmpegAvailable ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-rose-400'
-                }`}
-              />
-              <span className="font-medium text-slate-300">
-                {workerHealth?.ffmpegAvailable
-                  ? 'Local FFmpeg Worker: Online (Port 8768)'
-                  : 'FFmpeg Worker Offline'}
-              </span>
-            </div>
-            <button
-              onClick={checkHealth}
-              disabled={isCheckingHealth || isRendering}
-              className="text-blue-400 hover:text-blue-300 text-[11px] underline disabled:opacity-50"
-            >
-              {isCheckingHealth ? 'Checking...' : 'Refresh Status'}
-            </button>
-          </div>
-
           {!workerHealth?.ffmpegAvailable && (
             <div className="p-3 bg-amber-950/40 border border-amber-800/40 rounded-lg text-xs text-amber-300 flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-amber-200">Local Render Server Not Detected</p>
+                <p className="font-semibold text-amber-200">Local rendering is currently unavailable.</p>
                 <p className="mt-0.5 text-amber-400/90 leading-relaxed">
-                  Start the local worker in your terminal by running:
+                  Please ensure the LongFormAI application is fully running.
                 </p>
-                <code className="block mt-1 bg-black/60 px-2 py-1 rounded text-[11px] text-emerald-300 font-mono">
-                  python server/render_server.py --port 8768
-                </code>
               </div>
             </div>
           )}

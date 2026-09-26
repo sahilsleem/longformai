@@ -7,7 +7,6 @@ import {
   Video as VideoIcon,
   Music,
   Clock,
-  Maximize2,
   Sparkles,
   Folder,
   FolderPlus,
@@ -395,12 +394,6 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
             </button>
           </div>
 
-          {asset.width && asset.height && (
-            <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-1">
-              <Maximize2 className="w-2.5 h-2.5" />
-              {asset.width} × {asset.height}
-            </div>
-          )}
         </div>
 
         {/* Quick Action Buttons */}
