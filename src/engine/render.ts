@@ -1,4 +1,5 @@
 import { LongFormProject } from '../types/project';
+import { DEFAULT_BOLLYWOOD_FRAME } from './schema';
 import { getRenderWorkerUrl } from '../config/workerConfig';
 
 export const RENDER_WORKER_URL = getRenderWorkerUrl();
@@ -71,6 +72,15 @@ export async function requestVideoRender(
 
   const formData = new FormData();
 
+  const frameConfig = project.frame
+    ? {
+        enabled: typeof project.frame.enabled === 'boolean' ? project.frame.enabled : true,
+        id: project.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
+        name: project.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
+        src: project.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
+      }
+    : { ...DEFAULT_BOLLYWOOD_FRAME };
+
   // Attach sanitized project metadata
   const projectPayload = {
     version: project.version,
@@ -97,17 +107,24 @@ export async function requestVideoRender(
           isMuted: project.voiceover.isMuted,
         }
       : undefined,
-    frame: project.frame
-      ? {
-          enabled: Boolean(project.frame.enabled),
-          id: project.frame.id,
-          name: project.frame.name,
-          src: project.frame.src,
-        }
-      : undefined,
+    frame: frameConfig,
   };
 
   formData.append('project_json', JSON.stringify(projectPayload));
+
+  // Attach frame overlay PNG if frame is enabled
+  if (frameConfig.enabled) {
+    const overlaySrc = frameConfig.src || '/assets/frames/bollywood_frame_overlay.png';
+    try {
+      const frameResp = await fetch(overlaySrc);
+      if (frameResp.ok) {
+        const frameBlob = await frameResp.blob();
+        formData.append('frame_overlay', frameBlob, 'bollywood_frame_overlay.png');
+      }
+    } catch (e) {
+      console.warn('Could not fetch frame overlay blob for upload:', e);
+    }
+  }
 
   // Attach voiceover file
   if (project.voiceover) {

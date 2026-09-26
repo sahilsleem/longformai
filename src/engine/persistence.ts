@@ -1,4 +1,5 @@
 import { LongFormProject, MediaAsset, VoiceoverTrack } from '../types/project';
+import { DEFAULT_BOLLYWOOD_FRAME } from './schema';
 
 const DB_NAME = 'longformai_db';
 const DB_VERSION = 1;
@@ -81,6 +82,12 @@ export function openDB(): Promise<IDBDatabase | null> {
 export function sanitizeProjectForStorage(project: LongFormProject): LongFormProject {
   return {
     ...project,
+    frame: project.frame ? {
+      enabled: typeof project.frame.enabled === 'boolean' ? project.frame.enabled : true,
+      id: project.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
+      name: project.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
+      src: project.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
+    } : { ...DEFAULT_BOLLYWOOD_FRAME },
     media: project.media.map((m) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { file, url, ...rest } = m;
@@ -346,6 +353,12 @@ export async function hydrateProjectWithBlobs(storedProject: LongFormProject): P
 
   return {
     ...storedProject,
+    frame: storedProject.frame ? {
+      enabled: typeof storedProject.frame.enabled === 'boolean' ? storedProject.frame.enabled : true,
+      id: storedProject.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
+      name: storedProject.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
+      src: storedProject.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
+    } : { ...DEFAULT_BOLLYWOOD_FRAME },
     media: hydratedMedia,
     voiceover: hydratedVoiceover,
   };

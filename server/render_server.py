@@ -246,6 +246,18 @@ def start_multipart_render_job(
             f.write(vo_file["content"])
         voiceover_path = v_save
 
+    # Save uploaded frame overlay if present
+    frame_list = files.get("frame_overlay", [])
+    if frame_list:
+        frame_file = frame_list[0]
+        frame_save = os.path.join(job_temp_dir, "frame_overlay.png")
+        with open(frame_save, "wb") as f:
+            f.write(frame_file["content"])
+        if isinstance(project_data, dict):
+            if "frame" not in project_data or not isinstance(project_data["frame"], dict):
+                project_data["frame"] = {"enabled": True}
+            project_data["frame"]["overlay_path"] = frame_save
+
     # Save uploaded media files and map to mediaId
     media_file_map: Dict[str, str] = {}
     project_media = project_data.get("media", [])

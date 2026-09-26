@@ -5,8 +5,14 @@ import {
   validateAndParseProjectJSON,
   DEFAULT_BOLLYWOOD_FRAME,
 } from './schema';
-import { sanitizeProjectForStorage, saveProjectLocal, loadProjectLocal, clearLocalProject } from './persistence';
-import { TimelineItem } from '../types/project';
+import {
+  sanitizeProjectForStorage,
+  saveProjectLocal,
+  loadProjectLocal,
+  clearLocalProject,
+  hydrateProjectWithBlobs,
+} from './persistence';
+import { TimelineItem, LongFormProject } from '../types/project';
 
 describe('Project-Level Persistent Broadcast Frame', () => {
   beforeEach(async () => {
@@ -81,6 +87,66 @@ describe('Project-Level Persistent Broadcast Frame', () => {
     expect(loaded?.project).toBeDefined();
     expect(loaded?.project.frame?.enabled).toBe(true);
     expect(loaded?.project.frame?.id).toBe('bollywood_broadcast_frame');
+  });
+
+  it('hydrates legacy stored project lacking frame with DEFAULT_BOLLYWOOD_FRAME', async () => {
+    const legacyStoredProject: LongFormProject = {
+      version: '1.0',
+      id: 'legacy_unframed_proj',
+      name: 'Legacy Unframed Project',
+      resolution: { width: 1920, height: 1080, aspectRatio: '16:9' },
+      fps: 30,
+      timeline: [],
+      media: [],
+      folders: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Stored without frame property
+    const hydrated = await hydrateProjectWithBlobs(legacyStoredProject);
+    expect(hydrated.frame).toBeDefined();
+    expect(hydrated.frame?.enabled).toBe(true);
+    expect(hydrated.frame?.id).toBe(DEFAULT_BOLLYWOOD_FRAME.id);
+  });
+
+  it('regression test: handles untitled_longform_project.longform (7).json structure end-to-end', () => {
+    // Exact shape of untitled_longform_project.longform (7).json exported without frame
+    const realWorldExport7 = {
+      schemaVersion: '1.0.0',
+      generator: 'LongFormAI (Project Hail Mary)',
+      exportedAt: '2026-09-26T11:09:38.468Z',
+      project: {
+        version: '1.0',
+        id: 'proj_1790420950341_f2k4m',
+        name: 'Untitled LongForm Project',
+        resolution: { width: 1920, height: 1080, aspectRatio: '16:9' },
+        fps: 30,
+        media: [],
+        folders: [],
+        timeline: [],
+        createdAt: '2026-09-26T11:09:10.341Z',
+        updatedAt: '2026-09-26T11:09:38.468Z',
+      },
+    };
+
+    // 1. Validation & Parsing automatically supplies DEFAULT_BOLLYWOOD_FRAME
+    const parsed = validateAndParseProjectJSON(JSON.stringify(realWorldExport7));
+    expect(parsed.isValid).toBe(true);
+    expect(parsed.project?.frame).toBeDefined();
+    expect(parsed.project?.frame?.enabled).toBe(true);
+    expect(parsed.project?.frame?.src).toBe(DEFAULT_BOLLYWOOD_FRAME.src);
+
+    // 2. Storage sanitization retains frame
+    const sanitized = sanitizeProjectForStorage(parsed.project!);
+    expect(sanitized.frame).toBeDefined();
+    expect(sanitized.frame?.enabled).toBe(true);
+
+    // 3. Export to JSON now includes frame block
+    const reExported = exportProjectToPortableJSON(sanitized);
+    const reParsed = JSON.parse(reExported);
+    expect(reParsed.project.frame).toBeDefined();
+    expect(reParsed.project.frame.enabled).toBe(true);
   });
 
   it('toggling frame state operates independently from timeline items and clip transforms', () => {

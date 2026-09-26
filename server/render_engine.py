@@ -438,13 +438,21 @@ def render_project(
         if frame_config is not None and isinstance(frame_config, dict):
             frame_enabled = bool(frame_config.get("enabled", True))
             
-        overlay_asset_path = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay.png")
-        if not os.path.isfile(overlay_asset_path):
-            alt_overlay = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay.png")
-            if os.path.isfile(alt_overlay):
-                overlay_asset_path = alt_overlay
+        overlay_asset_path = ""
+        if frame_config and isinstance(frame_config, dict) and frame_config.get("overlay_path"):
+            if os.path.isfile(frame_config["overlay_path"]):
+                overlay_asset_path = frame_config["overlay_path"]
                 
-        apply_frame_overlay = frame_enabled and os.path.isfile(overlay_asset_path)
+        if not overlay_asset_path:
+            server_asset = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay.png")
+            if os.path.isfile(server_asset):
+                overlay_asset_path = server_asset
+            else:
+                alt_overlay = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay.png")
+                if os.path.isfile(alt_overlay):
+                    overlay_asset_path = alt_overlay
+                
+        apply_frame_overlay = frame_enabled and bool(overlay_asset_path and os.path.isfile(overlay_asset_path))
         if apply_frame_overlay:
             logger.info(f"Applying persistent frame overlay from: {overlay_asset_path}")
                 

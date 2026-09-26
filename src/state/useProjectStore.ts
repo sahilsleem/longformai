@@ -1252,6 +1252,16 @@ export function useProject() {
   }, []);
 
   const importProject = useCallback((imported: LongFormProject) => {
+    const normalized: LongFormProject = {
+      ...imported,
+      frame: imported.frame ? {
+        enabled: typeof imported.frame.enabled === 'boolean' ? imported.frame.enabled : true,
+        id: imported.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
+        name: imported.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
+        src: imported.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
+      } : { ...DEFAULT_BOLLYWOOD_FRAME },
+    };
+
     // Revoke previous media URLs before replacing
     setProject((prev) => {
       if (prev.voiceover?.url) {
@@ -1262,10 +1272,10 @@ export function useProject() {
           safeRevokeObjectURL(m.url);
         }
       }
-      return imported;
+      return normalized;
     });
 
-    saveProjectLocal(imported).catch((e) => console.warn('Failed to persist imported project:', e));
+    saveProjectLocal(normalized).catch((e) => console.warn('Failed to persist imported project:', e));
 
     setSelectedItemId(null);
     setSelectedMediaId(null);
