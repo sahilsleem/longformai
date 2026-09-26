@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { LongFormProject, MediaAsset, TimelineItem, TransformState } from '../types/project';
 import { createDefaultTransform, createInitialProject } from './schema';
 
@@ -205,9 +205,12 @@ describe('Replace Media Engine & Timeline State Fidelity', () => {
     base.voiceover = {
       id: 'vo_1',
       name: 'voiceover.mp3',
+      type: 'audio',
+      url: 'blob:http://localhost/mock-audio',
       duration: 13.0,
       volume: 1.0,
       isMuted: false,
+      createdAt: 1700000000000,
       segments: [
         { id: 'seg_1', startTime: 0, endTime: 5.2, text: 'Opening narration' },
         { id: 'seg_2', startTime: 5.2, endTime: 8.7, text: 'Middle narration' },

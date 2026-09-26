@@ -1,6 +1,7 @@
 import { AudioSegment, MediaAsset, MediaFolder, TimelineItem, TransformState, SemanticMatchCandidate, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
 import { createDefaultTransform } from './schema';
 import { matchMediaForSegment, batchMatchMediaForSegments } from './matching';
+import { expandMultilingualEntityVariants, matchEntityInNarration } from './entityNormalization';
 
 export interface DraftOptions {
   similarityThreshold?: number;     // default: 0.30 (range 0.15 to 0.60)
@@ -1943,7 +1944,6 @@ export function calculateDirectEntityConsistencyModifier(
     };
   }
 
-  const narrationTokens = extractSubjectTokens(narrationText);
   const candidateIdentityTokens = extractMediaIdentityTokens(candidateAsset, folders);
 
   // If candidate asset has no identity tokens, it is neutral (generic footage)
@@ -1957,9 +1957,26 @@ export function calculateDirectEntityConsistencyModifier(
     };
   }
 
-  // Check matching tokens between narration and candidate
+  // Multilingual entity expansion for candidate
+  const candidateVariants = new Set<string>();
+  for (const token of candidateIdentityTokens) {
+    expandMultilingualEntityVariants(token).forEach((v) => candidateVariants.add(v));
+  }
+  if (candidateAsset.folderIds && candidateAsset.folderIds.length > 0 && folders.length > 0) {
+    const assignedFolders = folders.filter((f) => candidateAsset.folderIds?.includes(f.id));
+    for (const folder of assignedFolders) {
+      [folder.name, ...(folder.aliases || [])].forEach((str) => {
+        expandMultilingualEntityVariants(str).forEach((v) => candidateVariants.add(v));
+      });
+    }
+  }
+
+  const matchCheck = matchEntityInNarration(narrationText, Array.from(candidateVariants));
+
+  // Also retain legacy English token matching for backwards compatibility
+  const narrationTokens = extractSubjectTokens(narrationText);
   const textLower = narrationText.toLowerCase();
-  const matchedTokensSet = new Set<string>();
+  const matchedTokensSet = new Set<string>(matchCheck.matchedTokens);
 
   for (const cToken of candidateIdentityTokens) {
     if (narrationTokens.includes(cToken) || textLower.includes(cToken)) {
@@ -1993,16 +2010,36 @@ export function calculateDirectEntityConsistencyModifier(
   // 2. Confirmed Conflicting Identity (penalize -0.15)
   // A conflict occurs when:
   // - Candidate has its own identity tokens (which did not match the narration)
-  // - AND the narration matches the identity tokens of another media asset in the pool
+  // - AND the narration matches the identity tokens / multilingual variants of another media asset in the pool
   if (allMediaAssets.length > 0) {
     const otherAssets = allMediaAssets.filter((a) => a.id !== candidateAsset.id);
-    const poolOtherEntities = otherAssets.flatMap((a) => extractMediaIdentityTokens(a, folders));
 
-    const narrationMatchesOtherEntity = poolOtherEntities.some((token) => {
-      if (narrationTokens.includes(token) || textLower.includes(token)) return true;
-      return narrationTokens.some(
-        (nToken) => nToken.length >= 3 && token.length >= 3 && (token.includes(nToken) || nToken.includes(token))
-      );
+    const narrationMatchesOtherEntity = otherAssets.some((otherAsset) => {
+      const otherTokens = extractMediaIdentityTokens(otherAsset, folders);
+      if (otherTokens.length === 0) return false;
+
+      const otherVariants = new Set<string>();
+      for (const token of otherTokens) {
+        expandMultilingualEntityVariants(token).forEach((v) => otherVariants.add(v));
+      }
+      if (otherAsset.folderIds && otherAsset.folderIds.length > 0 && folders.length > 0) {
+        const assignedFolders = folders.filter((f) => otherAsset.folderIds?.includes(f.id));
+        for (const folder of assignedFolders) {
+          [folder.name, ...(folder.aliases || [])].forEach((str) => {
+            expandMultilingualEntityVariants(str).forEach((v) => otherVariants.add(v));
+          });
+        }
+      }
+
+      const otherMatch = matchEntityInNarration(narrationText, Array.from(otherVariants));
+      if (otherMatch.matched) return true;
+
+      return otherTokens.some((token) => {
+        if (narrationTokens.includes(token) || textLower.includes(token)) return true;
+        return narrationTokens.some(
+          (nToken) => nToken.length >= 3 && token.length >= 3 && (token.includes(nToken) || nToken.includes(token))
+        );
+      });
     });
 
     if (narrationMatchesOtherEntity) {
@@ -9175,6 +9212,16 @@ export function compareCandidatesWithSemanticProtection(
     return 1; // B has confirmed entity match, A does not
   }
 
+  // Confirmed conflicting candidates rank behind non-conflicting candidates
+  const aConflict = (a.entityConsistencyModifier || 0) < 0;
+  const bConflict = (b.entityConsistencyModifier || 0) < 0;
+  if (!aConflict && bConflict) {
+    return -1; // A is non-conflicting, B is conflicting
+  }
+  if (aConflict && !bConflict) {
+    return 1; // B is non-conflicting, A is conflicting
+  }
+
   const semanticDiff = Math.round((a.rawScore - b.rawScore) * 1000) / 1000;
 
   // If candidate A has a semantic score >= safetyBand higher than B
@@ -9501,6 +9548,11 @@ export function applySemanticRankingProtection<T extends {
     const bEntityMatch = (b.entityConsistencyModifier || 0) > 0;
     if (aEntityMatch && !bEntityMatch) return -1;
     if (!aEntityMatch && bEntityMatch) return 1;
+
+    const aConflict = (a.entityConsistencyModifier || 0) < 0;
+    const bConflict = (b.entityConsistencyModifier || 0) < 0;
+    if (!aConflict && bConflict) return -1;
+    if (aConflict && !bConflict) return 1;
 
     const diff = b.adjustedScore - a.adjustedScore;
     return Math.abs(diff) > 0.0001 ? diff : b.rawScore - a.rawScore;
