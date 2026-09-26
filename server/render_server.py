@@ -127,14 +127,18 @@ def parse_multipart_body(
                 headers[k.strip().lower()] = v.strip()
 
         cd = headers.get("content-disposition", "")
-        name_match = re.search(r'name="([^"]+)"', cd)
+        name_match = re.search(r'name=(?:"([^"]+)"|([^\s;]+))', cd)
         if not name_match:
             continue
-        field_name = name_match.group(1)
+        field_name = name_match.group(1) or name_match.group(2) or ""
 
-        filename_match = re.search(r'filename="([^"]+)"', cd)
+        filename_match = re.search(r'filename=(?:"([^"]+)"|([^\s;]+))', cd)
+        if not filename_match:
+            filename_match = re.search(r"filename\*=(?:UTF-8''|utf-8'')([^\s;]+)", cd)
+
         if filename_match:
-            filename = filename_match.group(1)
+            filename = filename_match.group(1) or (filename_match.group(2) if len(filename_match.groups()) > 1 else None) or ""
+            filename = urllib.parse.unquote(filename).strip('"\'')
             file_item = {
                 "filename": filename,
                 "content": payload,
@@ -250,28 +254,26 @@ def start_multipart_render_job(
 
     uploaded_media = files.get("media_files", [])
     for mf in uploaded_media:
-        m_filename = mf.get("filename", "")
-        if not m_filename:
+        raw_filename = mf.get("filename", "")
+        if not raw_filename:
             continue
+        m_filename = os.path.basename(raw_filename)
         m_save = os.path.join(job_temp_dir, m_filename)
         with open(m_save, "wb") as f:
             f.write(mf["content"])
 
-        matched_id = None
-        if m_filename in media_ids:
-            matched_id = m_filename
-        elif m_filename in media_name_to_id:
-            matched_id = media_name_to_id[m_filename]
-        else:
-            for mid in media_ids:
-                if m_filename.startswith(mid):
-                    matched_id = mid
-                    break
+        # Map to all possible ID aliases
+        media_file_map[m_filename] = m_save
+        media_file_map[raw_filename] = m_save
 
-        if matched_id:
-            media_file_map[matched_id] = m_save
-        else:
-            media_file_map[m_filename] = m_save
+        for mid in media_ids:
+            if m_filename == mid or m_filename.startswith(f"{mid}_") or m_filename.startswith(mid):
+                media_file_map[mid] = m_save
+
+        for mname, mid in media_name_to_id.items():
+            if m_filename == mname or m_filename.endswith(mname) or m_filename.endswith(f"_{mname}"):
+                media_file_map[mid] = m_save
+                media_file_map[mname] = m_save
 
     with JOBS_LOCK:
         JOBS_STORE[job_id] = {

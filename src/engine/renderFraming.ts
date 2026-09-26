@@ -99,7 +99,8 @@ export function generateFFmpegVideoFilter(
   fps: number = TARGET_FPS
 ): string {
   if (geom.scaledWidth >= TARGET_WIDTH && geom.scaledHeight >= TARGET_HEIGHT) {
-    return `[0:v]scale=${geom.scaledWidth}:${geom.scaledHeight}:force_original_aspect_ratio=disable,crop=${TARGET_WIDTH}:${TARGET_HEIGHT}:${geom.cropX}:${geom.cropY},fps=${fps},setpts=PTS-STARTPTS[outv]`;
+    return `[0:v]scale=${geom.scaledWidth}:${geom.scaledHeight}:force_original_aspect_ratio=disable,crop=${TARGET_WIDTH}:${TARGET_HEIGHT}:${geom.cropX}:${geom.cropY},setsar=1,fps=${fps},setpts=PTS-STARTPTS[outv]`;
   }
-  return `[0:v]scale=${geom.scaledWidth}:${geom.scaledHeight}:force_original_aspect_ratio=disable,pad=${TARGET_WIDTH}:${TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,fps=${fps},setpts=PTS-STARTPTS[outv]`;
+  return `[0:v]scale=${geom.scaledWidth}:${geom.scaledHeight}:force_original_aspect_ratio=disable,pad=${TARGET_WIDTH}:${TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=${fps},setpts=PTS-STARTPTS[outv]`;
 }
+

@@ -311,6 +311,13 @@ def render_project(
                 dur = seg["duration"]
                 media_id = item.get("mediaId", "")
                 media_path = media_file_map.get(media_id)
+                if not media_path or not os.path.isfile(media_path):
+                    # Try resilient matching across keys
+                    for k, v in media_file_map.items():
+                        if v and os.path.isfile(v):
+                            if k == media_id or k.startswith(f"{media_id}_") or media_id.startswith(f"{k}_") or k.startswith(media_id) or media_id.startswith(k):
+                                media_path = v
+                                break
                 
                 if progress_callback:
                     pct = 10.0 + (idx / total_segments) * 60.0
@@ -357,32 +364,36 @@ def render_project(
                 
                 is_image = any(media_path.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"])
                 
-                # Direct Scale & Crop Filter:
+                # Direct Scale & Crop Filter with setsar=1:
                 # 1. Scale footage uniformly to scaled_w x scaled_h (preserving source aspect ratio)
                 # 2. Crop exactly 1920x1080 at (crop_x, crop_y)
-                # 3. Standardize fps and pts
+                # 3. Force setsar=1 (square pixels) to prevent anamorphic distortion
+                # 4. Standardize fps and pts
                 if scaled_w >= TARGET_WIDTH and scaled_h >= TARGET_HEIGHT:
                     filter_str = (
                         f"[0:v]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=disable,"
                         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT}:{crop_x}:{crop_y},"
-                        f"fps={TARGET_FPS},setpts=PTS-STARTPTS[outv]"
+                        f"setsar=1,fps={TARGET_FPS},setpts=PTS-STARTPTS[outv]"
                     )
                 else:
                     filter_str = (
                         f"[0:v]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=disable,"
                         f"pad={TARGET_WIDTH}:{TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
-                        f"fps={TARGET_FPS},setpts=PTS-STARTPTS[outv]"
+                        f"setsar=1,fps={TARGET_FPS},setpts=PTS-STARTPTS[outv]"
                     )
                 
                 cmd = ["ffmpeg", "-y"]
                 if is_image:
                     cmd += ["-loop", "1", "-t", str(dur), "-i", media_path]
                 else:
-                    cmd += ["-ss", str(source_start), "-t", str(dur), "-i", media_path]
+                    if source_start > 0.0:
+                        cmd += ["-ss", str(source_start)]
+                    cmd += ["-i", media_path]
                     
                 cmd += [
                     "-filter_complex", filter_str,
                     "-map", "[outv]",
+                    "-an",
                     "-c:v", "libx264",
                     "-preset", "ultrafast",
                     "-pix_fmt", "yuv420p",
@@ -393,7 +404,7 @@ def render_project(
                 
                 res = subprocess.run(cmd, capture_output=True, text=True)
                 if res.returncode != 0:
-                    logger.error(f"FFmpeg error rendering segment {idx}: {res.stderr}")
+                    logger.error(f"FFmpeg error rendering segment {idx} for media {media_id} ({media_path}):\nReturn code: {res.returncode}\nStderr:\n{res.stderr}")
                     # Fallback to black screen on error to prevent total failure
                     fb_cmd = [
                         "ffmpeg", "-y", "-f", "lavfi",

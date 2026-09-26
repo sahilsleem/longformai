@@ -24,6 +24,7 @@ describe('Render Framing & Aspect Ratio Fidelity Suite', () => {
       const filter = generateFFmpegVideoFilter(geom);
       expect(filter).toContain('scale=1920:1080');
       expect(filter).toContain('crop=1920:1080:0:0');
+      expect(filter).toContain('setsar=1');
     });
 
     it('scales 720p 16:9 (1280x720) up to 1080p uniformly preserving 16:9 ratio', () => {
