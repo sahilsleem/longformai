@@ -67,6 +67,8 @@ export const App: React.FC = () => {
     updateTimelineItem,
     updateItemTransform,
     reorderTimelineItems,
+    isFrameEnabled,
+    toggleProjectFrame,
     importProject,
     resetProject,
     setProjectName,
@@ -172,6 +174,8 @@ export const App: React.FC = () => {
         onOpenRenderModal={() => setIsRenderModalOpen(true)}
         onOpenRelinkModal={() => setIsRelinkModalOpen(true)}
         unlinkedCount={unlinkedCount}
+        isFrameEnabled={isFrameEnabled}
+        onToggleFrame={toggleProjectFrame}
       />
 
       {/* 2. Workflow Progression Bar */}
@@ -240,6 +244,9 @@ export const App: React.FC = () => {
               ? (updates) => updateItemTransform(effectiveTimelineItem.id, updates)
               : undefined
           }
+          frameEnabled={isFrameEnabled}
+          frameSrc={project.frame?.src}
+          onToggleFrame={toggleProjectFrame}
         />
 
         {/* Right Side: Dedicated Media Intelligence Inspector */}
@@ -269,6 +276,9 @@ export const App: React.FC = () => {
                 ? (updates) => updateItemTransform(effectiveTimelineItem.id, updates)
                 : undefined
             }
+            frameEnabled={isFrameEnabled}
+            frameSrc={project.frame?.src}
+            onToggleFrame={toggleProjectFrame}
           />
         </div>
 

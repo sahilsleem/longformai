@@ -10,6 +10,7 @@ import {
   MoreVertical,
   X,
   Clock,
+  Crown,
 } from 'lucide-react';
 import { LongFormProject } from '../types/project';
 import {
@@ -33,6 +34,8 @@ interface HeaderProps {
   onOpenRenderModal?: () => void;
   onOpenRelinkModal?: () => void;
   unlinkedCount?: number;
+  isFrameEnabled?: boolean;
+  onToggleFrame?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -49,6 +52,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenRenderModal,
   onOpenRelinkModal,
   unlinkedCount = 0,
+  isFrameEnabled = true,
+  onToggleFrame,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isInternalRenderModalOpen, setIsInternalRenderModalOpen] = useState(false);
@@ -198,6 +203,21 @@ export const Header: React.FC<HeaderProps> = ({
             <Upload className="w-3.5 h-3.5" />
             <span>Open</span>
           </button>
+
+          {onToggleFrame && (
+            <button
+              onClick={onToggleFrame}
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border transition-colors ${
+                isFrameEnabled
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                  : 'bg-editor-surface hover:bg-editor-surfaceHover text-slate-400 border-editor-panelBorder'
+              }`}
+              title={`Global Broadcast Frame: ${isFrameEnabled ? 'ON' : 'OFF'}`}
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span>Frame: {isFrameEnabled ? 'On' : 'Off'}</span>
+            </button>
+          )}
 
           <button
             onClick={handleSaveProject}

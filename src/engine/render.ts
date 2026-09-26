@@ -97,6 +97,14 @@ export async function requestVideoRender(
           isMuted: project.voiceover.isMuted,
         }
       : undefined,
+    frame: project.frame
+      ? {
+          enabled: Boolean(project.frame.enabled),
+          id: project.frame.id,
+          name: project.frame.name,
+          src: project.frame.src,
+        }
+      : undefined,
   };
 
   formData.append('project_json', JSON.stringify(projectPayload));

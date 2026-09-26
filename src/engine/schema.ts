@@ -111,6 +111,13 @@ export function createDefaultTransform(mediaWidth?: number, mediaHeight?: number
   };
 }
 
+export const DEFAULT_BOLLYWOOD_FRAME = {
+  enabled: true,
+  id: 'bollywood_broadcast_frame',
+  name: 'Bollywood Broadcast Frame',
+  src: '/assets/frames/bollywood_frame_overlay.png',
+};
+
 export function createInitialProject(name: string = 'Untitled LongForm Project'): LongFormProject {
   return {
     version: '1.0',
@@ -125,6 +132,7 @@ export function createInitialProject(name: string = 'Untitled LongForm Project')
     timeline: [],
     media: [],
     folders: [],
+    frame: { ...DEFAULT_BOLLYWOOD_FRAME },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -399,6 +407,12 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
       folders: project.folders || [],
       timeline: sanitizedTimeline,
       voiceover: sanitizedVoiceover,
+      frame: project.frame ? {
+        enabled: Boolean(project.frame.enabled),
+        id: project.frame.id,
+        name: project.frame.name,
+        src: project.frame.src,
+      } : undefined,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     },
@@ -811,6 +825,14 @@ export function validateAndParseProjectJSON(jsonString: string): ParseProjectRes
     folders: parsedFolders,
     voiceover: parsedVoiceover,
     timeline: parsedTimeline,
+    frame: proj.frame
+      ? {
+          enabled: typeof proj.frame.enabled === 'boolean' ? proj.frame.enabled : true,
+          id: proj.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
+          name: proj.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
+          src: proj.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
+        }
+      : { ...DEFAULT_BOLLYWOOD_FRAME },
     createdAt: proj.createdAt || new Date().toISOString(),
     updatedAt: proj.updatedAt || new Date().toISOString(),
   };

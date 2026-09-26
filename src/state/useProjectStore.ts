@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { LongFormProject, MediaAsset, TimelineItem, TransformState, VoiceoverTrack } from '../types/project';
-import { createDefaultTransform, createInitialProject, classifyAspectRatio } from '../engine/schema';
+import { LongFormProject, MediaAsset, TimelineItem, TransformState, VoiceoverTrack, ProjectFrameConfig } from '../types/project';
+import { createDefaultTransform, createInitialProject, classifyAspectRatio, DEFAULT_BOLLYWOOD_FRAME } from '../engine/schema';
 import { extractAudioWaveform } from '../engine/audio';
 import { transcribeAudioFile } from '../engine/transcription';
 import { analyzeMediaAsset } from '../engine/mediaAnalysis';
@@ -1311,8 +1311,35 @@ export function useProject() {
     setIsDirty(false);
   }, []);
 
+  const toggleProjectFrame = useCallback((enabled?: boolean) => {
+    setProject((prev) => {
+      const isCurrentlyEnabled = prev.frame?.enabled ?? true;
+      const nextEnabled = enabled !== undefined ? enabled : !isCurrentlyEnabled;
+      return {
+        ...prev,
+        frame: {
+          ...(prev.frame || DEFAULT_BOLLYWOOD_FRAME),
+          enabled: nextEnabled,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    setIsDirty(true);
+  }, []);
+
+  const setProjectFrame = useCallback((frameConfig: ProjectFrameConfig) => {
+    setProject((prev) => ({
+      ...prev,
+      frame: { ...frameConfig },
+      updatedAt: new Date().toISOString(),
+    }));
+    setIsDirty(true);
+  }, []);
+
   return {
     project,
+    frame: project.frame || DEFAULT_BOLLYWOOD_FRAME,
+    isFrameEnabled: project.frame?.enabled ?? true,
     folders: project.folders || [],
     activeFolderId,
     setActiveFolderId,
@@ -1375,6 +1402,8 @@ export function useProject() {
     updateTimelineItem,
     updateItemTransform,
     reorderTimelineItems,
+    toggleProjectFrame,
+    setProjectFrame,
     importProject,
     resetProject,
     setProjectName: (name: string) => {

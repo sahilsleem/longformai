@@ -434,6 +434,13 @@ export interface ProjectResolution {
   aspectRatio: '16:9';
 }
 
+export interface ProjectFrameConfig {
+  enabled: boolean;
+  id?: string;            // e.g. 'bollywood_broadcast_frame'
+  name?: string;          // e.g. 'Bollywood Broadcast Frame'
+  src?: string;           // Asset path e.g. '/assets/frames/bollywood_frame_overlay.png'
+}
+
 export interface LongFormProject {
   version: '1.0';
   id: string;
@@ -445,6 +452,8 @@ export interface LongFormProject {
   media: MediaAsset[];
   folders?: MediaFolder[];
   voiceover?: VoiceoverTrack;
+  frame?: ProjectFrameConfig;
   createdAt: string;
   updatedAt: string;
 }
+

@@ -432,6 +432,22 @@ def render_project(
                 norm_p = os.path.abspath(p).replace("\\", "/")
                 f.write(f"file '{norm_p}'\n")
                 
+        # Check if project frame overlay is enabled
+        frame_config = project_data.get("frame") if isinstance(project_data, dict) else None
+        frame_enabled = True
+        if frame_config is not None and isinstance(frame_config, dict):
+            frame_enabled = bool(frame_config.get("enabled", True))
+            
+        overlay_asset_path = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay.png")
+        if not os.path.isfile(overlay_asset_path):
+            alt_overlay = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay.png")
+            if os.path.isfile(alt_overlay):
+                overlay_asset_path = alt_overlay
+                
+        apply_frame_overlay = frame_enabled and os.path.isfile(overlay_asset_path)
+        if apply_frame_overlay:
+            logger.info(f"Applying persistent frame overlay from: {overlay_asset_path}")
+                
         # Prepare final FFmpeg assembly command with +genpts to ensure seamless timeline progression
         final_cmd = [
             "ffmpeg",
@@ -443,45 +459,38 @@ def render_project(
         ]
         
         has_valid_voiceover = bool(voiceover_path and os.path.isfile(voiceover_path))
-        
         if has_valid_voiceover:
+            final_cmd += ["-i", voiceover_path]
+        else:
+            final_cmd += ["-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={total_duration}"]
+            
+        if apply_frame_overlay:
             final_cmd += [
-                "-i", voiceover_path,
-                "-map", "0:v:0",
+                "-i", overlay_asset_path,
+                "-filter_complex", "[0:v][2:v]overlay=0:0[outv]",
+                "-map", "[outv]",
                 "-map", "1:a:0",
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "22",
-                "-pix_fmt", "yuv420p",
-                "-r", str(TARGET_FPS),
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-ar", "44100",
-                "-ac", "2",
-                "-t", str(total_duration),
-                "-movflags", "+faststart",
-                output_mp4_path,
             ]
         else:
-            # Generate silent audio track
             final_cmd += [
-                "-f", "lavfi",
-                "-i", f"anullsrc=r=44100:cl=stereo:d={total_duration}",
                 "-map", "0:v:0",
                 "-map", "1:a:0",
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "22",
-                "-pix_fmt", "yuv420p",
-                "-r", str(TARGET_FPS),
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-ar", "44100",
-                "-ac", "2",
-                "-t", str(total_duration),
-                "-movflags", "+faststart",
-                output_mp4_path,
             ]
+            
+        final_cmd += [
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "22",
+            "-pix_fmt", "yuv420p",
+            "-r", str(TARGET_FPS),
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-ar", "44100",
+            "-ac", "2",
+            "-t", str(total_duration),
+            "-movflags", "+faststart",
+            output_mp4_path,
+        ]
             
         if progress_callback:
             progress_callback(85.0, "Encoding master 1920x1080 MP4 with H.264 & AAC...")

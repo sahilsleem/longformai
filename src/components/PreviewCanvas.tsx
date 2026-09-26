@@ -11,6 +11,7 @@ import {
   ZoomOut,
   RotateCcw,
   Move,
+  Crown,
 } from 'lucide-react';
 import { TimelineItem, MediaAsset, TransformState } from '../types/project';
 import { calculatePanBounds, TARGET_ASPECT_RATIO } from '../engine/schema';
@@ -24,6 +25,9 @@ interface PreviewCanvasProps {
   onSeek: (time: number) => void;
   totalDuration: number;
   onUpdateTransform?: (transformUpdates: Partial<TimelineItem['transform']>) => void;
+  frameEnabled?: boolean;
+  frameSrc?: string;
+  onToggleFrame?: () => void;
 }
 
 export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
@@ -35,6 +39,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   onSeek,
   totalDuration,
   onUpdateTransform,
+  frameEnabled = true,
+  frameSrc = '/assets/frames/bollywood_frame_overlay.png',
+  onToggleFrame,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -515,6 +522,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                   <div className="" />
 
                   {/* 16:9 Safe Action Margin */}
+              {/* 16:9 Safe Action Margin */}
                   <div className="absolute inset-[5%] border border-blue-300/20 rounded pointer-events-none" />
 
                   {/* 16:9 Final Output Stamp */}
@@ -525,6 +533,16 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
               )}
             </div>
 
+            {/* 3. PERSISTENT GLOBAL BROADCAST FRAME OVERLAY (Topmost Visual Layer) */}
+            {frameEnabled && (
+              <img
+                src={frameSrc || '/assets/frames/bollywood_frame_overlay.png'}
+                alt="Bollywood Broadcast Frame"
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-20 select-none"
+                draggable={false}
+              />
+            )}
+
             {/* Live Drag & Zoom Floating Toast Feedback */}
             {dragFeedback && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600/95 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono font-medium shadow-xl pointer-events-none border border-blue-400/50 flex items-center gap-1.5 animate-fadeIn z-30">
@@ -534,15 +552,25 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             )}
           </div>
         ) : (
-          /* Empty Timeline Placeholder */
+          /* Empty Timeline Placeholder with Frame Preview */
           <div
-            className="w-full max-w-2xl aspect-video rounded-lg border-2 border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 p-6 text-center bg-slate-900/30"
+            className="w-full max-w-2xl aspect-video rounded-lg border-2 border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 p-6 text-center bg-slate-900/30 relative overflow-hidden"
           >
-            <Eye className="w-10 h-10 mb-2 opacity-40 text-slate-400" />
-            <p className="text-sm font-medium text-slate-400">No media at current timeline position</p>
-            <p className="text-xs text-slate-600 mt-1 max-w-sm">
-              Select any visual clip on the timeline to preview its full source and choose 16:9 framing.
-            </p>
+            {frameEnabled && (
+              <img
+                src={frameSrc || '/assets/frames/bollywood_frame_overlay.png'}
+                alt="Bollywood Broadcast Frame"
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10 select-none opacity-80"
+                draggable={false}
+              />
+            )}
+            <div className="relative z-20 flex flex-col items-center justify-center">
+              <Eye className="w-10 h-10 mb-2 opacity-40 text-slate-400" />
+              <p className="text-sm font-medium text-slate-400">No media at current timeline position</p>
+              <p className="text-xs text-slate-600 mt-1 max-w-sm">
+                Select any visual clip on the timeline to preview its full source and choose 16:9 framing.
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -585,30 +613,47 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           )}
         </div>
 
-        {/* Zoom Scale Adjuster */}
-        {activeItem && onUpdateTransform ? (
-          <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-slate-400 font-mono">
+        {/* Global Frame Toggle & Zoom Scale Adjuster */}
+        <div className="flex items-center gap-2">
+          {onToggleFrame && (
             <button
-              onClick={() => updateZoom((transform.scale || 1.0) - 0.1)}
-              className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
-              title="Zoom Out"
+              onClick={onToggleFrame}
+              className={`px-2 py-1 rounded transition-colors text-xs flex items-center gap-1.5 ${
+                frameEnabled
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
+                  : 'bg-editor-surface hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60'
+              }`}
+              title={`Global Broadcast Frame: ${frameEnabled ? 'ON' : 'OFF'}`}
             >
-              <ZoomOut className="w-3.5 h-3.5" />
+              <Crown className="w-3.5 h-3.5" />
+              <span className="font-medium text-[11px]">Frame: {frameEnabled ? 'On' : 'Off'}</span>
             </button>
-            <span className="min-w-[40px] sm:min-w-[48px] text-center text-[11px] sm:text-xs text-blue-300">
-              {Math.round((transform.scale || 1.0) * 100)}%
-            </span>
-            <button
-              onClick={() => updateZoom((transform.scale || 1.0) + 0.1)}
-              className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
-              title="Zoom In"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
-          <div className="text-xs font-mono text-slate-500">100%</div>
-        )}
+          )}
+
+          {activeItem && onUpdateTransform ? (
+            <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-slate-400 font-mono">
+              <button
+                onClick={() => updateZoom((transform.scale || 1.0) - 0.1)}
+                className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="min-w-[40px] sm:min-w-[48px] text-center text-[11px] sm:text-xs text-blue-300">
+                {Math.round((transform.scale || 1.0) * 100)}%
+              </span>
+              <button
+                onClick={() => updateZoom((transform.scale || 1.0) + 0.1)}
+                className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs font-mono text-slate-500">100%</div>
+          )}
+        </div>
       </div>
     </div>
   );
