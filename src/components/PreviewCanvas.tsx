@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { TimelineItem, MediaAsset, TransformState } from '../types/project';
 import { calculatePanBounds, TARGET_ASPECT_RATIO } from '../engine/schema';
+import { getBollywoodFrameDataUrl } from '../engine/frameAsset';
 
 interface PreviewCanvasProps {
   activeItem: TimelineItem | null;
@@ -536,7 +537,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             {/* 3. PERSISTENT GLOBAL BROADCAST FRAME OVERLAY (Topmost Visual Layer) */}
             {frameEnabled && (
               <img
-                src={frameSrc || '/assets/frames/bollywood_frame_overlay.png'}
+                src={frameSrc || getBollywoodFrameDataUrl()}
                 alt="Bollywood Broadcast Frame"
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none z-20 select-none"
                 draggable={false}
@@ -558,7 +559,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           >
             {frameEnabled && (
               <img
-                src={frameSrc || '/assets/frames/bollywood_frame_overlay.png'}
+                src={frameSrc || getBollywoodFrameDataUrl()}
                 alt="Bollywood Broadcast Frame"
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10 select-none opacity-80"
                 draggable={false}

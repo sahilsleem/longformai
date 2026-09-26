@@ -1,6 +1,7 @@
 import { LongFormProject } from '../types/project';
 import { DEFAULT_BOLLYWOOD_FRAME } from './schema';
 import { getRenderWorkerUrl } from '../config/workerConfig';
+import { getBollywoodFrameBlob } from './frameAsset';
 
 export const RENDER_WORKER_URL = getRenderWorkerUrl();
 
@@ -114,15 +115,20 @@ export async function requestVideoRender(
 
   // Attach frame overlay PNG if frame is enabled
   if (frameConfig.enabled) {
-    const overlaySrc = frameConfig.src || '/assets/frames/bollywood_frame_overlay.png';
     try {
-      const frameResp = await fetch(overlaySrc);
-      if (frameResp.ok) {
-        const frameBlob = await frameResp.blob();
-        formData.append('frame_overlay', frameBlob, 'bollywood_frame_overlay.png');
-      }
+      const frameBlob = await getBollywoodFrameBlob(frameConfig.src);
+      formData.append('frame_overlay', frameBlob, 'bollywood_frame_overlay.png');
+      console.log('FRAME DEBUG CLIENT', {
+        enabled: true,
+        frameConfig,
+        overlayBlobExists: Boolean(frameBlob),
+        overlayBlobSize: frameBlob.size,
+        overlayBlobType: frameBlob.type,
+        formDataContainsFrameOverlay: formData.has('frame_overlay'),
+      });
     } catch (e) {
-      console.warn('Could not fetch frame overlay blob for upload:', e);
+      console.error('Failed to attach frame overlay blob to render request:', e);
+      throw new Error(`Persistent frame is enabled, but the frame overlay asset could not be loaded: ${e}`);
     }
   }
 

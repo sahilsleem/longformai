@@ -250,13 +250,28 @@ def start_multipart_render_job(
     frame_list = files.get("frame_overlay", [])
     if frame_list:
         frame_file = frame_list[0]
-        frame_save = os.path.join(job_temp_dir, "frame_overlay.png")
-        with open(frame_save, "wb") as f:
-            f.write(frame_file["content"])
-        if isinstance(project_data, dict):
-            if "frame" not in project_data or not isinstance(project_data["frame"], dict):
-                project_data["frame"] = {"enabled": True}
-            project_data["frame"]["overlay_path"] = frame_save
+        content = frame_file.get("content", b"")
+        is_png = content.startswith(b"\x89PNG\r\n\x1a\n")
+        logger.info(
+            f"[FRAME DEBUG SERVER] Received frame_overlay file '{frame_file.get('filename')}', "
+            f"size={len(content)} bytes, valid PNG header: {is_png}"
+        )
+        if not is_png or len(content) < 1000:
+            logger.warning(
+                f"[FRAME DEBUG SERVER] Invalid PNG header or file too small ({len(content)} bytes). "
+                f"Ignoring uploaded frame payload."
+            )
+        else:
+            frame_save = os.path.join(job_temp_dir, "frame_overlay.png")
+            with open(frame_save, "wb") as f:
+                f.write(content)
+            if isinstance(project_data, dict):
+                if "frame" not in project_data or not isinstance(project_data["frame"], dict):
+                    project_data["frame"] = {"enabled": True}
+                project_data["frame"]["overlay_path"] = frame_save
+            logger.info(f"[FRAME DEBUG SERVER] Saved valid frame overlay PNG to {frame_save}")
+    else:
+        logger.info("[FRAME DEBUG SERVER] No frame_overlay in multipart payload files.")
 
     # Save uploaded media files and map to mediaId
     media_file_map: Dict[str, str] = {}

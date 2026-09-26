@@ -440,8 +440,14 @@ def render_project(
             
         overlay_asset_path = ""
         if frame_config and isinstance(frame_config, dict) and frame_config.get("overlay_path"):
-            if os.path.isfile(frame_config["overlay_path"]):
-                overlay_asset_path = frame_config["overlay_path"]
+            cand = frame_config["overlay_path"]
+            if os.path.isfile(cand) and os.path.getsize(cand) > 1000:
+                try:
+                    with open(cand, "rb") as pf:
+                        if pf.read(8) == b"\x89PNG\r\n\x1a\n":
+                            overlay_asset_path = cand
+                except Exception:
+                    pass
                 
         if not overlay_asset_path:
             server_asset = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay.png")
@@ -451,10 +457,17 @@ def render_project(
                 alt_overlay = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay.png")
                 if os.path.isfile(alt_overlay):
                     overlay_asset_path = alt_overlay
+
+        if frame_enabled and (not overlay_asset_path or not os.path.isfile(overlay_asset_path)):
+            error_msg = "[FRAME DEBUG ENGINE] Frame overlay is enabled, but no valid frame asset PNG exists on server or in upload."
+            logger.error(error_msg)
+            raise RuntimeError("Persistent frame is enabled, but the frame overlay asset could not be loaded or verified.")
                 
         apply_frame_overlay = frame_enabled and bool(overlay_asset_path and os.path.isfile(overlay_asset_path))
         if apply_frame_overlay:
-            logger.info(f"Applying persistent frame overlay from: {overlay_asset_path}")
+            logger.info(f"[FRAME DEBUG ENGINE] Applying persistent frame overlay from: {overlay_asset_path} (size: {os.path.getsize(overlay_asset_path)} bytes)")
+        else:
+            logger.info("[FRAME DEBUG ENGINE] Frame overlay is disabled by project configuration.")
                 
         # Prepare final FFmpeg assembly command with +genpts to ensure seamless timeline progression
         final_cmd = [

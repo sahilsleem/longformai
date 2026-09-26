@@ -193,4 +193,22 @@ describe('Project-Level Persistent Broadcast Frame', () => {
     expect(project.frame.enabled).toBe(true);
     expect(project.timeline[0].transform.x).toBe(10);
   });
+
+  it('guarantees lossless frame blob generation with valid PNG magic header bytes', async () => {
+    const { isPngHeader, getBollywoodFrameBlob, getBollywoodFrameDataUrl } = await import('./frameAsset');
+    
+    // Test data URL
+    const dataUrl = getBollywoodFrameDataUrl();
+    expect(dataUrl.startsWith('data:image/png;base64,')).toBe(true);
+
+    // Test blob generation (with embedded fallback)
+    const blob = await getBollywoodFrameBlob('/non_existent_mock_url.png');
+    expect(blob).toBeDefined();
+    expect(blob.type).toBe('image/png');
+    expect(blob.size).toBeGreaterThan(100000);
+
+    // Test PNG magic byte validation
+    const arrayBuffer = await blob.arrayBuffer();
+    expect(isPngHeader(arrayBuffer)).toBe(true);
+  });
 });
