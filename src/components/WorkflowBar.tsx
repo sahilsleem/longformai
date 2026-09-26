@@ -161,25 +161,35 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
 
         <span className="text-slate-600 text-[10px] shrink-0">→</span>
 
-        {/* Step 4: Render */}
+        {/* Step 4: Frame */}
+        <div
+          className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 rounded bg-blue-950/30 text-blue-300 border border-blue-800/30 whitespace-nowrap shrink-0 text-[11px]"
+          title="Adjust clip framing directly in 16:9 preview (drag to pan, scroll/pinch to zoom)"
+        >
+          <span className="font-medium">4. Frame</span>
+        </div>
+
+        <span className="text-slate-600 text-[10px] shrink-0">→</span>
+
+        {/* Step 5: Render */}
         <button
           onClick={onOpenRenderModal}
-          className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 rounded bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30 transition-colors whitespace-nowrap shrink-0 text-[11px]"
+          className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors whitespace-nowrap shrink-0 text-[11px] shadow-xs"
           title="Render Final 1920x1080 MP4 Video"
         >
-          <Video className="w-3 h-3 text-blue-400 shrink-0" />
-          <span className="font-semibold">4. Render</span>
+          <Video className="w-3 h-3 shrink-0" />
+          <span className="font-semibold">5. Render</span>
         </button>
       </div>
 
-      {/* Right Actions: Worker Status & Diagnostics */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 py-0.5">
+      {/* Right Actions: System Diagnostics */}
+      <div className="flex items-center gap-1.5 shrink-0 py-0.5">
         <button
           onClick={onOpenWorkerDiagnostics}
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-slate-400 text-[11px] transition-colors shrink-0"
-          title="View Local Worker Diagnostics (Whisper, Vision, Matching, Render)"
+          className="p-1 rounded bg-editor-surface hover:bg-editor-surfaceHover border border-editor-panelBorder text-slate-400 hover:text-slate-200 transition-colors shrink-0 flex items-center gap-1 text-[11px]"
+          title="System & Worker Diagnostics"
         >
-          <Cpu className="w-3 h-3 text-blue-400 shrink-0" />
+          <Cpu className="w-3.5 h-3.5 text-slate-400" />
           <span
             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
               activeWorkersCount === totalWorkersCount
@@ -189,9 +199,6 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
                 : 'bg-rose-400'
             }`}
           />
-          <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
-            {activeWorkersCount}/{totalWorkersCount}
-          </span>
         </button>
       </div>
     </div>

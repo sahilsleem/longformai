@@ -87,6 +87,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewTab, setReviewTab] = useState<'overview' | 'usage' | 'gaps'>('overview');
   const [inspectedGap, setInspectedGap] = useState<AudioSegment | null>(null);
+  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
 
   const getAsset = (mediaId: string) => mediaList.find((m) => m.id === mediaId);
 
@@ -367,8 +368,8 @@ export const Timeline: React.FC<TimelineProps> = ({
                         </div>
                       </div>
 
-                      {/* Secondary Stats */}
-                      <div className="bg-editor-surface/40 rounded-lg p-3 border border-editor-panelBorder text-xs grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                      {/* Key Summary Stats */}
+                      <div className="bg-editor-surface/40 rounded-lg p-3 border border-editor-panelBorder text-xs grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         <div>
                           <span className="text-[10px] text-slate-400 block">Unique Media:</span>
                           <span className="font-mono text-slate-200 font-medium">{draftStats.uniqueMediaUsed} assets</span>
@@ -380,99 +381,115 @@ export const Timeline: React.FC<TimelineProps> = ({
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Source Starts:</span>
+                          <span className="text-[10px] text-slate-400 block">Timestamp Alignment:</span>
                           <span className="font-mono text-emerald-300 font-medium">
                             {draftStats.sourceStartsOptimized || 0} clips
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Duration Refined:</span>
+                          <span className="text-[10px] text-slate-400 block">Duration Tailoring:</span>
                           <span className="font-mono text-cyan-300 font-medium">
                             {draftStats.durationAdjustmentsCount || 0} clips
                           </span>
                         </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Continuity Links:</span>
-                          <span className="font-mono text-teal-300 font-medium">
-                            {draftStats.continuityLinksCount || 0} links
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Narration Beats:</span>
-                          <span className="font-mono text-violet-300 font-medium">
-                            {draftStats.beatCount || 0} beats
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Continuations:</span>
-                          <span className="font-mono text-indigo-300 font-medium">
-                            {draftStats.continuationSegments || 0} segs
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Variety Adjustments:</span>
-                          <span className="font-mono text-amber-300 font-medium">
-                            {draftStats.varietyAdjustments || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Pacing Adjustments:</span>
-                          <span className="font-mono text-fuchsia-300 font-medium">
-                            {draftStats.pacingAdjustments || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Pacing Arc:</span>
-                          <span className="font-mono text-lime-300 font-medium">
-                            {draftStats.pacingArcAdjustments || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Impact Adjustments:</span>
-                          <span className="font-mono text-amber-300 font-medium">
-                            {draftStats.emphasisImpactAdjustments || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Contrast Adjustments:</span>
-                          <span className="font-mono text-emerald-300 font-medium">
-                            {draftStats.contrastAdjustments || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Subject Continuity:</span>
-                          <span className="font-mono text-cyan-300 font-medium">
-                            {draftStats.subjectContinuityAdjustments || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Subj HIGH / MOD:</span>
-                          <span className="font-mono text-cyan-300 font-medium">
-                            {draftStats.highSubjectContinuitySelections || 0} / {draftStats.moderateSubjectContinuitySelections || 0}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Subj LOW:</span>
-                          <span className="font-mono text-slate-400 font-medium">
-                            {draftStats.lowSubjectContinuitySelections || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Quick / Lingering:</span>
-                          <span className="font-mono text-sky-300 font-medium">
-                            {draftStats.quickPacingSelections || 0} / {draftStats.lingeringPacingSelections || 0}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Repetition Penalties:</span>
-                          <span className="font-mono text-orange-300 font-medium">
-                            {draftStats.repetitionPenalties || 0} clips
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block">Threshold:</span>
-                          <span className="font-mono text-purple-300 font-medium">{draftStats.thresholdUsed.toFixed(2)} min</span>
-                        </div>
+                      </div>
+
+                      {/* Collapsible Advanced Model Diagnostics */}
+                      <div className="border border-editor-panelBorder/70 rounded-lg overflow-hidden bg-editor-surface/20">
+                        <button
+                          onClick={() => setShowAdvancedStats(!showAdvancedStats)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-editor-surface/40 transition-colors"
+                        >
+                          <span>Advanced Intelligence & Alignment Metrics</span>
+                          <span className="text-xs">{showAdvancedStats ? '▲ Hide' : '▼ View'}</span>
+                        </button>
+
+                        {showAdvancedStats && (
+                          <div className="p-3 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-editor-panelBorder/50 bg-black/20">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Continuity Links:</span>
+                              <span className="font-mono text-teal-300 font-medium">
+                                {draftStats.continuityLinksCount || 0} links
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Narration Beats:</span>
+                              <span className="font-mono text-violet-300 font-medium">
+                                {draftStats.beatCount || 0} beats
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Continuations:</span>
+                              <span className="font-mono text-indigo-300 font-medium">
+                                {draftStats.continuationSegments || 0} segs
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Variety Adjustments:</span>
+                              <span className="font-mono text-amber-300 font-medium">
+                                {draftStats.varietyAdjustments || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Pacing Adjustments:</span>
+                              <span className="font-mono text-fuchsia-300 font-medium">
+                                {draftStats.pacingAdjustments || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Pacing Arc:</span>
+                              <span className="font-mono text-lime-300 font-medium">
+                                {draftStats.pacingArcAdjustments || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Impact Adjustments:</span>
+                              <span className="font-mono text-amber-300 font-medium">
+                                {draftStats.emphasisImpactAdjustments || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Contrast Adjustments:</span>
+                              <span className="font-mono text-emerald-300 font-medium">
+                                {draftStats.contrastAdjustments || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Subject Continuity:</span>
+                              <span className="font-mono text-cyan-300 font-medium">
+                                {draftStats.subjectContinuityAdjustments || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Subj HIGH / MOD:</span>
+                              <span className="font-mono text-cyan-300 font-medium">
+                                {draftStats.highSubjectContinuitySelections || 0} / {draftStats.moderateSubjectContinuitySelections || 0}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Subj LOW:</span>
+                              <span className="font-mono text-slate-400 font-medium">
+                                {draftStats.lowSubjectContinuitySelections || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Quick / Lingering:</span>
+                              <span className="font-mono text-sky-300 font-medium">
+                                {draftStats.quickPacingSelections || 0} / {draftStats.lingeringPacingSelections || 0}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Repetition Penalties:</span>
+                              <span className="font-mono text-orange-300 font-medium">
+                                {draftStats.repetitionPenalties || 0} clips
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Threshold:</span>
+                              <span className="font-mono text-purple-300 font-medium">{draftStats.thresholdUsed.toFixed(2)} min</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Warnings Section (Factual) */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Sparkles,
   Loader2,
@@ -15,11 +15,9 @@ import {
   Tag,
   ChevronDown,
   ChevronUp,
-  Cpu,
 } from 'lucide-react';
 import { MediaAsset } from '../types/project';
 import { formatTimecode, formatSecondsToMinutes } from '../engine/schema';
-import { checkVisionWorkerHealth, VisionWorkerStatus } from '../engine/vision';
 
 interface MediaInspectorProps {
   asset: MediaAsset | null;
@@ -33,23 +31,6 @@ export const MediaInspector: React.FC<MediaInspectorProps> = ({
   onAddToTimeline,
 }) => {
   const [showKeyframeDetails, setShowKeyframeDetails] = useState(false);
-  const [workerStatus, setWorkerStatus] = useState<VisionWorkerStatus>({ online: false });
-
-  useEffect(() => {
-    let isMounted = true;
-    const checkStatus = async () => {
-      const status = await checkVisionWorkerHealth();
-      if (isMounted) {
-        setWorkerStatus(status);
-      }
-    };
-    checkStatus();
-    const interval = setInterval(checkStatus, 5000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   if (!asset) {
     return (
@@ -119,25 +100,6 @@ export const MediaInspector: React.FC<MediaInspectorProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Worker Status Badge */}
-        <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-900/60 border border-slate-800 text-[10px]">
-          <div className="flex items-center gap-1.5">
-            <Cpu className="w-3 h-3 text-slate-400" />
-            <span className="text-slate-400">Vision Engine:</span>
-          </div>
-          {workerStatus.online ? (
-            workerStatus.state === 'ready' || workerStatus.modelLoaded ? (
-              <span className="text-emerald-400 font-medium">Vision model ready</span>
-            ) : workerStatus.state === 'model_not_installed' ? (
-              <span className="text-amber-400 font-medium">Vision model not installed</span>
-            ) : (
-              <span className="text-blue-400 font-medium">Vision model cached</span>
-            )
-          ) : (
-            <span className="text-slate-500 font-medium">Worker offline</span>
-          )}
-        </div>
-
         {/* Selected Asset Header Card */}
         <div className="bg-editor-surface rounded-lg p-3 border border-editor-panelBorder space-y-2">
           <div className="flex items-center justify-between">
