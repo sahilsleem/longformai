@@ -10,8 +10,6 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Move,
-  Crown,
 } from 'lucide-react';
 import { TimelineItem, MediaAsset, TransformState } from '../types/project';
 import { calculatePanBounds, TARGET_ASPECT_RATIO } from '../engine/schema';
@@ -42,7 +40,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   onUpdateTransform,
   frameEnabled = true,
   frameSrc = '/assets/frames/bollywood_frame_overlay.png',
-  onToggleFrame,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -54,8 +51,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
   const [showGuides, setShowGuides] = useState(true);
   const [isInteractiveDragging, setIsInteractiveDragging] = useState(false);
-  const [dragFeedback, setDragFeedback] = useState<string | null>(null);
-  const feedbackTimerRef = useRef<number | null>(null);
 
   const dragStartPos = useRef<{
     mouseX: number;
@@ -92,24 +87,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-
-  const showToast = useCallback((msg: string) => {
-    setDragFeedback(msg);
-    if (feedbackTimerRef.current) {
-      window.clearTimeout(feedbackTimerRef.current);
-    }
-    feedbackTimerRef.current = window.setTimeout(() => {
-      setDragFeedback(null);
-    }, 1000);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (feedbackTimerRef.current) {
-        window.clearTimeout(feedbackTimerRef.current);
-      }
-    };
   }, []);
 
   // Reset video error when asset changes
@@ -244,8 +221,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       x: finalX,
       y: finalY,
     });
-
-    showToast(`Pan: X ${finalX > 0 ? '+' : ''}${finalX}% • Y ${finalY > 0 ? '+' : ''}${finalY}%`);
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -273,8 +248,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         x: Math.round(clampedX * 10) / 10,
         y: Math.round(clampedY * 10) / 10,
       });
-
-      showToast(`Zoom: ${(newScale * 100).toFixed(0)}%`);
     },
     [
       activeItem,
@@ -285,7 +258,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       sourceHeight,
       transform.x,
       transform.y,
-      showToast,
     ]
   );
 
@@ -337,7 +309,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       scale: 1.0,
       fitMode: 'cover',
     });
-    showToast('Framing reset');
   };
 
   // Pixel translations for the media element relative to the 16:9 frame center
@@ -350,25 +321,12 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       {/* Top Preview Status Bar */}
       <div className="h-9 px-2.5 sm:px-4 flex items-center justify-between border-b border-editor-panelBorder/50 bg-editor-panel/50 text-xs text-slate-400 overflow-x-auto scrollbar-none gap-2 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
-          <span className="font-semibold text-slate-300 whitespace-nowrap text-[11px] sm:text-xs">
-            16:9 Output Frame
-          </span>
-          {activeAsset && (
-            <span className="text-slate-500 text-[10px] sm:text-[11px] truncate max-w-[140px] sm:max-w-[200px]">
-              • {activeAsset.name}
-            </span>
-          )}
-          {isMissing ? (
+          {isMissing && (
             <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-amber-300 bg-amber-950/80 px-1.5 sm:px-2 py-0.5 rounded border border-amber-700 whitespace-nowrap">
               <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
               Unlinked
             </span>
-          ) : isNon16x9 ? (
-            <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-amber-400 bg-amber-950/60 px-1.5 sm:px-2 py-0.5 rounded border border-amber-800/40 whitespace-nowrap">
-              <AlertCircle className="w-3 h-3 shrink-0" />
-              Source {activeAsset?.aspectRatioLabel || 'Custom'}
-            </span>
-          ) : null}
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -481,13 +439,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                 </div>
               )}
 
-              {/* Source Footage Outline & Label */}
+              {/* Source Footage Outline */}
               {isNon16x9 && (
-                <div className="absolute inset-0 border border-slate-500/40 rounded-sm pointer-events-none">
-                  <div className="absolute top-1 right-1 bg-black/70 backdrop-blur-xs text-[9px] font-mono text-slate-300 px-1.5 py-0.5 rounded border border-slate-700/60">
-                    Full Source ({activeAsset.aspectRatioLabel || 'Custom'})
-                  </div>
-                </div>
+                <div className="absolute inset-0 border border-slate-500/40 rounded-sm pointer-events-none" />
               )}
             </div>
 
@@ -523,13 +477,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                   <div className="" />
 
                   {/* 16:9 Safe Action Margin */}
-              {/* 16:9 Safe Action Margin */}
                   <div className="absolute inset-[5%] border border-blue-300/20 rounded pointer-events-none" />
-
-                  {/* 16:9 Final Output Stamp */}
-                  <div className="absolute top-2 left-2 bg-slate-900/85 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] font-mono text-blue-300 pointer-events-none border border-blue-500/40 shadow-sm">
-                    16:9 Output Window (1920 × 1080)
-                  </div>
                 </div>
               )}
             </div>
@@ -542,14 +490,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none z-20 select-none"
                 draggable={false}
               />
-            )}
-
-            {/* Live Drag & Zoom Floating Toast Feedback */}
-            {dragFeedback && (
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600/95 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono font-medium shadow-xl pointer-events-none border border-blue-400/50 flex items-center gap-1.5 animate-fadeIn z-30">
-                <Move className="w-3 h-3" />
-                <span>{dragFeedback}</span>
-              </div>
             )}
           </div>
         ) : (
@@ -576,7 +516,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         )}
       </div>
 
-      {/* Bottom Transport Controls & Quick Zoom Bar */}
+      {/* Bottom Transport Controls & Zoom Controls */}
       <div className="h-12 bg-editor-panel border-t border-editor-panelBorder px-3 sm:px-6 flex items-center justify-between shrink-0">
         {/* Playback Transport Buttons */}
         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -605,56 +545,25 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           </button>
         </div>
 
-        {/* Quick Direct Manipulation Instruction Hint */}
-        <div className="text-[11px] text-slate-400 hidden md:block">
-          {activeItem ? (
-            <span>💡 Drag footage to position inside 16:9 frame • Scroll wheel / pinch to zoom</span>
-          ) : (
-            <span>1920×1080 16:9 Long-Form Output Ready</span>
-          )}
-        </div>
-
-        {/* Global Frame Toggle & Zoom Scale Adjuster */}
-        <div className="flex items-center gap-2">
-          {onToggleFrame && (
+        {/* Zoom Buttons */}
+        {activeItem && onUpdateTransform ? (
+          <div className="flex items-center gap-1 text-slate-400">
             <button
-              onClick={onToggleFrame}
-              className={`px-2 py-1 rounded transition-colors text-xs flex items-center gap-1.5 ${
-                frameEnabled
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
-                  : 'bg-editor-surface hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60'
-              }`}
-              title={`Global Broadcast Frame: ${frameEnabled ? 'ON' : 'OFF'}`}
+              onClick={() => updateZoom((transform.scale || 1.0) - 0.1)}
+              className="p-1.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+              title="Zoom Out"
             >
-              <Crown className="w-3.5 h-3.5" />
-              <span className="font-medium text-[11px]">Frame: {frameEnabled ? 'On' : 'Off'}</span>
+              <ZoomOut className="w-4 h-4" />
             </button>
-          )}
-
-          {activeItem && onUpdateTransform ? (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-slate-400 font-mono">
-              <button
-                onClick={() => updateZoom((transform.scale || 1.0) - 0.1)}
-                className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
-                title="Zoom Out"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="min-w-[40px] sm:min-w-[48px] text-center text-[11px] sm:text-xs text-blue-300">
-                {Math.round((transform.scale || 1.0) * 100)}%
-              </span>
-              <button
-                onClick={() => updateZoom((transform.scale || 1.0) + 0.1)}
-                className="p-1.5 hover:bg-editor-surface rounded text-slate-300"
-                title="Zoom In"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div className="text-xs font-mono text-slate-500">100%</div>
-          )}
-        </div>
+            <button
+              onClick={() => updateZoom((transform.scale || 1.0) + 0.1)}
+              className="p-1.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

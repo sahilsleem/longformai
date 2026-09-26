@@ -10,7 +10,6 @@ import {
   MoreVertical,
   X,
   Clock,
-  Crown,
 } from 'lucide-react';
 import { LongFormProject } from '../types/project';
 import {
@@ -28,7 +27,7 @@ interface HeaderProps {
   isSavingLocal?: boolean;
   lastSavedTime?: number | null;
   onMarkSaved?: () => void;
-  onSetProjectName: (name: string) => void;
+  onSetProjectName?: (name: string) => void;
   onImportProject: (project: LongFormProject) => void;
   onResetProject: () => void;
   onOpenRenderModal?: () => void;
@@ -43,17 +42,12 @@ export const Header: React.FC<HeaderProps> = ({
   currentTime,
   totalDuration,
   isDirty = false,
-  isSavingLocal = false,
-  lastSavedTime = null,
   onMarkSaved,
-  onSetProjectName,
   onImportProject,
   onResetProject,
   onOpenRenderModal,
   onOpenRelinkModal,
   unlinkedCount = 0,
-  isFrameEnabled = true,
-  onToggleFrame,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isInternalRenderModalOpen, setIsInternalRenderModalOpen] = useState(false);
@@ -63,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
     const jsonStr = exportProjectToPortableJSON(project);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const safeName = project.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'longform_project';
+    const safeName = project.name?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'longform_project';
     const a = document.createElement('a');
     a.href = url;
     a.download = `${safeName}.longform.json`;
@@ -117,7 +111,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="h-12 bg-editor-panel border-b border-editor-panelBorder px-3 sm:px-4 flex items-center justify-between select-none relative z-30 shrink-0">
-        {/* Brand & Project Info */}
+        {/* Brand */}
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex items-center gap-1.5 bg-blue-600/20 text-blue-400 px-2 py-1 rounded-md border border-blue-500/30 shrink-0">
             <Film className="w-3.5 h-3.5 text-blue-400 shrink-0" />
@@ -127,32 +121,6 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 hidden sm:inline-block shrink-0">
             16:9 Master
           </span>
-
-          <div className="h-3.5 w-[1px] bg-slate-700 mx-0.5 hidden sm:block shrink-0" />
-
-          {/* Project Name editable */}
-          <div className="flex items-center gap-1 min-w-0">
-            <input
-              type="text"
-              value={project.name}
-              onChange={(e) => onSetProjectName(e.target.value)}
-              className="bg-transparent hover:bg-editor-surface focus:bg-editor-surface border border-transparent focus:border-editor-panelBorder rounded px-1.5 py-0.5 text-xs font-medium text-slate-200 focus:outline-none transition-colors w-28 sm:w-36 md:w-44 truncate"
-              title="Click to rename project"
-            />
-            {isSavingLocal ? (
-              <span className="text-[9px] bg-blue-950/80 text-blue-300 border border-blue-800/60 px-1.5 py-0.5 rounded font-mono shrink-0 animate-pulse">
-                Saving…
-              </span>
-            ) : isDirty ? (
-              <span className="text-[9px] bg-amber-950 text-amber-400 border border-amber-800 px-1 py-0.2 rounded font-mono shrink-0">
-                Unsaved
-              </span>
-            ) : lastSavedTime ? (
-              <span className="text-[9px] text-slate-500 font-mono shrink-0 hidden sm:inline-block">
-                Saved
-              </span>
-            ) : null}
-          </div>
         </div>
 
         {/* Desktop Center: 16:9 Spec & Timecode */}
@@ -203,21 +171,6 @@ export const Header: React.FC<HeaderProps> = ({
             <Upload className="w-3.5 h-3.5" />
             <span>Open</span>
           </button>
-
-          {onToggleFrame && (
-            <button
-              onClick={onToggleFrame}
-              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border transition-colors ${
-                isFrameEnabled
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                  : 'bg-editor-surface hover:bg-editor-surfaceHover text-slate-400 border-editor-panelBorder'
-              }`}
-              title={`Global Broadcast Frame: ${isFrameEnabled ? 'ON' : 'OFF'}`}
-            >
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>Frame: {isFrameEnabled ? 'On' : 'Off'}</span>
-            </button>
-          )}
 
           <button
             onClick={handleSaveProject}
