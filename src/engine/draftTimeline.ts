@@ -10586,12 +10586,17 @@ export async function generateDraftTimeline(
 
           // D. Reuse Penalty Policy
           const currentReuse = mediaReuseCount[c.mediaId] || 0;
-          let calculatedReusePenalty = 0.0;
+          let baseCalculatedReusePenalty = 0.0;
           if (currentReuse === 1) {
-            calculatedReusePenalty = reusePenalty;
+            baseCalculatedReusePenalty = reusePenalty;
           } else if (currentReuse >= 2) {
-            calculatedReusePenalty = reusePenalty * (1.0 + 0.5 * (currentReuse - 1));
+            baseCalculatedReusePenalty = reusePenalty * (1.0 + 0.5 * (currentReuse - 1));
           }
+
+          // EXPERIMENT: Confidence-Aware Reuse Scaling
+          // Scale down the reuse penalty if the semantic score is below threshold
+          const confidenceFactor = Math.max(0, Math.min(1.0, c.score / similarityThreshold));
+          const calculatedReusePenalty = baseCalculatedReusePenalty * confidenceFactor;
 
           // E. Step 19: Shot-to-Shot Transition & Continuity Intelligence
           const transitionIntel = calculateShotTransitionIntelligence(
