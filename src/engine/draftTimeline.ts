@@ -10434,6 +10434,7 @@ export async function generateDraftTimeline(
   await batchMatchMediaForSegments(visualBeats, validAnalyzedMedia, {
     workerUrl,
     topK: 15,
+    folders,
   });
 
   // 2. Iterate through each visual beat in chronological order
@@ -10485,6 +10486,7 @@ export async function generateDraftTimeline(
       const matchResult = await matchMediaForSegment(segment, validAnalyzedMedia, {
         workerUrl,
         topK: 15,
+        folders,
       });
 
       const hasWorkerCandidates = matchResult.candidates && matchResult.candidates.length > 0;

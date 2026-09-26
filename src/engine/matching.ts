@@ -80,15 +80,27 @@ export async function checkMatchingWorkerHealth(
 /**
  * Extracts genuine Step 5 semantic payload from media assets.
  */
-export function extractMediaPayload(mediaAssets: MediaAsset[]) {
+import { MediaFolder } from '../types/project';
+
+export function extractMediaPayload(mediaAssets: MediaAsset[], folders: MediaFolder[] = []) {
   return mediaAssets.map((m) => {
     const semantic = m.analysis?.semantic;
     const keyframes = m.analysis?.keyframes || [];
 
+    let description = semantic?.description || m.analysis?.description || '';
+
+    // EXPERIMENT: Inject folder identity into the main semantic payload
+    if (m.folderIds && m.folderIds.length > 0 && folders.length > 0) {
+      const folder = folders.find((f) => m.folderIds!.includes(f.id));
+      if (folder && folder.name) {
+        description = `Subject: ${folder.name}. ${description}`;
+      }
+    }
+
     return {
       mediaId: m.id,
       mediaName: m.name,
-      description: semantic?.description || m.analysis?.description || '',
+      description,
       ocrText: semantic?.ocrText || m.analysis?.ocrText || undefined,
       tags: semantic?.tags || m.analysis?.tags || [],
       temporalSummary: semantic?.temporalSummary || undefined,
@@ -111,11 +123,12 @@ export function extractMediaPayload(mediaAssets: MediaAsset[]) {
 export async function matchMediaForSegment(
   segment: AudioSegment,
   mediaAssets: MediaAsset[],
-  options: { forceRefresh?: boolean; workerUrl?: string; topK?: number } = {}
+  options: { forceRefresh?: boolean; workerUrl?: string; topK?: number; folders?: MediaFolder[] } = {}
 ): Promise<SegmentMatchResult> {
   const workerUrl = options.workerUrl || DEFAULT_MATCHING_WORKER_URL;
   const topK = options.topK || 5;
-  const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}`;
+  const folders = options.folders || [];
+  const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}_${folders.length}`;
 
   if (!options.forceRefresh && MATCH_CACHE.has(cacheKey)) {
     return MATCH_CACHE.get(cacheKey)!;
@@ -154,7 +167,7 @@ export async function matchMediaForSegment(
   }
 
   // 2. Extract genuine Step 5 semantic data only (no filenames, no fake heuristics)
-  const mediaPayload = extractMediaPayload(mediaAssets);
+  const mediaPayload = extractMediaPayload(mediaAssets, folders);
 
   try {
     const controller = new AbortController();
@@ -228,19 +241,20 @@ export async function matchMediaForSegment(
 export async function batchMatchMediaForSegments(
   segments: AudioSegment[],
   mediaAssets: MediaAsset[],
-  options: { forceRefresh?: boolean; workerUrl?: string; topK?: number } = {}
+  options: { forceRefresh?: boolean; workerUrl?: string; topK?: number; folders?: MediaFolder[] } = {}
 ): Promise<Map<string, SegmentMatchResult>> {
   const resultsMap = new Map<string, SegmentMatchResult>();
   if (!segments || segments.length === 0) return resultsMap;
 
   const workerUrl = options.workerUrl || DEFAULT_MATCHING_WORKER_URL;
   const topK = options.topK || 15;
+  const folders = options.folders || [];
 
   // 1. Check worker health once
   const health = await checkMatchingWorkerHealth(workerUrl, { forceRefresh: options.forceRefresh });
   if (!health.online || health.state === 'model_not_installed') {
     for (const segment of segments) {
-      const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}`;
+      const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}_${folders.length}`;
       const fallback: SegmentMatchResult = {
         segmentId: segment.id,
         segmentText: segment.text,
@@ -258,12 +272,12 @@ export async function batchMatchMediaForSegments(
   }
 
   // 2. Format media payload
-  const mediaPayload = extractMediaPayload(mediaAssets);
+  const mediaPayload = extractMediaPayload(mediaAssets, folders);
 
   // 3. Find uncached segments
   const uncachedSegments: AudioSegment[] = [];
   for (const segment of segments) {
-    const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}`;
+    const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}_${folders.length}`;
     if (!options.forceRefresh && MATCH_CACHE.has(cacheKey)) {
       resultsMap.set(segment.id, MATCH_CACHE.get(cacheKey)!);
     } else {
@@ -315,7 +329,7 @@ export async function batchMatchMediaForSegments(
           modelUsed: data.modelUsed || 'sentence-transformers/all-MiniLM-L6-v2',
           matchedAt: Date.now(),
         };
-        const cacheKey = `${seg.id}_${seg.text}_${mediaAssets.length}`;
+        const cacheKey = `${seg.id}_${seg.text}_${mediaAssets.length}_${folders.length}`;
         MATCH_CACHE.set(cacheKey, res);
         resultsMap.set(seg.id, res);
       }
@@ -330,7 +344,7 @@ export async function batchMatchMediaForSegments(
       // Network unreachable / timeout: mark offline and return fallback for all uncached segments
       lastHealthCheck = { status: { online: false, error: String(err) }, timestamp: Date.now() };
       for (const segment of uncachedSegments) {
-        const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}`;
+        const cacheKey = `${segment.id}_${segment.text}_${mediaAssets.length}_${folders.length}`;
         const fallback: SegmentMatchResult = {
           segmentId: segment.id,
           segmentText: segment.text,
