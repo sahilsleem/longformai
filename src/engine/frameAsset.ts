@@ -50,7 +50,9 @@ export function getBollywoodFrameDataUrl(): string {
 export async function getBollywoodFrameBlob(customUrl?: string): Promise<Blob> {
   const candidateUrls = [
     customUrl,
+    '/assets/frames/bollywood_frame_overlay_1080p.png',
     '/assets/frames/bollywood_frame_overlay.png',
+    '/src/assets/frames/bollywood_frame_overlay_1080p.png',
     '/src/assets/frames/bollywood_frame_overlay.png',
   ].filter((u): u is string => typeof u === 'string' && u.trim().length > 0);
 

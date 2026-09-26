@@ -450,12 +450,18 @@ def render_project(
                     pass
                 
         if not overlay_asset_path:
+            server_asset_1080p = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay_1080p.png")
             server_asset = os.path.join(os.path.dirname(__file__), "assets", "bollywood_frame_overlay.png")
-            if os.path.isfile(server_asset):
+            if os.path.isfile(server_asset_1080p):
+                overlay_asset_path = server_asset_1080p
+            elif os.path.isfile(server_asset):
                 overlay_asset_path = server_asset
             else:
+                alt_overlay_1080p = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay_1080p.png")
                 alt_overlay = os.path.join(os.path.dirname(__file__), "..", "public", "assets", "frames", "bollywood_frame_overlay.png")
-                if os.path.isfile(alt_overlay):
+                if os.path.isfile(alt_overlay_1080p):
+                    overlay_asset_path = alt_overlay_1080p
+                elif os.path.isfile(alt_overlay):
                     overlay_asset_path = alt_overlay
 
         if frame_enabled and (not overlay_asset_path or not os.path.isfile(overlay_asset_path)):

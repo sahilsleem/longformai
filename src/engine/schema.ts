@@ -115,7 +115,7 @@ export const DEFAULT_BOLLYWOOD_FRAME = {
   enabled: true,
   id: 'bollywood_broadcast_frame',
   name: 'Bollywood Broadcast Frame',
-  src: '/assets/frames/bollywood_frame_overlay.png',
+  src: '/assets/frames/bollywood_frame_overlay_1080p.png',
 };
 
 export function createInitialProject(name: string = 'Untitled LongForm Project'): LongFormProject {
