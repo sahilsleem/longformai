@@ -40,20 +40,20 @@ export async function prepareProjectPipeline(
   onProgress?.({
     stage: 'checking',
     percent: 5,
-    message: 'Verifying project ingredients and worker connections...',
+    message: 'Verifying media and audio ingredients...',
   });
 
   // 1. Verify Voiceover
   let voiceoverReady = false;
   if (!updatedVoiceover) {
-    errors.push('No voiceover audio file found. Add a voiceover track in the Media Library or Transcript tab.');
+    errors.push('No voiceover audio file found. Add a voiceover track in the Media Library.');
   } else {
     // Check if voiceover needs transcription
     if (!updatedVoiceover.segments || updatedVoiceover.segments.length === 0) {
       onProgress?.({
         stage: 'transcribing',
         percent: 15,
-        message: `Transcribing voiceover audio "${updatedVoiceover.name}" with local Whisper worker...`,
+        message: 'Transcribing voiceover narration...',
       });
 
       try {
@@ -100,7 +100,7 @@ export async function prepareProjectPipeline(
       onProgress?.({
         stage: 'analyzing_media',
         percent: currentPct,
-        message: `Analyzing visual media (${i + 1}/${unanalyzedIndices.length}): ${asset.name}...`,
+        message: `Analyzing media (${i + 1}/${unanalyzedIndices.length}): ${asset.name}...`,
         currentItem: asset.name,
       });
 
@@ -129,7 +129,7 @@ export async function prepareProjectPipeline(
       onProgress?.({
         stage: 'semantic_matching',
         percent: 75,
-        message: 'Pre-computing semantic matches for transcript segments with MiniLM model...',
+        message: 'Matching footage with narration...',
       });
 
       await batchMatchMediaForSegments(updatedVoiceover.segments, analyzedMediaAssets, { topK: 5 });
@@ -141,7 +141,7 @@ export async function prepareProjectPipeline(
         onProgress?.({
           stage: 'semantic_matching',
           percent: matchPct,
-          message: `Matching segment ${s + 1}/${updatedSegments.length}: "${seg.text.slice(0, 35)}..."`,
+          message: `Matching footage (${s + 1}/${updatedSegments.length})...`,
         });
 
         try {
@@ -170,7 +170,7 @@ export async function prepareProjectPipeline(
     stage: isSuccess ? 'complete' : 'error',
     percent: 100,
     message: isSuccess
-      ? 'Project preparation complete! All ingredients are ready for drafting or editing.'
+      ? 'Project Ready ✓'
       : `Preparation completed with ${errors.length} issue(s).`,
   });
 

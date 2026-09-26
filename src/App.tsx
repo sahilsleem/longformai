@@ -5,13 +5,12 @@ import { WorkerDiagnosticsModal } from './components/WorkerDiagnosticsModal';
 import { RenderModal } from './components/RenderModal';
 import { RelinkModal } from './components/RelinkModal';
 import { MediaPanel } from './components/MediaPanel';
-import { TranscriptPanel } from './components/TranscriptPanel';
 import { PreviewCanvas } from './components/PreviewCanvas';
 import { CropInspector } from './components/CropInspector';
 import { MediaInspector } from './components/MediaInspector';
 import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
-import { Film, FileText, Crop, Sparkles } from 'lucide-react';
+import { Film, Crop, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -42,8 +41,6 @@ export const App: React.FC = () => {
     selectedTimelineItem,
     effectiveMediaAsset,
     selectedMediaAsset,
-    isTranscribing,
-    transcriptionError,
     isGeneratingDraft,
     draftStats,
     draftError,
@@ -60,10 +57,7 @@ export const App: React.FC = () => {
     setTimelineScale,
     setVoiceoverAudio,
     removeVoiceoverAudio,
-    transcribeVoiceover,
-    updateTranscriptSegmentText,
     analyzeMedia,
-    analyzeAllMedia,
     generateAIDraft,
     clearTimeline,
     setVoiceoverVolume,
@@ -80,7 +74,6 @@ export const App: React.FC = () => {
     setProjectName,
   } = useProject();
 
-  const [leftTab, setLeftTab] = useState<'media' | 'transcript'>('media');
   const [rightTab, setRightTab] = useState<'framing' | 'analysis'>('framing');
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isWorkerModalOpen, setIsWorkerModalOpen] = useState(false);
@@ -103,13 +96,6 @@ export const App: React.FC = () => {
       setTimeout(() => setIsRelinkModalOpen(true), 300);
     }
   };
-
-  // Auto-switch to transcript tab when transcribing on desktop
-  useEffect(() => {
-    if (isTranscribing) {
-      setLeftTab('transcript');
-    }
-  }, [isTranscribing]);
 
   // When user selects a timeline clip, show framing inspector
   const handleSelectTimelineClip = (id: string | null) => {
@@ -232,18 +218,14 @@ export const App: React.FC = () => {
         preparationMessage={preparationProgress?.message}
         preparationPercent={preparationProgress?.percent}
         onPrepareProject={prepareProject}
-        onAnalyzeAllMedia={async () => {
-          setRightTab('analysis');
-          setLeftTab('media');
-          await analyzeAllMedia();
-        }}
+        onGenerateAIDraft={generateAIDraft}
+        isGeneratingDraft={isGeneratingDraft}
         onOpenRenderModal={() => setIsRenderModalOpen(true)}
         onOpenWorkerDiagnostics={() => setIsWorkerModalOpen(true)}
         onOpenFramingEditor={() => handleFocusFraming()}
-        onSwitchTab={(tab) => {
-          setLeftTab(tab);
+        onSwitchTab={() => {
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-            const el = document.getElementById(`mobile-section-${tab}`);
+            const el = document.getElementById('mobile-section-media');
             if (el) {
               el.scrollIntoView({ behavior: 'smooth' });
             }
@@ -255,90 +237,31 @@ export const App: React.FC = () => {
 
       {/* 3A. DESKTOP WORKSPACE (>= 1024px): 3-Column Workstation Layout */}
       <div className="hidden lg:flex flex-1 overflow-hidden min-h-0">
-        {/* Left Side: Tabbed Container for Media Panel & Transcript Panel */}
+        {/* Left Side: Dedicated Media Library Panel */}
         <div className="flex flex-col h-full bg-editor-panel border-r border-editor-panelBorder w-80 xl:w-84 shrink-0 overflow-hidden">
-          {/* Left Tab Buttons */}
-          <div className="h-10 bg-editor-panel border-b border-editor-panelBorder flex items-center px-2 gap-1 shrink-0">
-            <button
-              onClick={() => setLeftTab('media')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                leftTab === 'media'
-                  ? 'bg-editor-surface text-blue-400 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-editor-surface/50'
-              }`}
-            >
-              <Film className="w-3.5 h-3.5" />
-              <span>Media Library</span>
-              {project.media.length > 0 && (
-                <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 rounded font-mono">
-                  {project.media.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setLeftTab('transcript')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                leftTab === 'transcript'
-                  ? 'bg-editor-surface text-purple-400 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-editor-surface/50'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Transcript</span>
-              {voiceover?.segments && voiceover.segments.length > 0 && (
-                <span className="text-[10px] bg-purple-950/70 text-purple-300 px-1.5 rounded font-mono border border-purple-800/40">
-                  {voiceover.segments.length}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Left Tab Content */}
-          <div className="flex-1 overflow-hidden">
-            {leftTab === 'media' ? (
-              <MediaPanel
-                mediaList={project.media}
-                folders={folders}
-                activeFolderId={activeFolderId}
-                voiceover={voiceover}
-                selectedMediaId={selectedMediaId}
-                unlinkedCount={unlinkedCount}
-                onOpenRelinkModal={() => setIsRelinkModalOpen(true)}
-                onSelectMedia={handleSelectMediaAsset}
-                onUpload={addMediaAssets}
-                onRemove={removeMediaAsset}
-                onAddToTimeline={addMediaToTimeline}
-                onUploadVoiceover={setVoiceoverAudio}
-                onRemoveVoiceover={removeVoiceoverAudio}
-                onAnalyzeMedia={analyzeMedia}
-                onCreateFolder={createFolder}
-                onRenameFolder={renameFolder}
-                onDeleteFolder={deleteFolder}
-                onAssignMediaToFolder={assignMediaToFolder}
-                onRemoveMediaFromFolder={removeMediaFromFolder}
-                onSetMediaFolders={setMediaFolders}
-                onSetActiveFolderId={setActiveFolderId}
-              />
-            ) : (
-              <TranscriptPanel
-                voiceover={voiceover}
-                mediaAssets={project.media}
-                timeline={project.timeline}
-                selectedTimelineItemId={selectedItemId}
-                selectedMediaId={selectedMediaId}
-                unassignedReasons={draftStats?.unassignedReasons}
-                onSelectMedia={handleSelectMediaAsset}
-                onSelectTimelineItem={handleSelectTimelineClip}
-                currentTime={currentTime}
-                onSeek={setCurrentTime}
-                onTranscribe={transcribeVoiceover}
-                onUpdateSegmentText={updateTranscriptSegmentText}
-                isTranscribing={isTranscribing}
-                transcriptionError={transcriptionError}
-              />
-            )}
-          </div>
+          <MediaPanel
+            mediaList={project.media}
+            folders={folders}
+            activeFolderId={activeFolderId}
+            voiceover={voiceover}
+            selectedMediaId={selectedMediaId}
+            unlinkedCount={unlinkedCount}
+            onOpenRelinkModal={() => setIsRelinkModalOpen(true)}
+            onSelectMedia={handleSelectMediaAsset}
+            onUpload={addMediaAssets}
+            onRemove={removeMediaAsset}
+            onAddToTimeline={addMediaToTimeline}
+            onUploadVoiceover={setVoiceoverAudio}
+            onRemoveVoiceover={removeVoiceoverAudio}
+            onAnalyzeMedia={analyzeMedia}
+            onCreateFolder={createFolder}
+            onRenameFolder={renameFolder}
+            onDeleteFolder={deleteFolder}
+            onAssignMediaToFolder={assignMediaToFolder}
+            onRemoveMediaFromFolder={removeMediaFromFolder}
+            onSetMediaFolders={setMediaFolders}
+            onSetActiveFolderId={setActiveFolderId}
+          />
         </div>
 
         {/* Center: 16:9 Canvas Viewport */}
@@ -472,18 +395,6 @@ export const App: React.FC = () => {
           </a>
 
           <a
-            href="#mobile-section-transcript"
-            onClick={(e) => {
-              e.preventDefault();
-              document.getElementById('mobile-section-transcript')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
-          >
-            <FileText className="w-3.5 h-3.5 text-purple-400" />
-            <span>Transcript {voiceover?.segments?.length ? `(${voiceover.segments.length})` : ''}</span>
-          </a>
-
-          <a
             href="#mobile-section-framing"
             onClick={(e) => {
               e.preventDefault();
@@ -548,40 +459,7 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 2: Voiceover Transcript & AI Draft */}
-          <div id="mobile-section-transcript" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
-            <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-purple-400" />
-                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Voiceover Transcript & AI Draft</h3>
-              </div>
-              {voiceover?.segments && voiceover.segments.length > 0 && (
-                <span className="text-[11px] font-mono text-purple-300 bg-purple-950/70 px-2 py-0.5 rounded border border-purple-800/40">
-                  {voiceover.segments.length} segments
-                </span>
-              )}
-            </div>
-            <div className="min-h-[360px]">
-              <TranscriptPanel
-                voiceover={voiceover}
-                mediaAssets={project.media}
-                timeline={project.timeline}
-                selectedTimelineItemId={selectedItemId}
-                selectedMediaId={selectedMediaId}
-                unassignedReasons={draftStats?.unassignedReasons}
-                onSelectMedia={handleSelectMediaAsset}
-                onSelectTimelineItem={handleSelectTimelineClip}
-                currentTime={currentTime}
-                onSeek={setCurrentTime}
-                onTranscribe={transcribeVoiceover}
-                onUpdateSegmentText={updateTranscriptSegmentText}
-                isTranscribing={isTranscribing}
-                transcriptionError={transcriptionError}
-              />
-            </div>
-          </div>
-
-          {/* Section 3: 16:9 Framing Inspector */}
+          {/* Section 2: 16:9 Framing Inspector */}
           <div id="mobile-section-framing" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
             <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -611,7 +489,7 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 4: Media Info & Intelligence */}
+          {/* Section 3: Media Info & Intelligence */}
           <div id="mobile-section-info" className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden shadow-sm">
             <div className="px-3.5 py-2.5 bg-editor-surface/60 border-b border-editor-panelBorder flex items-center justify-between">
               <div className="flex items-center gap-2">

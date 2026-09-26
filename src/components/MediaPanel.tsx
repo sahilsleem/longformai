@@ -20,6 +20,7 @@ import {
   CheckSquare,
   Square,
   Tag,
+  CheckCircle2,
 } from 'lucide-react';
 import { MediaAsset, MediaFolder, VoiceoverTrack } from '../types/project';
 import { formatSecondsToMinutes, formatTimecode } from '../engine/schema';
@@ -550,7 +551,13 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                 <Music className="w-4 h-4 text-purple-300" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-200 truncate">{voiceover.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-semibold text-slate-200 truncate">{voiceover.name}</p>
+                  <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-0.5 shrink-0">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Added</span>
+                  </span>
+                </div>
                 <p className="text-[10px] text-slate-400 font-mono">
                   {formatSecondsToMinutes(voiceover.duration)} • {voiceover.format?.toUpperCase()}
                 </p>

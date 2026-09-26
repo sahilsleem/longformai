@@ -900,8 +900,8 @@ export const Timeline: React.FC<TimelineProps> = ({
                   )}
                 </div>
 
-                <div className="text-[9px] text-purple-400/80 font-mono z-10 pointer-events-none">
-                  Voiceover Master Track ({voiceover.segments?.length || 0} segments)
+                <div className="text-[9px] text-purple-300/90 font-mono z-10 pointer-events-none">
+                  Voiceover Master Track
                 </div>
               </div>
             ) : (
@@ -910,7 +910,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                 className="h-full border border-dashed border-purple-500/30 hover:border-purple-400/70 rounded-md mx-2 flex items-center justify-center gap-2 text-xs text-purple-400 hover:text-purple-300 cursor-pointer bg-purple-950/20 hover:bg-purple-950/40 transition-colors"
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>Import Voiceover Audio (MP3, WAV, M4A, AAC) — Backbone of Long-Form Timeline</span>
+                <span>Import Voiceover Audio (MP3, WAV, M4A, AAC)</span>
               </div>
             )}
           </div>
