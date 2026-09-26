@@ -23,10 +23,20 @@ TARGET_FPS = 30
 TARGET_ASPECT = 16.0 / 9.0
 
 
-def get_media_dimensions(file_path: str) -> Tuple[int, int, float]:
+def get_media_dimensions(
+    file_path: str,
+    fallback_w: Optional[int] = None,
+    fallback_h: Optional[int] = None,
+) -> Tuple[int, int, float]:
     """
-    Uses ffprobe to inspect exact width, height, and duration of a video or image file.
+    Uses ffprobe to inspect exact width, height (accounting for video display rotation),
+    and duration of a video or image file. Falls back to client-provided dimensions if ffprobe is unavailable.
     """
+    if not file_path or not os.path.isfile(file_path):
+        w = fallback_w if fallback_w and fallback_w > 0 else TARGET_WIDTH
+        h = fallback_h if fallback_h and fallback_h > 0 else TARGET_HEIGHT
+        return w, h, 0.0
+
     cmd = [
         "ffprobe",
         "-v",
@@ -34,7 +44,7 @@ def get_media_dimensions(file_path: str) -> Tuple[int, int, float]:
         "-select_streams",
         "v:0",
         "-show_entries",
-        "stream=width,height,duration:format=duration",
+        "stream=width,height,duration,tags,side_data_list:format=duration",
         "-of",
         "json",
         file_path,
@@ -45,10 +55,38 @@ def get_media_dimensions(file_path: str) -> Tuple[int, int, float]:
         streams = data.get("streams", [])
         if not streams:
             raise ValueError(f"No video streams found in {file_path}")
-        
-        w = int(streams[0].get("width", TARGET_WIDTH))
-        h = int(streams[0].get("height", TARGET_HEIGHT))
-        
+
+        raw_w = int(streams[0].get("width", 0))
+        raw_h = int(streams[0].get("height", 0))
+
+        if raw_w <= 0 or raw_h <= 0:
+            if fallback_w and fallback_h and fallback_w > 0 and fallback_h > 0:
+                raw_w, raw_h = fallback_w, fallback_h
+            else:
+                raw_w, raw_h = TARGET_WIDTH, TARGET_HEIGHT
+
+        # Check for rotation tags / displaymatrix (e.g. mobile 9:16 portrait video stored as 1920x1080)
+        rotation = 0
+        tags = streams[0].get("tags", {})
+        if "rotate" in tags:
+            try:
+                rotation = abs(int(float(tags["rotate"])))
+            except (ValueError, TypeError):
+                rotation = 0
+
+        for sd in streams[0].get("side_data_list", []):
+            if "rotation" in sd:
+                try:
+                    rotation = abs(int(float(sd["rotation"])))
+                except (ValueError, TypeError):
+                    pass
+
+        # If rotated 90 or 270 degrees, display width and height are inverted
+        if rotation in (90, 270):
+            w, h = raw_h, raw_w
+        else:
+            w, h = raw_w, raw_h
+
         duration = 0.0
         if "duration" in streams[0] and streams[0]["duration"] is not None:
             try:
@@ -60,59 +98,88 @@ def get_media_dimensions(file_path: str) -> Tuple[int, int, float]:
                 duration = float(data["format"]["duration"])
             except (ValueError, TypeError):
                 duration = 0.0
-                
+
         return w, h, duration
     except Exception as e:
-        logger.warning(f"ffprobe failed for {file_path}: {e}. Defaulting to 1920x1080.")
-        return TARGET_WIDTH, TARGET_HEIGHT, 0.0
+        logger.warning(f"ffprobe inspection for {file_path} had issue: {e}.")
+        w = fallback_w if fallback_w and fallback_w > 0 else TARGET_WIDTH
+        h = fallback_h if fallback_h and fallback_h > 0 else TARGET_HEIGHT
+        return w, h, 0.0
 
 
 def calculate_clip_geometry(
     src_width: int,
     src_height: int,
-    fit_mode: str,
-    scale: float,
-    pan_x: float,
-    pan_y: float,
+    fit_mode: str = "cover",
+    scale: float = 1.0,
+    pan_x: float = 0.0,
+    pan_y: float = 0.0,
 ) -> Tuple[int, int, int, int]:
     """
-    Calculates the exact scaled dimensions (w, h) and top-left placement coordinates (x, y)
+    Calculates the exact scaled dimensions (scaled_w, scaled_h) and top-left placement coordinates (pos_x, pos_y)
     relative to a 1920x1080 canvas for the specified fit mode, scale multiplier, and pan offsets.
+    
+    Guarantees 100% aspect ratio preservation (uniform scaling factor applied to both W and H)
+    and mathematical parity with PreviewCanvas.tsx.
     
     Returns:
         (scaled_w, scaled_h, pos_x, pos_y)
     """
     if src_width <= 0 or src_height <= 0:
         src_width, src_height = TARGET_WIDTH, TARGET_HEIGHT
-        
-    src_ratio = src_width / src_height
-    
-    if fit_mode == "contain":
-        if src_ratio >= TARGET_ASPECT:
-            base_scale = TARGET_WIDTH / src_width
-        else:
-            base_scale = TARGET_HEIGHT / src_height
-    else:
-        # 'cover' or 'custom'
-        if src_ratio >= TARGET_ASPECT:
-            base_scale = TARGET_HEIGHT / src_height
-        else:
-            base_scale = TARGET_WIDTH / src_width
-            
-    total_scale = max(0.1, base_scale * max(0.1, scale))
-    
-    # Calculate scaled dimensions (must be even integers for H.264)
+
+    # Base scale factor: uniform scale to ensure the source completely covers the 16:9 output window
+    # (Identical to PreviewCanvas.tsx: sourceRatio < 16/9 fills 1920 width; sourceRatio >= 16/9 fills 1080 height)
+    base_scale = max(TARGET_WIDTH / src_width, TARGET_HEIGHT / src_height)
+
+    # Apply user zoom multiplier uniformly to both dimensions
+    user_scale = max(1.0, float(scale) if scale else 1.0)
+    total_scale = base_scale * user_scale
+
+    # Calculate scaled dimensions (must be even integers for H.264 encoding)
     scaled_w = max(2, int(round((src_width * total_scale) / 2.0) * 2))
     scaled_h = max(2, int(round((src_height * total_scale) / 2.0) * 2))
-    
-    # Center placement plus pan offsets
-    delta_x = TARGET_WIDTH * (pan_x / 100.0)
-    delta_y = TARGET_HEIGHT * (pan_y / 100.0)
-    
+
+    # Center placement plus pan offsets (pan_x / pan_y are percentages of the 16:9 output frame)
+    delta_x = TARGET_WIDTH * (float(pan_x or 0.0) / 100.0)
+    delta_y = TARGET_HEIGHT * (float(pan_y or 0.0) / 100.0)
+
     pos_x = int(round((TARGET_WIDTH - scaled_w) / 2.0 + delta_x))
     pos_y = int(round((TARGET_HEIGHT - scaled_h) / 2.0 + delta_y))
-    
+
     return scaled_w, scaled_h, pos_x, pos_y
+
+
+def calculate_clip_crop_params(
+    src_width: int,
+    src_height: int,
+    scale: float = 1.0,
+    pan_x: float = 0.0,
+    pan_y: float = 0.0,
+) -> Dict[str, int]:
+    """
+    Calculates scaled dimensions and crop coordinates for direct scale+crop filter generation.
+    """
+    scaled_w, scaled_h, pos_x, pos_y = calculate_clip_geometry(
+        src_width, src_height, fit_mode="cover", scale=scale, pan_x=pan_x, pan_y=pan_y
+    )
+    delta_x = TARGET_WIDTH * (float(pan_x or 0.0) / 100.0)
+    delta_y = TARGET_HEIGHT * (float(pan_y or 0.0) / 100.0)
+
+    raw_crop_x = int(round((scaled_w - TARGET_WIDTH) / 2.0 - delta_x))
+    raw_crop_y = int(round((scaled_h - TARGET_HEIGHT) / 2.0 - delta_y))
+
+    crop_x = max(0, min(max(0, scaled_w - TARGET_WIDTH), raw_crop_x))
+    crop_y = max(0, min(max(0, scaled_h - TARGET_HEIGHT), raw_crop_y))
+
+    return {
+        "scaled_w": scaled_w,
+        "scaled_h": scaled_h,
+        "pos_x": pos_x,
+        "pos_y": pos_y,
+        "crop_x": crop_x,
+        "crop_y": crop_y,
+    }
 
 
 def render_project(
@@ -251,7 +318,6 @@ def render_project(
                     
                 if not media_path or not os.path.isfile(media_path):
                     logger.warning(f"Media file missing for ID {media_id}. Rendering black filler.")
-                    # Render black filler for missing media
                     cmd = [
                         "ffmpeg",
                         "-y",
@@ -267,28 +333,46 @@ def render_project(
                     continue
                     
                 transform = item.get("transform", {})
-                fit_mode = transform.get("fitMode", "cover")
                 scale = float(transform.get("scale", 1.0))
                 pan_x = float(transform.get("x", 0.0))
                 pan_y = float(transform.get("y", 0.0))
                 source_start = max(0.0, float(item.get("sourceStart", 0.0)))
                 
-                src_w, src_h, _ = get_media_dimensions(media_path)
-                scaled_w, scaled_h, pos_x, pos_y = calculate_clip_geometry(
-                    src_w, src_h, fit_mode, scale, pan_x, pan_y
+                # Fetch client metadata fallback if available
+                media_meta = next(
+                    (m for m in project_data.get("media", []) if m.get("id") == media_id),
+                    None
                 )
+                fb_w = media_meta.get("width") if media_meta else None
+                fb_h = media_meta.get("height") if media_meta else None
+                
+                src_w, src_h, _ = get_media_dimensions(media_path, fallback_w=fb_w, fallback_h=fb_h)
+                crop_params = calculate_clip_crop_params(
+                    src_w, src_h, scale=scale, pan_x=pan_x, pan_y=pan_y
+                )
+                scaled_w = crop_params["scaled_w"]
+                scaled_h = crop_params["scaled_h"]
+                crop_x = crop_params["crop_x"]
+                crop_y = crop_params["crop_y"]
                 
                 is_image = any(media_path.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"])
                 
-                # Compose filter_complex for this segment:
-                # 1. Base 1920x1080 black canvas of length dur
-                # 2. Scale media to scaled_w x scaled_h
-                # 3. Overlay scaled media at pos_x, pos_y onto black canvas
-                filter_str = (
-                    f"color=c=black:s={TARGET_WIDTH}x{TARGET_HEIGHT}:r={TARGET_FPS}:d={dur}[bg];"
-                    f"[0:v]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=disable,fps={TARGET_FPS},setpts=PTS-STARTPTS[scaled];"
-                    f"[bg][scaled]overlay=x={pos_x}:y={pos_y}:shortest=1[outv]"
-                )
+                # Direct Scale & Crop Filter:
+                # 1. Scale footage uniformly to scaled_w x scaled_h (preserving source aspect ratio)
+                # 2. Crop exactly 1920x1080 at (crop_x, crop_y)
+                # 3. Standardize fps and pts
+                if scaled_w >= TARGET_WIDTH and scaled_h >= TARGET_HEIGHT:
+                    filter_str = (
+                        f"[0:v]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=disable,"
+                        f"crop={TARGET_WIDTH}:{TARGET_HEIGHT}:{crop_x}:{crop_y},"
+                        f"fps={TARGET_FPS},setpts=PTS-STARTPTS[outv]"
+                    )
+                else:
+                    filter_str = (
+                        f"[0:v]scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=disable,"
+                        f"pad={TARGET_WIDTH}:{TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
+                        f"fps={TARGET_FPS},setpts=PTS-STARTPTS[outv]"
+                    )
                 
                 cmd = ["ffmpeg", "-y"]
                 if is_image:
