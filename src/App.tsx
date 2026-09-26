@@ -65,6 +65,7 @@ export const App: React.FC = () => {
     addMediaToTimeline,
     removeTimelineItem,
     updateTimelineItem,
+    replaceTimelineItemMedia,
     updateItemTransform,
     reorderTimelineItems,
     isFrameEnabled,
@@ -298,6 +299,7 @@ export const App: React.FC = () => {
             onSelectClip={handleSelectTimelineClip}
             onSeek={setCurrentTime}
             onRemoveClip={removeTimelineItem}
+            onReplaceClipMedia={replaceTimelineItemMedia}
             onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
             onReorder={reorderTimelineItems}
             onSetTimelineScale={setTimelineScale}
@@ -421,6 +423,7 @@ export const App: React.FC = () => {
           onSelectClip={handleSelectTimelineClip}
           onSeek={setCurrentTime}
           onRemoveClip={removeTimelineItem}
+          onReplaceClipMedia={replaceTimelineItemMedia}
           onUpdateDuration={(id, dur) => updateTimelineItem(id, { duration: dur })}
           onReorder={reorderTimelineItems}
           onSetTimelineScale={setTimelineScale}

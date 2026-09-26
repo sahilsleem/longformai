@@ -18,10 +18,12 @@ import {
   Clock,
   CheckCircle2,
   Image as ImageIcon,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { TimelineItem, MediaAsset, VoiceoverTrack, AudioSegment } from '../types/project';
 import { formatTimecode } from '../engine/schema';
 import { DraftStats, DraftOptions } from '../engine/draftTimeline';
+import { ReplaceMediaModal } from './ReplaceMediaModal';
 
 interface TimelineProps {
   timeline: TimelineItem[];
@@ -37,6 +39,7 @@ interface TimelineProps {
   onSelectClip: (id: string | null) => void;
   onSeek: (time: number) => void;
   onRemoveClip: (id: string) => void;
+  onReplaceClipMedia?: (id: string, newMediaId: string) => void;
   onUpdateDuration: (id: string, duration: number) => void;
   onReorder: (newTimeline: TimelineItem[]) => void;
   onSetTimelineScale: (scale: number) => void;
@@ -62,6 +65,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   onSelectClip,
   onSeek,
   onRemoveClip,
+  onReplaceClipMedia,
   onUpdateDuration,
   onReorder,
   onSetTimelineScale,
@@ -80,6 +84,9 @@ export const Timeline: React.FC<TimelineProps> = ({
   const resizingItemIdRef = useRef<string | null>(null);
   const resizeStartXRef = useRef<number>(0);
   const initialDurationRef = useRef<number>(0);
+
+  // Replace media modal state
+  const [replacingClipId, setReplacingClipId] = useState<string | null>(null);
 
   // Direct manipulation drag-to-reorder state
   const [dragState, setDragState] = useState<{
@@ -636,16 +643,28 @@ export const Timeline: React.FC<TimelineProps> = ({
                         </span>
                       </div>
 
-                      {/* Contextual Delete Button (Visible when selected) */}
+                      {/* Contextual Action Buttons (Visible when selected) */}
                       {isSelected && (
-                        <div className="flex items-center justify-end relative z-20">
+                        <div className="flex items-center justify-end gap-1 relative z-20">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplacingClipId(item.id);
+                            }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-600/90 hover:bg-blue-500 text-white rounded text-[9px] sm:text-[10px] font-medium shadow-xs transition-all hover:scale-105 active:scale-95"
+                            title="Replace visual media"
+                          >
+                            <ArrowLeftRight className="w-2.5 h-2.5" />
+                            <span>Replace</span>
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               onRemoveClip(item.id);
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
-                            className="p-1 bg-red-600/90 hover:bg-red-500 text-white rounded shadow transition-all hover:scale-105"
+                            className="p-1 bg-red-600/90 hover:bg-red-500 text-white rounded shadow-xs transition-all hover:scale-105 active:scale-95"
                             title="Remove Clip from Timeline"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -985,6 +1004,20 @@ export const Timeline: React.FC<TimelineProps> = ({
           </div>
         </div>
       )}
+
+      {/* Replace Visual Media Modal */}
+      <ReplaceMediaModal
+        isOpen={!!replacingClipId}
+        onClose={() => setReplacingClipId(null)}
+        mediaList={mediaList}
+        currentMediaId={timeline.find((t) => t.id === replacingClipId)?.mediaId}
+        onSelectMedia={(newMediaId) => {
+          if (replacingClipId && onReplaceClipMedia) {
+            onReplaceClipMedia(replacingClipId, newMediaId);
+          }
+          setReplacingClipId(null);
+        }}
+      />
     </div>
   );
 };

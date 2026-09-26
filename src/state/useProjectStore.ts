@@ -918,6 +918,103 @@ export function useProject() {
     setIsDirty(true);
   }, []);
 
+  // Replace Media Asset for a specific visual timeline clip (preserves timing, transform, ordering, and voiceover)
+  const replaceTimelineItemMedia = useCallback((timelineItemId: string, newMediaId: string) => {
+    if (isPlaying) {
+      setIsPlaying(false);
+    }
+
+    setProject((prev) => {
+      const itemIndex = prev.timeline.findIndex((item) => item.id === timelineItemId);
+      if (itemIndex === -1) {
+        console.warn(`replaceTimelineItemMedia: Timeline item '${timelineItemId}' not found.`);
+        return prev;
+      }
+
+      const currentItem = prev.timeline[itemIndex];
+      // Self-replacement is a safe no-op
+      if (currentItem.mediaId === newMediaId) {
+        return prev;
+      }
+
+      const newAsset = prev.media.find((m) => m.id === newMediaId);
+      if (!newAsset) {
+        console.warn(`replaceTimelineItemMedia: Media asset '${newMediaId}' not found.`);
+        return prev;
+      }
+
+      // Ensure new asset is a visual asset (video or image)
+      if (newAsset.type !== 'video' && newAsset.type !== 'image') {
+        console.warn(`replaceTimelineItemMedia: Cannot replace visual clip with non-visual media type '${newAsset.type}'.`);
+        return prev;
+      }
+
+      // Preserve timeline start time and duration strictly
+      const startTime = currentItem.startTime;
+      const duration = currentItem.duration;
+
+      // Calculate safe source start and duration bounds for replacement
+      let sourceStart = currentItem.sourceStart || 0;
+      let sourceDuration = duration;
+
+      if (newAsset.type === 'video' && typeof newAsset.duration === 'number' && newAsset.duration > 0) {
+        if (sourceStart + 0.1 > newAsset.duration) {
+          sourceStart = 0;
+        }
+        sourceDuration = Math.min(duration, Math.max(0.1, newAsset.duration - sourceStart));
+      } else {
+        // Image asset: infinite footage
+        sourceStart = 0;
+        sourceDuration = duration;
+      }
+
+      // Preserve existing transform (scale, pan x/y, crop) while ensuring fitMode is cover and values are valid
+      const existingTransform = currentItem.transform;
+      const transform: TransformState = existingTransform
+        ? {
+            ...existingTransform,
+            fitMode: 'cover',
+            scale:
+              typeof existingTransform.scale === 'number' &&
+              !isNaN(existingTransform.scale) &&
+              existingTransform.scale >= 0.1
+                ? existingTransform.scale
+                : 1.0,
+            x: typeof existingTransform.x === 'number' && !isNaN(existingTransform.x) ? existingTransform.x : 0,
+            y: typeof existingTransform.y === 'number' && !isNaN(existingTransform.y) ? existingTransform.y : 0,
+            crop: existingTransform.crop || { x: 0, y: 0, width: 1, height: 1 },
+          }
+        : JSON.parse(JSON.stringify(createDefaultTransform(newAsset.width, newAsset.height)));
+
+      const updatedItem: TimelineItem = {
+        ...currentItem,
+        mediaId: newMediaId,
+        startTime,
+        duration,
+        sourceStart,
+        sourceDuration,
+        transform,
+        provenance: currentItem.provenance
+          ? {
+              ...currentItem.provenance,
+              isManuallyEdited: true,
+            }
+          : undefined,
+      };
+
+      const updatedTimeline = [...prev.timeline];
+      updatedTimeline[itemIndex] = updatedItem;
+
+      return {
+        ...prev,
+        timeline: updatedTimeline,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    setIsDirty(true);
+  }, [isPlaying]);
+
   // Generate AI Draft Timeline (Step 7)
   const generateAIDraft = useCallback(
     async (options: DraftOptions = {}) => {
@@ -1410,6 +1507,7 @@ export function useProject() {
     addMediaToTimeline,
     removeTimelineItem,
     updateTimelineItem,
+    replaceTimelineItemMedia,
     updateItemTransform,
     reorderTimelineItems,
     toggleProjectFrame,
