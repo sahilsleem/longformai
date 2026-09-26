@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateDraftTimeline } from './draftTimeline';
-import { DraftOptions, ProjectMedia, AudioSegment } from '../types/project';
+import { generateDraftTimeline, DraftOptions } from './draftTimeline';
+import { MediaAsset, AudioSegment } from '../types/project';
 import * as matching from './matching';
 
 describe('Confidence-Aware Reuse Penalty Scaling', () => {
@@ -10,15 +10,10 @@ describe('Confidence-Aware Reuse Penalty Scaling', () => {
 
   // Base options to isolate semantic matching
   const baseOptions: DraftOptions = {
-    continuityPreference: 'balanced',
-    visualVarietyPreference: 'dynamic', // to enable reuse penalty
-    pacingPreference: 'standard',
-    pacingArcPreference: 'standard',
-    preferVideo: false,
+    continuityPreference: 0.03,
+    preferVideoOverImage: false,
     reusePenalty: 0.08,
     similarityThreshold: 0.30,
-    enforceVisualIntelligenceBudget: false,
-    allowCinematicTransformations: false
   };
 
   const mockValidMedia = [
@@ -55,7 +50,7 @@ describe('Confidence-Aware Reuse Penalty Scaling', () => {
         semantic: { analyzed: true, description: 'A man in a black jacket', tags: [] }
       }
     }
-  ] as ProjectMedia[];
+  ] as unknown as MediaAsset[];
 
   // Helper to run pipeline with specific mocked scores
   const runWithMockedScores = async (scoresMap: Record<string, number[]>) => {
@@ -72,9 +67,9 @@ describe('Confidence-Aware Reuse Penalty Scaling', () => {
         modelUsed: 'mock',
         unavailableCount: 0,
         candidates: [
-          { mediaId: 'media_salman', mediaName: 'salman.mp4', score: scores[0] },
-          { mediaId: 'media_katrina', mediaName: 'katrina.mp4', score: scores[1] },
-          { mediaId: 'media_srk', mediaName: 'srk.mp4', score: scores[2] || 0.1 }
+          { mediaId: 'media_salman', mediaName: 'salman.mp4', score: scores[0], explanation: '' },
+          { mediaId: 'media_katrina', mediaName: 'katrina.mp4', score: scores[1], explanation: '' },
+          { mediaId: 'media_srk', mediaName: 'srk.mp4', score: scores[2] || 0.1, explanation: '' }
         ]
       };
     });

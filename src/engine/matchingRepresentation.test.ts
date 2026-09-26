@@ -25,7 +25,7 @@ describe('Media Representation Quality - Folder Identity Injection', () => {
           }
         }
       }
-    ];
+    ] as unknown as MediaAsset[];
 
     const folders: MediaFolder[] = [
       {
@@ -62,7 +62,7 @@ describe('Media Representation Quality - Folder Identity Injection', () => {
           }
         }
       }
-    ];
+    ] as unknown as MediaAsset[];
 
     const payload = extractMediaPayload(assets, []);
     expect(payload[0].description).toBe('A dog running');
@@ -78,7 +78,7 @@ describe('Media Representation Quality - Folder Identity Injection', () => {
         id: 'media2', name: 'v2.mp4', type: 'video', url: '', width: 1, height: 1, duration: 1, aspectRatio: 1, folderIds: ['folder-salman'],
         analysis: { analyzed: true, semantic: { analyzed: true, description: 'A man walking', tags: [] } }
       }
-    ];
+    ] as unknown as MediaAsset[];
 
     const folders: MediaFolder[] = [
       { id: 'folder-salman', name: 'Salman Khan', createdAt: 0 }
@@ -96,7 +96,7 @@ describe('Media Representation Quality - Folder Identity Injection', () => {
         id: 'media1', name: 'v1.mp4', type: 'video', url: '', width: 1, height: 1, duration: 1, aspectRatio: 1, folderIds: ['folder-katrina'],
         analysis: { analyzed: true, semantic: { analyzed: true, description: originalDescription, tags: [] } }
       }
-    ];
+    ] as unknown as MediaAsset[];
 
     const folders: MediaFolder[] = [
       { id: 'folder-katrina', name: 'Katrina Kaif', createdAt: 0 }

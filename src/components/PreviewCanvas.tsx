@@ -519,48 +519,48 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       {/* Bottom Transport Controls & Zoom Controls */}
       <div className="h-12 bg-editor-panel border-t border-editor-panelBorder px-3 sm:px-6 flex items-center justify-between shrink-0">
         {/* Playback Transport Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => onSeek(Math.max(0, currentTime - 1))}
-            className="p-1.5 sm:p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+            className="p-2 sm:p-2.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded-full transition-colors"
             title="Step Back 1s (Left Arrow)"
           >
-            <SkipBack className="w-4 h-4" />
+            <SkipBack className="w-5 h-5" />
           </button>
 
           <button
             onClick={onPlayPause}
-            className="p-2 sm:p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-all shadow-md active:scale-95"
+            className="p-3 sm:p-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-all shadow-md active:scale-95 flex items-center justify-center"
             title="Play / Pause (Space)"
           >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 translate-x-0.5" />}
+            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 translate-x-[1px]" />}
           </button>
 
           <button
             onClick={() => onSeek(Math.min(totalDuration, currentTime + 1))}
-            className="p-1.5 sm:p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+            className="p-2 sm:p-2.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded-full transition-colors"
             title="Step Forward 1s (Right Arrow)"
           >
-            <SkipForward className="w-4 h-4" />
+            <SkipForward className="w-5 h-5" />
           </button>
         </div>
 
         {/* Zoom Buttons */}
         {activeItem && onUpdateTransform ? (
-          <div className="flex items-center gap-1 text-slate-400">
+          <div className="flex items-center gap-1.5 text-slate-400">
             <button
               onClick={() => updateZoom((transform.scale || 1.0) - 0.1)}
-              className="p-1.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+              className="p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
               title="Zoom Out"
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-5 h-5" />
             </button>
             <button
               onClick={() => updateZoom((transform.scale || 1.0) + 0.1)}
-              className="p-1.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+              className="p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
               title="Zoom In"
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-5 h-5" />
             </button>
           </div>
         ) : null}

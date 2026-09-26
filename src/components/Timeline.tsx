@@ -548,10 +548,11 @@ export const Timeline: React.FC<TimelineProps> = ({
             style={{ width: `${totalWidthPx}px` }}
           >
             {timeline.length === 0 ? (
-              <div className="absolute inset-0 flex items-center pl-4 text-xs text-slate-500 pointer-events-none">
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-500/50" />
-                  Visual timeline ready. Click "Generate AI Draft" or add clips from Media Library.
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 text-slate-500 pointer-events-none">
+                <Sparkles className="w-5 h-5 text-blue-500/50 mb-1.5" />
+                <span className="text-[11px] sm:text-xs">
+                  Visual timeline ready. <br className="sm:hidden" />
+                  Click <strong>Generate Draft</strong> or add clips from Media Library.
                 </span>
               </div>
             ) : (
@@ -652,10 +653,10 @@ export const Timeline: React.FC<TimelineProps> = ({
                               setReplacingClipId(item.id);
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-600/90 hover:bg-blue-500 text-white rounded text-[9px] sm:text-[10px] font-medium shadow-xs transition-all hover:scale-105 active:scale-95"
+                            className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded text-[10px] sm:text-[11px] font-medium shadow-xs transition-all hover:scale-105 active:scale-95"
                             title="Replace visual media"
                           >
-                            <ArrowLeftRight className="w-2.5 h-2.5" />
+                            <ArrowLeftRight className="w-3 h-3" />
                             <span>Replace</span>
                           </button>
                           <button
@@ -664,10 +665,10 @@ export const Timeline: React.FC<TimelineProps> = ({
                               onRemoveClip(item.id);
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
-                            className="p-1 bg-red-600/90 hover:bg-red-500 text-white rounded shadow-xs transition-all hover:scale-105 active:scale-95"
+                            className="p-1.5 bg-red-600/90 hover:bg-red-500 text-white rounded shadow-xs transition-all hover:scale-105 active:scale-95"
                             title="Remove Clip from Timeline"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}

@@ -184,7 +184,6 @@ export const App: React.FC = () => {
         project={project}
         isPreparing={isPreparing}
         preparationMessage={preparationProgress?.message}
-        preparationPercent={preparationProgress?.percent}
         onPrepareProject={prepareProject}
         onGenerateAIDraft={generateAIDraft}
         isGeneratingDraft={isGeneratingDraft}
