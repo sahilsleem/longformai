@@ -18,6 +18,7 @@ import {
   validateAndParseProjectJSON,
 } from '../engine/schema';
 import { RenderModal } from './RenderModal';
+import { WorkerStatusIndicator } from './WorkerStatusIndicator';
 
 interface HeaderProps {
   project: LongFormProject;
@@ -117,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Film className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="font-bold text-xs sm:text-sm tracking-wide text-white">LongFormAI</span>
           </div>
-
+          <WorkerStatusIndicator />
         </div>
 
         {/* Desktop Center: Timecode */}
