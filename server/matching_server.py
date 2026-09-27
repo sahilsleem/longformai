@@ -479,7 +479,7 @@ def prepare_media_items(valid_items: List[Dict[str, Any]]) -> List[Dict[str, Any
                 kf_emb = MINILM_ENGINE.compute_embedding(kf_combined)
                 kf_exp = f'Frame @ {kf_time:.1f}s shows: "{kf_desc or kf_ocr}"'
                 kf_snip = kf_ocr or kf_desc
-                keyframes_prepared.append((kf_emb, kf_exp, kf_snip))
+                keyframes_prepared.append((kf_emb, kf_exp, kf_snip, kf_time))
 
         prepared.append({
             "mediaId": item.get("mediaId", ""),
@@ -525,8 +525,15 @@ def score_segment_against_prepared_media(
                 best_explanation = p["temp_explanation"]
                 best_snippet = p["temp_snippet"]
 
-        for kf_emb, kf_exp, kf_snip in p.get("keyframes", []):
+        best_kf_score = -1.0
+        best_kf_time = None
+
+        for kf_emb, kf_exp, kf_snip, kf_time in p.get("keyframes", []):
             kf_score = float(np.dot(segment_emb, kf_emb))
+            if kf_score > best_kf_score:
+                best_kf_score = kf_score
+                best_kf_time = kf_time
+                
             if kf_score > best_score:
                 best_score = kf_score
                 best_explanation = kf_exp
@@ -540,7 +547,8 @@ def score_segment_against_prepared_media(
             "mediaName": p["mediaName"],
             "score": normalized_score,
             "explanation": best_explanation,
-            "matchedSnippet": best_snippet or None
+            "matchedSnippet": best_snippet or None,
+            "bestKeyframeTime": best_kf_time
         })
 
     # Sort by highest score first

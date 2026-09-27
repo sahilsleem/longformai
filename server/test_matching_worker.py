@@ -167,6 +167,54 @@ class TestOnnxMiniLMEngine(unittest.TestCase):
 
 
 class TestMatchingLogic(unittest.TestCase):
+
+    def test_overall_media_winner_vs_best_keyframe(self):
+        """
+        Ensures that best_keyframe_time is tracked independently of the overall best score.
+        If the main description scores 0.62, and a keyframe scores 0.58, the overall score
+        must remain 0.62, but bestKeyframeTime must be 37.5.
+        """
+        # Create a mock engine that returns predictable embeddings based on text length or content
+        def mock_compute(text: str):
+            # Return specific embeddings to force dot products
+            emb = np.zeros(384, dtype=np.float32)
+            if "query" in text:
+                emb[0] = 1.0
+            elif "main" in text:
+                emb[0] = 0.62
+            elif "10s" in text:
+                emb[0] = 0.40
+            elif "25s" in text:
+                emb[0] = 0.54
+            elif "37s" in text:
+                emb[0] = 0.58
+            elif "47s" in text:
+                emb[0] = 0.51
+            return emb
+
+                with patch.object(MINILM_ENGINE, 'compute_embedding', side_effect=mock_compute):
+            valid_items = [{
+                "mediaId": "vid1",
+                "mediaName": "test.mp4",
+                "description": "main description",
+                "keyframeDescriptions": [
+                    {"time": 10.0, "description": "keyframe 10s"},
+                    {"time": 25.0, "description": "keyframe 25s"},
+                    {"time": 37.5, "description": "keyframe 37s"},
+                    {"time": 47.5, "description": "keyframe 47s"}
+                ]
+            }]
+            
+            from server.matching_server import score_segment_against_prepared_media, prepare_media_items
+            prepared = prepare_media_items(valid_items)
+            segment_emb = mock_compute("query")
+            
+            candidates = score_segment_against_prepared_media(segment_emb, prepared, top_k=5)
+            
+            self.assertEqual(len(candidates), 1)
+            self.assertEqual(candidates[0]["score"], 0.62)
+            self.assertEqual(candidates[0]["bestKeyframeTime"], 37.5)
+
     """Unit tests for semantic ranking, explanations, and edge cases."""
 
     def test_empty_segment_raises_value_error(self):

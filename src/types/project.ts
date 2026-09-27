@@ -387,6 +387,7 @@ export interface SemanticMatchCandidate {
   score: number; // 0.0 to 1.0 (cosine similarity)
   explanation: string;
   matchedSnippet?: string;
+  bestKeyframeTime?: number | null;
 }
 
 export interface SegmentMatchResult {

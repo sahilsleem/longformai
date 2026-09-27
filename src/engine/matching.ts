@@ -114,12 +114,14 @@ export function extractMediaPayload(mediaAssets: MediaAsset[], folders: MediaFol
     const keyframes = m.analysis?.keyframes || [];
 
     let description = semantic?.description || m.analysis?.description || '';
+    let folderSubjectPrefix = '';
 
-    // EXPERIMENT: Inject folder identity into the main semantic payload
+    // EXPERIMENT: Inject folder identity into the main semantic payload and keyframes
     if (m.folderIds && m.folderIds.length > 0 && folders.length > 0) {
       const folder = folders.find((f) => m.folderIds!.includes(f.id));
       if (folder && folder.name) {
-        description = `Subject: ${folder.name}. ${description}`;
+        folderSubjectPrefix = `Subject: ${folder.name}. `;
+        description = folderSubjectPrefix + description;
       }
     }
 
@@ -134,7 +136,7 @@ export function extractMediaPayload(mediaAssets: MediaAsset[], folders: MediaFol
         .filter((kf) => Boolean(kf.description || kf.ocrText))
         .map((kf) => ({
           time: kf.time,
-          description: kf.description || '',
+          description: kf.description ? (folderSubjectPrefix + kf.description) : (folderSubjectPrefix ? folderSubjectPrefix.trim() : ''),
           ocrText: kf.ocrText || undefined,
           tags: kf.tags || [],
         })),

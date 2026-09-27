@@ -9620,7 +9620,8 @@ export function calculateShotTransitionIntelligence(
       candidateAsset,
       segmentText,
       5.0,
-      matchedSnippet
+      matchedSnippet,
+      null
     );
 
     const prevSourceStart = prevItem ? prevItem.sourceStart : 0.0;
@@ -9721,9 +9722,10 @@ export function calculateShotTransitionIntelligence(
  */
 export function selectOptimalSourceStart(
   asset: MediaAsset,
-  segmentText: string,
+  _segmentText: string,
   segmentDuration: number,
-  matchedSnippet?: string
+  _matchedSnippet?: string,
+  bestKeyframeTime?: number | null
 ): {
   sourceStart: number;
   selectedTimestamp: number;
@@ -9740,141 +9742,33 @@ export function selectOptimalSourceStart(
     return { sourceStart: 0.0, selectedTimestamp: 0.0, isOptimized: false };
   }
 
-  const keyframes = asset.analysis.keyframes || [];
-  const keyframeDescs = asset.analysis.semantic?.keyframeDescriptions || [];
-
-  // Combine keyframe metadata
-  const candidates: Array<{
-    time: number;
-    description: string;
-    tags: string[];
-    isKeyMoment: boolean;
-    score: number;
-  }> = [];
-
-  const segmentWords = Array.from(
-    new Set(
-      segmentText
-        .toLowerCase()
-        .split(/[\s,._!?;:"'()]+/)
-        .filter((w) => w.length >= 3 && !COMMON_STOPWORDS.has(w))
-    )
-  );
-
-  const hasActionInNarration = segmentWords.some((w) => ACTION_KEYWORDS.has(w));
-  const visualChanges = asset.analysis.semantic?.visualChanges || [];
-
-  // Prefer keyframeDescriptions if present, otherwise raw keyframes
-  if (keyframeDescs.length > 0) {
-    for (const kd of keyframeDescs) {
-      if (typeof kd.time !== 'number' || kd.time < 0 || kd.time >= nativeDuration) continue;
-      
-      const frameText = `${kd.description || ''} ${(kd.tags || []).join(' ')}`.toLowerCase();
-      let matchScore = 0.0;
-
-      // Direct word overlap (up to 0.6)
-      const matchingWordsCount = segmentWords.filter((w) => frameText.includes(w)).length;
-      if (segmentWords.length > 0) {
-        matchScore += Math.min(0.6, (matchingWordsCount / segmentWords.length) * 0.8);
-      }
-
-      // Matched snippet alignment (up to 0.4)
-      if (matchedSnippet && (kd.description.toLowerCase().includes(matchedSnippet.toLowerCase()) || matchedSnippet.toLowerCase().includes(kd.description.toLowerCase()))) {
-        matchScore += 0.4;
-      }
-
-      // Key moment preference
-      if (kd.isKeyMoment) {
-        matchScore += 0.15;
-      }
-
-      // Action / visual change proximity (within 2s of a visual change)
-      if (hasActionInNarration) {
-        const isNearChange = visualChanges.some(
-          (vc) => Math.abs(vc.fromTime - kd.time) <= 2.0 || Math.abs(vc.toTime - kd.time) <= 2.0
-        );
-        if (isNearChange) {
-          matchScore += 0.10;
-        }
-      }
-
-      candidates.push({
-        time: kd.time,
-        description: kd.description,
-        tags: kd.tags || [],
-        isKeyMoment: Boolean(kd.isKeyMoment),
-        score: Math.round(matchScore * 100) / 100,
-      });
-    }
-  } else if (keyframes.length > 0) {
-    for (const kf of keyframes) {
-      if (typeof kf.time !== 'number' || kf.time < 0 || kf.time >= nativeDuration) continue;
-      const frameText = `${kf.description || ''} ${(kf.tags || []).join(' ')}`.toLowerCase();
-      let matchScore = 0.0;
-      const matchingWordsCount = segmentWords.filter((w) => frameText.includes(w)).length;
-      if (segmentWords.length > 0) {
-        matchScore += Math.min(0.6, (matchingWordsCount / segmentWords.length) * 0.8);
-      }
-      if (kf.isKeyMoment) {
-        matchScore += 0.15;
-      }
-      candidates.push({
-        time: kf.time,
-        description: kf.description || '',
-        tags: kf.tags || [],
-        isKeyMoment: Boolean(kf.isKeyMoment),
-        score: Math.round(matchScore * 100) / 100,
-      });
-    }
-  }
-
-  if (candidates.length === 0) {
-    return { sourceStart: 0.0, selectedTimestamp: 0.0, isOptimized: false };
-  }
-
-  // Find candidate with highest score
-  candidates.sort((a, b) => b.score - a.score);
-  const bestScore = candidates[0].score;
-
-  // Threshold for sufficient evidence: 0.35
-  if (bestScore < 0.35) {
-    return { sourceStart: 0.0, selectedTimestamp: 0.0, isOptimized: false };
-  }
-
-  // Filter all candidates within 0.05 of the top score (strongly relevant)
-  const topCandidates = candidates.filter((c) => c.score >= Math.max(0.35, bestScore - 0.05));
-
-  // Prefer the EARLIEST strongly relevant keyframe
-  topCandidates.sort((a, b) => a.time - b.time);
-  const chosen = topCandidates[0];
-
-  if (chosen.time <= 0.0) {
+  if (bestKeyframeTime === null || bestKeyframeTime === undefined) {
     return { sourceStart: 0.0, selectedTimestamp: 0.0, isOptimized: false };
   }
 
   // Clamping to respect remaining footage duration
   const maxValidStart = Math.max(0, nativeDuration - segmentDuration);
-  let finalSourceStart = chosen.time;
+  let finalSourceStart = bestKeyframeTime;
   let clampedNote = '';
 
   if (finalSourceStart > maxValidStart) {
     if (nativeDuration > segmentDuration) {
       finalSourceStart = Math.round(maxValidStart * 100) / 100;
-      clampedNote = ` (clamped from ${chosen.time.toFixed(1)}s to leave full ${segmentDuration.toFixed(1)}s footage)`;
+      clampedNote = ` (clamped from ${bestKeyframeTime.toFixed(1)}s to leave full ${segmentDuration.toFixed(1)}s footage)`;
     } else {
       // Video is too short to offset start
       finalSourceStart = 0.0;
-      return { sourceStart: 0.0, selectedTimestamp: chosen.time, isOptimized: false };
+      return { sourceStart: 0.0, selectedTimestamp: bestKeyframeTime, isOptimized: false };
     }
   }
 
-  finalSourceStart = Math.round(finalSourceStart * 100) / 100;
+  finalSourceStart = Math.max(0, Math.round(finalSourceStart * 100) / 100);
 
-  const reason = `Started at ${finalSourceStart.toFixed(1)}s because this keyframe (@${chosen.time.toFixed(1)}s) most closely matches the narration${clampedNote}.`;
+  const reason = `Started at ${finalSourceStart.toFixed(1)}s because this keyframe (@${bestKeyframeTime.toFixed(1)}s) most closely matches the narration semantic context${clampedNote}.`;
 
   return {
     sourceStart: finalSourceStart,
-    selectedTimestamp: chosen.time,
+    selectedTimestamp: bestKeyframeTime,
     reason,
     isOptimized: true,
   };
@@ -11160,7 +11054,8 @@ export async function generateDraftTimeline(
           selectedAsset,
           segment.text,
           segmentDuration,
-          bestCandidate.matchedSnippet
+          bestCandidate.matchedSnippet,
+          bestCandidate.bestKeyframeTime
         );
         sourceStart = sourceTiming.sourceStart;
         if (sourceTiming.isOptimized) {
