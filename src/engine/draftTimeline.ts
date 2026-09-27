@@ -354,7 +354,7 @@ function calculateGenericNoiseDiscount(description?: string, tags: string[] = []
  * 1. Multi-frame concept coverage (+0.025 if narration concepts appear across >= 2 keyframes)
  * 2. Key-moment alignment (+0.020 if the matched keyframe is marked isKeyMoment)
  * 3. Visual change / transition alignment (+0.020 if narration contains action and video has recorded visual change)
- * 
+ *
  * Strict constraints:
  * - Total temporal bonus is capped at +0.05
  * - Photos or videos without temporal analysis strictly return 0 bonus
@@ -9703,7 +9703,7 @@ export function calculateShotTransitionIntelligence(
 
 /**
  * Step 17: Selects the optimal starting timestamp (sourceStart) inside a video asset based on temporal keyframes.
- * 
+ *
  * Rules:
  * 1. For each keyframe k at time t_k:
  *    - Score semantic relevance to transcript segment (non-generic words overlap + matchedSnippet alignment).
@@ -9725,7 +9725,8 @@ export function selectOptimalSourceStart(
   _segmentText: string,
   segmentDuration: number,
   _matchedSnippet?: string,
-  bestKeyframeTime?: number | null
+  bestKeyframeTime?: number | null,
+  usedWindows: { start: number; end: number }[] = []
 ): {
   sourceStart: number;
   selectedTimestamp: number;
@@ -9748,29 +9749,58 @@ export function selectOptimalSourceStart(
 
   // Clamping to respect remaining footage duration
   const maxValidStart = Math.max(0, nativeDuration - segmentDuration);
-  let finalSourceStart = bestKeyframeTime;
-  let clampedNote = '';
 
-  if (finalSourceStart > maxValidStart) {
-    if (nativeDuration > segmentDuration) {
-      finalSourceStart = Math.round(maxValidStart * 100) / 100;
-      clampedNote = ` (clamped from ${bestKeyframeTime.toFixed(1)}s to leave full ${segmentDuration.toFixed(1)}s footage)`;
+  const clampStart = (start: number): number | null => {
+    if (start > maxValidStart) {
+      if (nativeDuration > segmentDuration) return Math.round(maxValidStart * 100) / 100;
+      return 0.0;
+    }
+    return Math.max(0, Math.round(start * 100) / 100);
+  };
+
+  const checkOverlap = (candidateStart: number): boolean => {
+    const candidateEnd = candidateStart + Math.min(segmentDuration, nativeDuration);
+    return usedWindows.some(w => candidateStart < w.end && candidateEnd > w.start);
+  };
+
+  let finalSourceStart = clampStart(bestKeyframeTime)!;
+  let selectedOriginalTime = bestKeyframeTime;
+  let clampedNote = finalSourceStart !== bestKeyframeTime && nativeDuration > segmentDuration
+    ? ` (clamped from ${bestKeyframeTime.toFixed(1)}s to leave full ${segmentDuration.toFixed(1)}s footage)`
+    : '';
+  let overlapNote = '';
+
+  if (checkOverlap(finalSourceStart) && asset.analysis.semantic?.keyframeDescriptions) {
+    const keyframes = asset.analysis.semantic.keyframeDescriptions;
+
+    // Valid alternatives that don't overlap
+    const validAlts = keyframes
+      .map(kf => ({ kf, clamped: clampStart(kf.time)! }))
+      .filter(x => !checkOverlap(x.clamped));
+
+    if (validAlts.length > 0) {
+      // Prioritize key moments
+      const keyMoments = validAlts.filter(x => x.kf.isKeyMoment);
+      const chosen = keyMoments.length > 0 ? keyMoments[0] : validAlts[0];
+
+      finalSourceStart = chosen.clamped;
+      selectedOriginalTime = chosen.kf.time;
+      overlapNote = ` (adjusted from preferred ${bestKeyframeTime.toFixed(1)}s due to prior window overlap)`;
+      clampedNote = finalSourceStart !== chosen.kf.time && nativeDuration > segmentDuration
+        ? ` (clamped from alternative ${chosen.kf.time.toFixed(1)}s to leave full ${segmentDuration.toFixed(1)}s footage)`
+        : '';
     } else {
-      // Video is too short to offset start
-      finalSourceStart = 0.0;
-      return { sourceStart: 0.0, selectedTimestamp: bestKeyframeTime, isOptimized: false };
+      overlapNote = ` (overlap tolerated as no distinct valid alternative remained)`;
     }
   }
 
-  finalSourceStart = Math.max(0, Math.round(finalSourceStart * 100) / 100);
-
-  const reason = `Started at ${finalSourceStart.toFixed(1)}s because this keyframe (@${bestKeyframeTime.toFixed(1)}s) most closely matches the narration semantic context${clampedNote}.`;
+  const reason = `Started at ${finalSourceStart.toFixed(1)}s because this keyframe (@${selectedOriginalTime.toFixed(1)}s) most closely matches the narration semantic context${overlapNote}${clampedNote}.`;
 
   return {
     sourceStart: finalSourceStart,
-    selectedTimestamp: bestKeyframeTime,
+    selectedTimestamp: selectedOriginalTime,
     reason,
-    isOptimized: true,
+    isOptimized: true
   };
 }
 
@@ -10310,6 +10340,7 @@ export async function generateDraftTimeline(
   let previousAssignedBeatId: string | null = null;
   let recentPacingClasses: PacingClass[] = [];
   let previousSubjectTokens: string[] = [];
+  const usedSourceWindows: Record<string, { start: number; end: number }[]> = {};
   let totalAssignedDuration = 0;
   let sourceStartsOptimizedCount = 0;
   let durationAdjustmentsCount = 0;
@@ -11055,8 +11086,9 @@ export async function generateDraftTimeline(
           segment.text,
           segmentDuration,
           bestCandidate.matchedSnippet,
-          bestCandidate.bestKeyframeTime
-        );
+            bestCandidate.bestKeyframeTime,
+            usedSourceWindows[selectedAsset.id] || []
+          );
         sourceStart = sourceTiming.sourceStart;
         if (sourceTiming.isOptimized) {
           selectedTimestamp = sourceTiming.selectedTimestamp;
@@ -11245,6 +11277,12 @@ export async function generateDraftTimeline(
       };
 
       timelineItems.push(timelineItem);
+      if (selectedAsset.type === 'video') {
+        if (!usedSourceWindows[selectedAsset.id]) {
+          usedSourceWindows[selectedAsset.id] = [];
+        }
+        usedSourceWindows[selectedAsset.id].push({ start: sourceStart, end: sourceStart + itemDuration });
+      }
       mediaReuseCount[selectedAsset.id] = (mediaReuseCount[selectedAsset.id] || 0) + 1;
       mediaTotalDuration[selectedAsset.id] = (mediaTotalDuration[selectedAsset.id] || 0) + itemDuration;
       if (previousAssignedMediaId === selectedAsset.id) {
