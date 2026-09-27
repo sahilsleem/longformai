@@ -1,5 +1,6 @@
 import { MediaAsset, AudioSegment, SegmentMatchResult, SemanticMatchCandidate } from '../types/project';
 import { getMatchingWorkerUrl } from '../config/workerConfig';
+import { expandMultilingualEntityVariants, matchEntityInNarration } from './entityNormalization';
 
 export interface MatchingWorkerStatus {
   online: boolean;
@@ -82,6 +83,31 @@ export async function checkMatchingWorkerHealth(
  */
 import { MediaFolder } from '../types/project';
 
+
+export function getQueryEntityAnchors(text: string, folders: MediaFolder[]): string {
+  if (!text || !folders || folders.length === 0) return '';
+  const anchors: string[] = [];
+
+  for (const folder of folders) {
+    if (!folder.name) continue;
+    const variants = expandMultilingualEntityVariants(folder.name);
+    if (folder.aliases) {
+      for (const alias of folder.aliases) {
+        variants.push(...expandMultilingualEntityVariants(alias));
+      }
+    }
+    const matchRes = matchEntityInNarration(text, variants);
+    if (matchRes.matched) {
+      anchors.push(folder.name);
+    }
+  }
+
+  if (anchors.length > 0) {
+    return ' ' + Array.from(new Set(anchors)).join(' ');
+  }
+  return '';
+}
+
 export function extractMediaPayload(mediaAssets: MediaAsset[], folders: MediaFolder[] = []) {
   return mediaAssets.map((m) => {
     const semantic = m.analysis?.semantic;
@@ -139,7 +165,7 @@ export async function matchMediaForSegment(
   if (!status.online) {
     const fallback: SegmentMatchResult = {
       segmentId: segment.id,
-      segmentText: segment.text,
+      segmentText: segment.text + getQueryEntityAnchors(segment.text, folders),
       status: 'error',
       candidates: [],
       unavailableCount: mediaAssets.length,
@@ -180,7 +206,7 @@ export async function matchMediaForSegment(
       },
       signal: controller.signal,
       body: JSON.stringify({
-        segmentText: segment.text,
+        segmentText: segment.text + getQueryEntityAnchors(segment.text, folders),
         mediaItems: mediaPayload,
         topK,
       }),
@@ -302,7 +328,7 @@ export async function batchMatchMediaForSegments(
       },
       signal: controller.signal,
       body: JSON.stringify({
-        segments: uncachedSegments.map((s) => ({ id: s.id, text: s.text })),
+        segments: uncachedSegments.map((s) => ({ id: s.id, text: s.text + getQueryEntityAnchors(s.text, folders) })),
         mediaItems: mediaPayload,
         topK,
       }),

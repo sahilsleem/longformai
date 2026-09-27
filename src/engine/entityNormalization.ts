@@ -261,10 +261,20 @@ export function matchEntityInNarration(
       continue;
     }
 
-    // 3. Substring match for single words >= 3 characters (e.g. "salman" in "salmankhan", or Urdu word stems)
+    // 3. Strict prefix token match to allow for minor compound word boundary issues
+    // but prevent "kahani" (story) from matching "kahan" (khan).
     if (variant.length >= 3) {
-      if (normalizedNarration.includes(variant)) {
-        matchedSet.add(variant);
+      for (const token of narrationTokens) {
+        if (token !== variant && token.startsWith(variant)) {
+          // Only allow if the suffix is very short (1-2 chars, e.g. accidental trailing punctuation or tiny grammatical suffix)
+          // For English/Latin: "salman's" -> "salman"
+          // We do NOT want a 5-char token matching a 3-char variant unless it's genuinely a suffix.
+          const suffix = token.substring(variant.length);
+          if (suffix === 's' || suffix === 'es' || suffix === 'کو' || suffix === 'نے' || suffix === 'کا' || suffix === 'کی' || suffix === 'کے') {
+             matchedSet.add(variant);
+             break;
+          }
+        }
       }
     }
   }
