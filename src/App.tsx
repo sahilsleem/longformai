@@ -11,8 +11,13 @@ import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
 import { Film, Sparkles } from 'lucide-react';
 import { pickAndroidMedia } from './platform/androidMedia';
+import { testFFmpegVersion } from './engine/NativeFFmpeg';
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    // Stage 5E: Test FFmpeg runtime bridge on load
+    testFFmpegVersion().catch(console.error);
+  }, []);
   const {
     project,
     folders,
