@@ -11,13 +11,9 @@ import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
 import { Film, Sparkles } from 'lucide-react';
 import { pickAndroidMedia } from './platform/androidMedia';
-import { testFFmpegVersion } from './engine/NativeFFmpeg';
+import { testNativeRender } from './engine/render';
 
 export const App: React.FC = () => {
-  useEffect(() => {
-    // Stage 5E: Test FFmpeg runtime bridge on load
-    testFFmpegVersion().catch(console.error);
-  }, []);
   const {
     project,
     folders,
@@ -108,6 +104,11 @@ export const App: React.FC = () => {
       const assets = await pickAndroidMedia();
       if (assets.length > 0) {
         await addNativeMediaAssets(assets, targetFolderId);
+        // Stage 5F test: Trigger native render if it's a video
+        const firstVideo = assets.find(a => a.mimeType.startsWith('video/'));
+        if (firstVideo && firstVideo.nativePath) {
+          testNativeRender(firstVideo.nativePath).catch(console.error);
+        }
       }
     } catch (e) {
       console.error('Native picker failed:', e);

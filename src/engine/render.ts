@@ -2,8 +2,82 @@ import { LongFormProject } from '../types/project';
 import { DEFAULT_BOLLYWOOD_FRAME } from './schema';
 import { getRenderWorkerUrl } from '../config/workerConfig';
 import { getBollywoodFrameBlob } from './frameAsset';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import NativeFFmpeg from './NativeFFmpeg';
+import { buildSegmentCommand, buildConcatCommand } from './ffmpegBuilder';
 
 export const RENDER_WORKER_URL = getRenderWorkerUrl();
+
+export async function testNativeRender(inputPath: string) {
+  try {
+    console.log('Starting native render test for:', inputPath);
+
+    // Prepare paths
+    const cacheDir = await Filesystem.getUri({ directory: Directory.Cache, path: '' });
+    const cacheBase = cacheDir.uri;
+    
+    const safeInputPath = inputPath.replace(/^file:\/\//, '');
+    const segmentOut = `${cacheBase}/test_segment.mp4`.replace(/^file:\/\//, '');
+    const concatTxtPath = `${cacheBase}/concat.txt`.replace(/^file:\/\//, '');
+    const finalOut = `${cacheBase}/test_final.mp4`.replace(/^file:\/\//, '');
+
+    // 1. Render Segment
+    const segCmd = buildSegmentCommand({
+      timelineItem: {
+        id: 'test-clip',
+        mediaId: 'test-media',
+        type: 'video',
+        sourceStart: 0,
+        duration: 5.0
+      } as any,
+      mediaPath: safeInputPath,
+      duration: 5.0,
+      outPath: segmentOut,
+      isImage: false,
+      width: 1920,
+      height: 1080
+    });
+    
+    let args = segCmd[0] === 'ffmpeg' ? segCmd.slice(1) : segCmd;
+    console.log('Running segment command:', args.join(' '));
+    let result = await NativeFFmpeg.execute({ arguments: args });
+    if (!result.success) {
+      throw new Error(`Segment render failed: ${result.returnCode}\n${result.output}`);
+    }
+
+    // 2. Create concat text file
+    await Filesystem.writeFile({
+      directory: Directory.Cache,
+      path: 'concat.txt',
+      data: `file '${segmentOut}'\n`,
+      encoding: Encoding.UTF8
+    });
+
+    // 3. Render Final (Concat + Audio)
+    const concatCmd = buildConcatCommand({
+      concatListPath: concatTxtPath,
+      totalDuration: 5.0,
+      outPath: finalOut,
+      frameConfig: { enabled: false }
+    });
+
+    args = concatCmd[0] === 'ffmpeg' ? concatCmd.slice(1) : concatCmd;
+    console.log('Running concat command:', args.join(' '));
+    result = await NativeFFmpeg.execute({ arguments: args });
+    
+    if (!result.success) {
+      throw new Error(`Concat render failed: ${result.returnCode}\n${result.output}`);
+    }
+
+    const stat = await Filesystem.stat({ directory: Directory.Cache, path: 'test_final.mp4' });
+    console.log(`Native render test complete! File exists. Size: ${stat.size} bytes`);
+    
+    return finalOut;
+  } catch (err) {
+    console.error('testNativeRender failed:', err);
+    throw err;
+  }
+}
 
 export interface RenderHealth {
   status: string;
