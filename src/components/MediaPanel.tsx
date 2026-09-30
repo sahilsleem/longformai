@@ -27,6 +27,7 @@ import {
   getAssetsInFolder,
   getUnassignedAssets,
 } from '../engine/mediaFolders';
+import { isNativeAndroid } from '../platform/androidMedia';
 
 interface MediaPanelProps {
   mediaList: MediaAsset[];
@@ -38,6 +39,7 @@ interface MediaPanelProps {
   onOpenRelinkModal?: () => void;
   onSelectMedia?: (id: string | null) => void;
   onUpload: (files: FileList | File[], targetFolderId?: string) => void;
+  onUploadNative?: (targetFolderId?: string) => void;
   onRemove: (id: string) => void;
   onAddToTimeline: (mediaId: string) => void;
   onUploadVoiceover?: (file: File) => void;
@@ -61,6 +63,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
   onOpenRelinkModal,
   onSelectMedia,
   onUpload,
+  onUploadNative,
   onRemove,
   onAddToTimeline,
   onUploadVoiceover,
@@ -624,7 +627,13 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                   <span>Pick from Library</span>
                 </button>
                 <button
-                  onClick={() => folderUploadInputRef.current?.click()}
+                  onClick={() => {
+                    if (isNativeAndroid() && onUploadNative) {
+                      onUploadNative(currentFolderId);
+                    } else {
+                      folderUploadInputRef.current?.click();
+                    }
+                  }}
                   className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors shadow-sm"
                   title="Upload new video/photo files directly into this folder"
                 >
@@ -646,7 +655,13 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
           >
             {displayedMedia.length === 0 ? (
               <div
-                onClick={() => folderUploadInputRef.current?.click()}
+                onClick={() => {
+                  if (isNativeAndroid() && onUploadNative) {
+                    onUploadNative(currentFolder.id);
+                  } else {
+                    folderUploadInputRef.current?.click();
+                  }
+                }}
                 className="h-44 border-2 border-dashed border-editor-panelBorder hover:border-slate-500 rounded-lg flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-colors bg-editor-surface/30 hover:bg-editor-surface/60"
               >
                 <FolderPlus className="w-8 h-8 text-slate-500 mb-2" />
@@ -702,7 +717,13 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                 <span>+ Add Folder</span>
               </button>
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (isNativeAndroid() && onUploadNative) {
+                    onUploadNative(currentFolderId || undefined);
+                  } else {
+                    fileInputRef.current?.click();
+                  }
+                }}
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />

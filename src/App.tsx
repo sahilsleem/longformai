@@ -10,6 +10,7 @@ import { MediaInspector } from './components/MediaInspector';
 import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
 import { Film, Sparkles } from 'lucide-react';
+import { pickAndroidMedia } from './platform/androidMedia';
 
 export const App: React.FC = () => {
   const {
@@ -61,6 +62,7 @@ export const App: React.FC = () => {
     setVoiceoverVolume,
     toggleVoiceoverMute,
     addMediaAssets,
+    addNativeMediaAssets,
     removeMediaAsset,
     addMediaToTimeline,
     removeTimelineItem,
@@ -93,6 +95,17 @@ export const App: React.FC = () => {
       imported.media.some((m) => !m.file) || (imported.voiceover && !imported.voiceover.file);
     if (hasUnlinked) {
       setTimeout(() => setIsRelinkModalOpen(true), 300);
+    }
+  };
+
+  const handleUploadNative = async (targetFolderId?: string) => {
+    try {
+      const assets = await pickAndroidMedia();
+      if (assets.length > 0) {
+        await addNativeMediaAssets(assets, targetFolderId);
+      }
+    } catch (e) {
+      console.error('Native picker failed:', e);
     }
   };
 
@@ -211,6 +224,7 @@ export const App: React.FC = () => {
             onOpenRelinkModal={() => setIsRelinkModalOpen(true)}
             onSelectMedia={handleSelectMediaAsset}
             onUpload={addMediaAssets}
+            onUploadNative={handleUploadNative}
             onRemove={removeMediaAsset}
             onAddToTimeline={addMediaToTimeline}
             onUploadVoiceover={setVoiceoverAudio}
@@ -358,6 +372,7 @@ export const App: React.FC = () => {
                 onOpenRelinkModal={() => setIsRelinkModalOpen(true)}
                 onSelectMedia={handleSelectMediaAsset}
                 onUpload={addMediaAssets}
+                onUploadNative={handleUploadNative}
                 onRemove={removeMediaAsset}
                 onAddToTimeline={addMediaToTimeline}
                 onUploadVoiceover={setVoiceoverAudio}

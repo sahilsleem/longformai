@@ -94,6 +94,7 @@ export interface MediaAsset {
   type: MediaType;
   url: string;              // In-memory Object URL (or relative path in exported project)
   file?: File;              // Browser-only File instance (never exported to JSON)
+  nativePath?: string;      // Android-only persistent app storage path
   width: number;
   height: number;
   duration: number;         // In seconds (0 for images)

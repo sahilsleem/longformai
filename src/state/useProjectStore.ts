@@ -23,6 +23,7 @@ import {
   clearLocalProject,
   hydrateProjectWithBlobs,
 } from '../engine/persistence';
+import { removeNativeMedia } from '../platform/androidMedia';
 
 /**
  * Safely revokes a browser blob object URL if valid to prevent memory leaks
@@ -738,6 +739,104 @@ export function useProject() {
     }
   }, []);
 
+  const addNativeMediaAssets = useCallback(async (assets: any[], targetFolderId?: string) => {
+    const newAssets: MediaAsset[] = [];
+    for (const asset of assets) {
+      const isVideo = asset.mimeType?.startsWith('video/');
+      const isImage = asset.mimeType?.startsWith('image/');
+      
+      const mediaType = isVideo ? 'video' : isImage ? 'image' : 'audio';
+      const id = `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      
+      let width = asset.width || 1920;
+      let height = asset.height || 1080;
+      let duration = asset.duration || (isImage ? 5 : 0);
+      
+      const { ratio, label } = classifyAspectRatio(width, height);
+      
+      newAssets.push({
+        id,
+        name: asset.name || 'imported_media',
+        type: mediaType,
+        url: asset.webPath,
+        nativePath: asset.nativePath,
+        width,
+        height,
+        duration: Math.max(0.1, duration),
+        aspectRatio: ratio,
+        aspectRatioLabel: label,
+        size: asset.size,
+        folderIds: targetFolderId ? [targetFolderId] : undefined,
+        createdAt: Date.now(),
+      });
+    }
+
+    if (newAssets.length > 0) {
+      setProject((prev) => ({
+        ...prev,
+        media: [...prev.media, ...newAssets],
+        updatedAt: new Date().toISOString(),
+      }));
+      setIsDirty(true);
+
+      const visualAssets = newAssets.filter((a) => a.type === 'video' || a.type === 'image');
+      if (visualAssets.length > 0) {
+        (async () => {
+          for (const newAsset of visualAssets) {
+            try {
+              let isAlreadyAnalyzed = false;
+              setProject((prev) => {
+                const current = prev.media.find((m) => m.id === newAsset.id);
+                if (current?.analysis?.analyzed) {
+                  isAlreadyAnalyzed = true;
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  media: prev.media.map((m) =>
+                    m.id === newAsset.id
+                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: true } }
+                      : m
+                  ),
+                };
+              });
+
+              if (isAlreadyAnalyzed) continue;
+              const analysisResult = await analyzeMediaAsset(newAsset);
+
+              setProject((prev) => {
+                const exists = prev.media.some((m) => m.id === newAsset.id);
+                if (!exists) return prev;
+                return {
+                  ...prev,
+                  media: prev.media.map((m) =>
+                    m.id === newAsset.id ? { ...m, analysis: analysisResult } : m
+                  ),
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+              setIsDirty(true);
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : 'Automatic analysis failed';
+              setProject((prev) => {
+                const exists = prev.media.some((m) => m.id === newAsset.id);
+                if (!exists) return prev;
+                return {
+                  ...prev,
+                  media: prev.media.map((m) =>
+                    m.id === newAsset.id
+                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: false, error: errMsg } }
+                      : m
+                  ),
+                };
+              });
+            }
+          }
+        })();
+      }
+    }
+  }, []);
+
   // Folder Operations
   const createFolder = useCallback((name: string) => {
     const newFolder = createMediaFolder(name);
@@ -798,11 +897,17 @@ export function useProject() {
   }, []);
 
   const removeMediaAsset = useCallback((mediaId: string) => {
-    deleteMediaBlob(mediaId).catch(() => {});
     setProject((prev) => {
       const target = prev.media.find((m) => m.id === mediaId);
-      if (target?.url) {
-        safeRevokeObjectURL(target.url);
+      if (target) {
+        if (target.nativePath) {
+          removeNativeMedia(target.nativePath);
+        } else {
+          deleteMediaBlob(mediaId).catch(() => {});
+        }
+        if (target.url) {
+          safeRevokeObjectURL(target.url);
+        }
       }
       return {
         ...prev,
@@ -1397,6 +1502,9 @@ export function useProject() {
         safeRevokeObjectURL(prev.voiceover.url);
       }
       for (const m of prev.media) {
+        if (m.nativePath) {
+          removeNativeMedia(m.nativePath);
+        }
         if (m.url) {
           safeRevokeObjectURL(m.url);
         }
@@ -1503,6 +1611,7 @@ export function useProject() {
     setVoiceoverVolume,
     toggleVoiceoverMute,
     addMediaAssets,
+    addNativeMediaAssets,
     removeMediaAsset,
     addMediaToTimeline,
     removeTimelineItem,

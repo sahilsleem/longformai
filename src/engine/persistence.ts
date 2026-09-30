@@ -1,5 +1,6 @@
 import { LongFormProject, MediaAsset, VoiceoverTrack } from '../types/project';
 import { DEFAULT_BOLLYWOOD_FRAME } from './schema';
+import { resolveNativeMediaUrl } from '../platform/androidMedia';
 
 const DB_NAME = 'longformai_db';
 const DB_VERSION = 1;
@@ -309,6 +310,15 @@ export async function clearLocalProject(): Promise<void> {
 export async function hydrateProjectWithBlobs(storedProject: LongFormProject): Promise<LongFormProject> {
   const hydratedMedia: MediaAsset[] = await Promise.all(
     storedProject.media.map(async (m) => {
+      // If it's a native Android media asset
+      if (m.nativePath) {
+        return {
+          ...m,
+          url: resolveNativeMediaUrl(m.nativePath)
+        };
+      }
+
+      // Existing browser fallback for IndexedDB blobs
       const blobRecord = await getMediaBlob(m.id);
       if (blobRecord && blobRecord.blob) {
         const file = new File([blobRecord.blob], m.name, {
