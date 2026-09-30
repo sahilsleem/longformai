@@ -8,73 +8,145 @@ import { buildSegmentCommand, buildConcatCommand } from './ffmpegBuilder';
 
 export const RENDER_WORKER_URL = getRenderWorkerUrl();
 
-export async function testNativeRender(inputPath: string) {
+import { isNativeAndroid } from '../platform/androidMedia';
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+}
+
+export async function renderVideoNativeAndroid(
+  project: LongFormProject,
+  onProgress?: (progress: number, message: string) => void
+): Promise<RenderJobResult> {
   try {
-    console.log('Starting native render test for:', inputPath);
-
-    // Prepare paths
     const cacheDir = await Filesystem.getUri({ directory: Directory.Cache, path: '' });
-    const cacheBase = cacheDir.uri;
-    
-    const safeInputPath = inputPath.replace(/^file:\/\//, '');
-    const segmentOut = `${cacheBase}/test_segment.mp4`.replace(/^file:\/\//, '');
-    const concatTxtPath = `${cacheBase}/concat.txt`.replace(/^file:\/\//, '');
-    const finalOut = `${cacheBase}/test_final.mp4`.replace(/^file:\/\//, '');
+    const cacheBase = cacheDir.uri.replace(/^file:\/\//, '');
 
-    // 1. Render Segment
-    const segCmd = buildSegmentCommand({
-      timelineItem: {
-        id: 'test-clip',
-        mediaId: 'test-media',
-        type: 'video',
-        sourceStart: 0,
-        duration: 5.0
-      } as any,
-      mediaPath: safeInputPath,
-      duration: 5.0,
-      outPath: segmentOut,
-      isImage: false,
-      width: 1920,
-      height: 1080
-    });
-    
-    let args = segCmd[0] === 'ffmpeg' ? segCmd.slice(1) : segCmd;
-    console.log('Running segment command:', args.join(' '));
-    let result = await NativeFFmpeg.execute({ arguments: args });
-    if (!result.success) {
-      throw new Error(`Segment render failed: ${result.returnCode}\n${result.output}`);
+    onProgress?.(5, 'Preparing native rendering paths...');
+    const outName = `longform_${Date.now()}.mp4`;
+    const finalOut = `${cacheBase}/${outName}`;
+    const concatTxtPath = `${cacheBase}/concat.txt`;
+
+    const mediaMap = new Map<string, string>();
+    for (const m of project.media) {
+      if (m.nativePath) mediaMap.set(m.id, m.nativePath.replace(/^file:\/\//, ''));
     }
 
-    // 2. Create concat text file
+    const segmentPaths: string[] = [];
+    const totalItems = project.timeline.length;
+
+    for (let i = 0; i < totalItems; i++) {
+      const item = project.timeline[i];
+      const segmentOut = `${cacheBase}/segment_${i}.mp4`;
+      segmentPaths.push(segmentOut);
+      
+      const mediaNativePath = mediaMap.get(item.mediaId);
+      const mediaDef = project.media.find(m => m.id === item.mediaId);
+      
+      const segCmd = buildSegmentCommand({
+        timelineItem: item as any,
+        mediaPath: mediaNativePath,
+        duration: item.duration,
+        outPath: segmentOut,
+        isImage: mediaDef?.type === 'image',
+        width: mediaDef?.width,
+        height: mediaDef?.height
+      });
+
+      const args = segCmd[0] === 'ffmpeg' ? segCmd.slice(1) : segCmd;
+      onProgress?.(10 + (i / totalItems) * 50, `Rendering segment ${i + 1}/${totalItems}...`);
+      
+      const result = await NativeFFmpeg.execute({ arguments: args });
+      if (!result.success) {
+        throw new Error(`Segment ${i} render failed: ${result.returnCode}\n${result.output}`);
+      }
+    }
+
+    onProgress?.(65, 'Creating concatenation plan...');
+    let concatData = '';
+    for (const p of segmentPaths) {
+      concatData += `file '${p}'\n`;
+    }
     await Filesystem.writeFile({
       directory: Directory.Cache,
       path: 'concat.txt',
-      data: `file '${segmentOut}'\n`,
+      data: concatData,
       encoding: Encoding.UTF8
     });
 
-    // 3. Render Final (Concat + Audio)
-    const concatCmd = buildConcatCommand({
-      concatListPath: concatTxtPath,
-      totalDuration: 5.0,
-      outPath: finalOut,
-      frameConfig: { enabled: false }
-    });
-
-    args = concatCmd[0] === 'ffmpeg' ? concatCmd.slice(1) : concatCmd;
-    console.log('Running concat command:', args.join(' '));
-    result = await NativeFFmpeg.execute({ arguments: args });
-    
-    if (!result.success) {
-      throw new Error(`Concat render failed: ${result.returnCode}\n${result.output}`);
+    let voPath: string | undefined;
+    if (project.voiceover?.url) {
+       try {
+         const resp = await fetch(project.voiceover.url);
+         const blob = await resp.blob();
+         const b64 = await blobToBase64(blob);
+         await Filesystem.writeFile({ directory: Directory.Cache, path: 'vo.wav', data: b64 });
+         voPath = `${cacheBase}/vo.wav`;
+       } catch (e) {
+         console.warn('Could not process voiceover natively:', e);
+       }
     }
 
-    const stat = await Filesystem.stat({ directory: Directory.Cache, path: 'test_final.mp4' });
-    console.log(`Native render test complete! File exists. Size: ${stat.size} bytes`);
-    
-    return finalOut;
+    let framePath: string | undefined;
+    const frameConfig = project.frame || { enabled: true };
+    if (frameConfig.enabled !== false) {
+       try {
+         const frameBlob = await getBollywoodFrameBlob(frameConfig.src);
+         const b64 = await blobToBase64(frameBlob);
+         await Filesystem.writeFile({ directory: Directory.Cache, path: 'frame.png', data: b64 });
+         framePath = `${cacheBase}/frame.png`;
+       } catch (e) {
+         console.warn('Could not process frame overlay natively:', e);
+       }
+    }
+
+    const totalDuration = project.timeline.reduce((acc, item) => acc + item.duration, 0);
+
+    onProgress?.(70, 'Running final video assembly...');
+    const concatCmd = buildConcatCommand({
+      concatListPath: concatTxtPath,
+      voiceoverPath: voPath,
+      totalDuration: totalDuration,
+      outPath: finalOut,
+      frameConfig: {
+        enabled: frameConfig.enabled !== false,
+        id: frameConfig.id || '',
+        name: frameConfig.name || '',
+        src: frameConfig.src || ''
+      },
+      overlayAssetPath: framePath
+    });
+
+    const finalArgs = concatCmd[0] === 'ffmpeg' ? concatCmd.slice(1) : concatCmd;
+    const concatRes = await NativeFFmpeg.execute({ arguments: finalArgs });
+    if (!concatRes.success) {
+      throw new Error(`Concat render failed: ${concatRes.returnCode}\n${concatRes.output}`);
+    }
+
+    const stat = await Filesystem.stat({ directory: Directory.Cache, path: outName });
+    onProgress?.(100, 'Render complete!');
+
+    return {
+      success: true,
+      outputPath: finalOut,
+      downloadUrl: finalOut,
+      filename: outName,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      duration: totalDuration,
+      sizeBytes: stat.size,
+      aspectRatio: '16:9',
+      videoCodec: 'libx264',
+      audioCodec: 'aac'
+    };
   } catch (err) {
-    console.error('testNativeRender failed:', err);
+    console.error('renderVideoNativeAndroid failed:', err);
     throw err;
   }
 }
@@ -135,6 +207,13 @@ export async function requestVideoRender(
   onProgress?: (progress: number, message: string) => void,
   options: { workerUrl?: string } = {}
 ): Promise<RenderJobResult> {
+  const isAndroid = isNativeAndroid();
+  const hasNativeAssets = project.media.some(asset => asset.nativePath);
+
+  if (isAndroid && hasNativeAssets) {
+    return renderVideoNativeAndroid(project, onProgress);
+  }
+
   const workerUrl = options.workerUrl || getRenderWorkerUrl();
 
   // 1. Verify worker is online
