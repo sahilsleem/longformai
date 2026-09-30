@@ -1356,7 +1356,7 @@ export function useProject() {
         id: imported.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
         name: imported.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
         src: imported.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
-      } : { ...DEFAULT_BOLLYWOOD_FRAME },
+      } : { ...DEFAULT_BOLLYWOOD_FRAME, enabled: true },
     };
 
     // Revoke previous media URLs before replacing

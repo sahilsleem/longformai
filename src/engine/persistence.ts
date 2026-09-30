@@ -87,7 +87,7 @@ export function sanitizeProjectForStorage(project: LongFormProject): LongFormPro
       id: project.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
       name: project.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
       src: project.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
-    } : { ...DEFAULT_BOLLYWOOD_FRAME },
+    } : { ...DEFAULT_BOLLYWOOD_FRAME, enabled: true },
     media: project.media.map((m) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { file, url, ...rest } = m;
@@ -358,7 +358,7 @@ export async function hydrateProjectWithBlobs(storedProject: LongFormProject): P
       id: storedProject.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
       name: storedProject.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
       src: storedProject.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
-    } : { ...DEFAULT_BOLLYWOOD_FRAME },
+    } : { ...DEFAULT_BOLLYWOOD_FRAME, enabled: true },
     media: hydratedMedia,
     voiceover: hydratedVoiceover,
   };

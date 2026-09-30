@@ -112,7 +112,7 @@ export function createDefaultTransform(mediaWidth?: number, mediaHeight?: number
 }
 
 export const DEFAULT_BOLLYWOOD_FRAME = {
-  enabled: true,
+  enabled: false,
   id: 'bollywood_broadcast_frame',
   name: 'Bollywood Broadcast Frame',
   src: '/assets/frames/pip.png',
@@ -412,7 +412,7 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
         id: project.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
         name: project.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
         src: project.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
-      } : { ...DEFAULT_BOLLYWOOD_FRAME },
+      } : { ...DEFAULT_BOLLYWOOD_FRAME, enabled: true },
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     },
@@ -832,7 +832,7 @@ export function validateAndParseProjectJSON(jsonString: string): ParseProjectRes
           name: proj.frame.name || DEFAULT_BOLLYWOOD_FRAME.name,
           src: proj.frame.src || DEFAULT_BOLLYWOOD_FRAME.src,
         }
-      : { ...DEFAULT_BOLLYWOOD_FRAME },
+      : { ...DEFAULT_BOLLYWOOD_FRAME, enabled: true },
     createdAt: proj.createdAt || new Date().toISOString(),
     updatedAt: proj.updatedAt || new Date().toISOString(),
   };

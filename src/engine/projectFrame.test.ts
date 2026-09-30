@@ -19,10 +19,10 @@ describe('Project-Level Persistent Broadcast Frame', () => {
     await clearLocalProject();
   });
 
-  it('initializes new projects with default enabled Bollywood frame', () => {
+  it('initializes new projects with default disabled Bollywood frame', () => {
     const project = createInitialProject('Bollywood Project');
     expect(project.frame).toBeDefined();
-    expect(project.frame?.enabled).toBe(true);
+    expect(project.frame?.enabled).toBe(false);
     expect(project.frame?.id).toBe('bollywood_broadcast_frame');
     expect(project.frame?.src).toBe('/assets/frames/pip.png');
   });
@@ -170,14 +170,14 @@ describe('Project-Level Persistent Broadcast Frame', () => {
     };
     
     project.timeline.push(timelineItem);
-    expect(project.frame?.enabled).toBe(true);
+    expect(project.frame?.enabled).toBe(false);
 
-    // Toggle frame off
+    // Toggle frame on
     project.frame = {
       ...project.frame!,
-      enabled: false,
+      enabled: true,
     };
-    expect(project.frame.enabled).toBe(false);
+    expect(project.frame.enabled).toBe(true);
 
     // Verify clip transform is untouched
     expect(project.timeline[0].transform.x).toBe(10);
@@ -185,12 +185,12 @@ describe('Project-Level Persistent Broadcast Frame', () => {
     expect(project.timeline[0].transform.scale).toBe(1.25);
     expect(project.timeline[0].duration).toBe(5);
 
-    // Toggle frame back on
+    // Toggle frame back off
     project.frame = {
       ...project.frame,
-      enabled: true,
+      enabled: false,
     };
-    expect(project.frame.enabled).toBe(true);
+    expect(project.frame.enabled).toBe(false);
     expect(project.timeline[0].transform.x).toBe(10);
   });
 

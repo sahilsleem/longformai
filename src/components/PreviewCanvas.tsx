@@ -41,6 +41,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   onUpdateTransform,
   frameEnabled = true,
   frameSrc = '/assets/frames/pip.png',
+  onToggleFrame,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -356,6 +357,21 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             >
               <RotateCcw className="w-3 h-3 text-slate-400" />
               <span>Reset</span>
+            </button>
+          )}
+
+          {onToggleFrame && (
+            <button
+              onClick={onToggleFrame}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] transition-colors whitespace-nowrap ${
+                frameEnabled
+                  ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
+              }`}
+              title="Toggle Broadcast Frame Overlay"
+            >
+              <Eye className="w-3 h-3" />
+              <span>Frame {frameEnabled ? 'ON' : 'OFF'}</span>
             </button>
           )}
 
