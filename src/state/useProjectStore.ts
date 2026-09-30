@@ -1421,7 +1421,7 @@ export function useProject() {
   const toggleProjectFrame = useCallback((enabled?: boolean) => {
     setProject((prev) => {
       const isCurrentlyEnabled = prev.frame?.enabled ?? true;
-      const nextEnabled = enabled !== undefined ? enabled : !isCurrentlyEnabled;
+      const nextEnabled = typeof enabled === 'boolean' ? enabled : !isCurrentlyEnabled;
       return {
         ...prev,
         frame: {
