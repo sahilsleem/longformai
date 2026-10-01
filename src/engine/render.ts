@@ -190,6 +190,15 @@ export interface RenderJobStatus {
 export async function checkRenderWorkerHealth(
   workerUrl: string = getRenderWorkerUrl()
 ): Promise<RenderHealth | null> {
+  if (isNativeAndroid()) {
+    return {
+      status: 'ok',
+      service: 'android-native-renderer',
+      engine: 'ffmpegkit',
+      ffmpegAvailable: true
+    };
+  }
+
   try {
     const res = await fetch(`${workerUrl}/health`, { method: 'GET' });
     if (!res.ok) return null;
