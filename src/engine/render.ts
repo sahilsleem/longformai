@@ -216,10 +216,10 @@ export async function requestVideoRender(
   onProgress?: (progress: number, message: string) => void,
   options: { workerUrl?: string } = {}
 ): Promise<RenderJobResult> {
-  const isAndroid = isNativeAndroid();
-  const hasNativeAssets = project.media.some(asset => asset.nativePath);
-
-  if (isAndroid && hasNativeAssets) {
+  // Android must always use the native FFmpeg renderer — the desktop Python
+  // render worker is never available on a physical device.  Assets without a
+  // nativePath are safely handled as black-gap segments by ffmpegBuilder.
+  if (isNativeAndroid()) {
     return renderVideoNativeAndroid(project, onProgress);
   }
 
