@@ -21,8 +21,9 @@ vi.mock('@capacitor/filesystem', () => {
       getUri: getUriFn,
       writeFile: writeFileFn,
       stat: statFn,
+        copy: vi.fn(),
     },
-    Directory: { Cache: 'CACHE', Data: 'DATA' },
+    Directory: { Cache: 'CACHE', Data: 'DATA', Documents: 'DOCUMENTS' },
     Encoding: { UTF8: 'utf8' },
   };
 });
@@ -274,5 +275,31 @@ describe('requestVideoRender routing', () => {
     await expect(
       requestVideoRender(project, undefined, { workerUrl: 'http://127.0.0.1:8765' })
     ).rejects.toThrow('Local FFmpeg Render Worker is offline');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// saveNativeRenderOutput
+// ---------------------------------------------------------------------------
+import { saveNativeRenderOutput } from './render';
+import { Directory } from '@capacitor/filesystem';
+
+describe('saveNativeRenderOutput', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('Copies the rendered video from Cache to Documents on Android', async () => {
+    vi.mocked(Filesystem.copy).mockResolvedValue({} as any);
+    
+    const resultName = await saveNativeRenderOutput('longform_123.mp4');
+    
+    expect(resultName).toMatch(/^exported_\d+_longform_123\.mp4$/);
+    expect(Filesystem.copy).toHaveBeenCalledWith({
+      from: 'longform_123.mp4',
+      directory: Directory.Cache,
+      to: resultName,
+      toDirectory: Directory.Documents
+    });
   });
 });

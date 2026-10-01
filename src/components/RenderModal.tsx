@@ -20,9 +20,11 @@ import {
   RENDER_WORKER_URL,
   RenderHealth,
   RenderJobResult,
+  saveNativeRenderOutput,
 } from '../engine/render';
 import { formatSecondsToMinutes } from '../engine/schema';
 import { validateProjectForRender, ProjectValidationResult } from '../engine/validation';
+import { isNativeAndroid } from '../platform/androidMedia';
 
 interface RenderModalProps {
   isOpen: boolean;
@@ -56,6 +58,21 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   const checkHealth = async () => {
     const health = await checkRenderWorkerHealth();
     setWorkerHealth(health);
+  };
+
+  const handleDownloadClick = async (e: React.MouseEvent) => {
+    if (!renderResult || !isNativeAndroid()) return;
+    
+    // Android: prevent the default localhost navigation
+    e.preventDefault();
+    
+    try {
+      const safeName = await saveNativeRenderOutput(renderResult.filename);
+      alert(`Video successfully saved to your Documents folder:\n${safeName}`);
+    } catch (err: any) {
+      console.error('Failed to save native video:', err);
+      alert(`Failed to save video: ${err.message || 'Unknown error'}`);
+    }
   };
 
   const handleStartRender = async () => {
@@ -258,7 +275,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
               <div className="flex items-center gap-3 pt-1">
                 <a
                   href={`${RENDER_WORKER_URL}${renderResult.downloadUrl}`}
-                  download={renderResult.filename}
+                  download={renderResult.filename} onClick={handleDownloadClick}
                   className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-900/40"
                 >
                   <Download className="w-4 h-4" />

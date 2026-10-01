@@ -209,6 +209,20 @@ export async function checkRenderWorkerHealth(
 }
 
 /**
+ * Saves a native rendered file from the app's cache directory to the public Documents directory.
+ */
+export async function saveNativeRenderOutput(filename: string): Promise<string> {
+  const safeName = `exported_${Date.now()}_${filename}`;
+  await Filesystem.copy({
+    from: filename,
+    directory: Directory.Cache,
+    to: safeName,
+    toDirectory: Directory.Documents,
+  });
+  return safeName;
+}
+
+/**
  * Initiates video rendering by bundling project data and local media files to the local worker.
  */
 export async function requestVideoRender(
