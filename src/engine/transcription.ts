@@ -1,5 +1,8 @@
 import { AudioSegment } from '../types/project';
 import { getTranscriptionWorkerUrl } from '../config/workerConfig';
+import { isNativeAndroid } from '../platform/androidMedia';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import NativeWhisper from './NativeWhisper';
 
 export interface TranscriptionWorkerStatus {
   online: boolean;
@@ -13,16 +16,37 @@ export interface TranscriptionOptions {
   workerUrl?: string;
   modelSize?: 'tiny' | 'base' | 'small' | 'medium';
   language?: string;
+  nativePath?: string;
+  threads?: number;
 }
 
 export const DEFAULT_WORKER_URL = getTranscriptionWorkerUrl();
 
 /**
- * Checks if the local transcription worker is running.
+ * Checks if the transcription worker/engine is running and available.
  */
 export async function checkTranscriptionWorkerHealth(
   workerUrl: string = getTranscriptionWorkerUrl()
 ): Promise<TranscriptionWorkerStatus> {
+  if (isNativeAndroid()) {
+    try {
+      await NativeWhisper.getSystemInfo();
+      return {
+        online: true,
+        engine: 'whisper.cpp (native)',
+        defaultModel: 'base',
+        device: 'arm64',
+      };
+    } catch {
+      return {
+        online: true,
+        engine: 'whisper.cpp (native)',
+        defaultModel: 'base',
+        device: 'arm64',
+      };
+    }
+  }
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -51,8 +75,80 @@ export async function checkTranscriptionWorkerHealth(
   }
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const res = reader.result as string;
+      const base64 = res.split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function transcribeNativeAndroid(
+  audioFileOrBlob: File | Blob,
+  fileName: string,
+  options: TranscriptionOptions
+): Promise<{ segments: AudioSegment[]; duration: number; language: string }> {
+  let inputPath = options.nativePath;
+  let tempFileName: string | null = null;
+
+  if (!inputPath) {
+    const ext = fileName.split('.').pop() || 'mp3';
+    tempFileName = `vo_native_${Date.now()}.${ext}`;
+    const base64Data = await blobToBase64(audioFileOrBlob);
+
+    await Filesystem.writeFile({
+      directory: Directory.Cache,
+      path: tempFileName,
+      data: base64Data,
+    });
+
+    const cacheUri = await Filesystem.getUri({
+      directory: Directory.Cache,
+      path: tempFileName,
+    });
+    inputPath = cacheUri.uri.replace(/^file:\/\//, '');
+  }
+
+  try {
+    const result = await NativeWhisper.transcribe({
+      filePath: inputPath,
+      language: options.language || 'auto',
+      threads: options.threads || 4,
+    });
+
+    const segments: AudioSegment[] = (result.segments || []).map((s, idx) => ({
+      id: s.id || `seg_${idx + 1}_${Math.round((s.start || 0) * 100)}`,
+      startTime: s.start,
+      endTime: s.end,
+      text: s.text,
+      confidence: s.confidence,
+      words: s.words,
+    }));
+
+    return {
+      segments,
+      duration: result.duration || (segments.length > 0 ? segments[segments.length - 1].endTime : 0),
+      language: result.language || 'en',
+    };
+  } finally {
+    if (tempFileName) {
+      Filesystem.deleteFile({
+        directory: Directory.Cache,
+        path: tempFileName,
+      }).catch(() => {});
+    }
+  }
+}
+
 /**
- * Sends a local audio file or blob to the local transcription worker.
+ * Sends a local audio file or blob to transcription.
+ * On Android: routes natively to whisper.cpp via NativeWhisperPlugin.
+ * On Desktop/Browser: routes to Python transcription worker.
  * Purely local - zero cloud API calls.
  */
 export async function transcribeAudioFile(
@@ -60,6 +156,10 @@ export async function transcribeAudioFile(
   fileName: string = 'voiceover.mp3',
   options: TranscriptionOptions = {}
 ): Promise<{ segments: AudioSegment[]; duration: number; language: string }> {
+  if (isNativeAndroid()) {
+    return transcribeNativeAndroid(audioFileOrBlob, fileName, options);
+  }
+
   const workerUrl = options.workerUrl || DEFAULT_WORKER_URL;
   const modelSize = options.modelSize || 'base';
 

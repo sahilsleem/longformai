@@ -3,6 +3,7 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.longformai.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    ndkVersion "26.3.11579264"
     defaultConfig {
         applicationId "com.longformai.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -10,10 +11,20 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            noCompress 'bin'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
         }
     }
     buildTypes {

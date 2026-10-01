@@ -23,10 +23,10 @@ server/exports/
 *.webm
 
 # Model caches / downloaded weights
-models/
+/models/
 *.safetensors
 *.onnx
-*.bin
+android/app/src/main/assets/models/ggml-base.bin
 *.pt
 *.pth
 
