@@ -126,8 +126,9 @@ export function buildConcatCommand(plan: RenderConcatPlan): string[] {
 
   if (applyOverlay) {
     final_cmd.push(
-      "-i", plan.overlayAssetPath!,
-      "-filter_complex", "[2:v]scale=1920:1080:flags=lanczos[frame_overlay];[0:v][frame_overlay]overlay=0:0[outv]",
+      "-loop", "1",
+        "-i", plan.overlayAssetPath!,
+      "-filter_complex", "[2:v]scale=1920:1080:flags=lanczos[frame_overlay];[0:v][frame_overlay]overlay=0:0:shortest=1[outv]",
       "-map", "[outv]",
       "-map", "1:a:0"
     );

@@ -932,7 +932,13 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
 
               {displayedMedia.length === 0 ? (
                 <div
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    if (isNativeAndroid() && onUploadNative) {
+                      onUploadNative(currentFolderId || undefined);
+                    } else {
+                      fileInputRef.current?.click();
+                    }
+                  }}
                   className="h-36 border-2 border-dashed border-editor-panelBorder hover:border-slate-500 rounded-lg flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-colors bg-editor-surface/30 hover:bg-editor-surface/60"
                 >
                   <Upload className="w-6 h-6 text-slate-500 mb-1.5" />
