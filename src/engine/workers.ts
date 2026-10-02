@@ -2,6 +2,7 @@ import {
   WORKER_PORTS,
   getWorkerUrl,
 } from '../config/workerConfig';
+import { isNativeAndroid } from '../platform/androidMedia';
 
 export interface WorkerDiagnostic {
   name: string;
@@ -14,6 +15,15 @@ export interface WorkerDiagnostic {
 }
 
 export async function checkAllWorkers(customHost?: string): Promise<WorkerDiagnostic[]> {
+  if (isNativeAndroid()) {
+    return [
+      { name: 'Native Whisper Engine', port: WORKER_PORTS.TRANSCRIPTION, url: 'native://whisper', isOnline: true, statusText: 'Ready' },
+      { name: 'Native BLIP Vision Engine', port: WORKER_PORTS.VISION, url: 'native://blip', isOnline: true, statusText: 'Ready' },
+      { name: 'Native MiniLM Matching Engine', port: WORKER_PORTS.MATCHING, url: 'native://minilm', isOnline: true, statusText: 'Ready' },
+      { name: 'Native FFmpeg Render Engine', port: WORKER_PORTS.RENDERING, url: 'native://ffmpeg', isOnline: true, statusText: 'Ready' },
+    ];
+  }
+
   const workers = [
     { name: 'Whisper Transcription Worker', port: WORKER_PORTS.TRANSCRIPTION },
     { name: 'BLIP Vision Understanding Worker', port: WORKER_PORTS.VISION },

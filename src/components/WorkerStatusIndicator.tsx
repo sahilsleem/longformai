@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { checkAllWorkers, WorkerDiagnostic } from '../engine/workers';
 import { ChevronDown, RefreshCw } from 'lucide-react';
+import { isNativeAndroid } from '../platform/androidMedia';
 
 const SHORT_NAMES: Record<number, string> = {
   8765: 'Transcription',
@@ -16,6 +17,7 @@ export const WorkerStatusIndicator: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const refreshStatus = async () => {
+    if (isNativeAndroid()) return;
     setIsChecking(true);
     try {
       const results = await checkAllWorkers();
@@ -28,6 +30,7 @@ export const WorkerStatusIndicator: React.FC = () => {
   };
 
   useEffect(() => {
+    if (isNativeAndroid()) return;
     refreshStatus();
     const interval = setInterval(refreshStatus, 15000); // Check every 15s
     return () => clearInterval(interval);
@@ -44,6 +47,61 @@ export const WorkerStatusIndicator: React.FC = () => {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
+
+  if (isNativeAndroid()) {
+    return (
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium bg-editor-surface hover:bg-editor-surfaceHover text-slate-300 rounded border border-editor-panelBorder transition-colors"
+          title="On-Device AI Pipeline"
+        >
+          <div className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="truncate">On-Device AI • Ready</span>
+          <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isOpen && (
+          <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-1 w-52 bg-editor-surface border border-editor-panelBorder rounded-md shadow-lg z-50 overflow-hidden text-xs">
+            <div className="px-3 py-2 border-b border-editor-panelBorder bg-editor-panel flex justify-between items-center">
+              <span className="font-semibold text-slate-200">On-Device AI</span>
+              <span className="text-[10px] text-emerald-400 font-mono">100% Local</span>
+            </div>
+            <div className="p-1 space-y-0.5">
+              <div className="flex items-center justify-between px-2 py-1.5 hover:bg-editor-panel/50 rounded transition-colors">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-slate-300 font-medium">Whisper</span>
+                </div>
+                <span className="text-slate-500 font-mono text-[10px]">C++ / Native</span>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1.5 hover:bg-editor-panel/50 rounded transition-colors">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-slate-300 font-medium">BLIP</span>
+                </div>
+                <span className="text-slate-500 font-mono text-[10px]">ONNX / Native</span>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1.5 hover:bg-editor-panel/50 rounded transition-colors">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-slate-300 font-medium">MiniLM</span>
+                </div>
+                <span className="text-slate-500 font-mono text-[10px]">ONNX / Native</span>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1.5 hover:bg-editor-panel/50 rounded transition-colors">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-slate-300 font-medium">FFmpeg</span>
+                </div>
+                <span className="text-slate-500 font-mono text-[10px]">FFmpegKit</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const activeCount = workers.filter((w) => w.isOnline && w.statusText === 'Ready').length;
   const totalCount = 4; // Always 4 for the 4 expected workers
