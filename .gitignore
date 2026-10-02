@@ -27,6 +27,8 @@ server/exports/
 *.safetensors
 android/app/src/main/assets/models/minilm/model.onnx
 android/app/src/main/assets/models/ggml-base.bin
+android/app/src/main/assets/models/blip/split_0.onnx
+android/app/src/main/assets/models/blip/split_1.onnx
 *.pt
 *.pth
 

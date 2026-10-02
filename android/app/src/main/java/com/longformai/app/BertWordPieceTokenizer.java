@@ -160,4 +160,52 @@ public class BertWordPieceTokenizer {
 
         return new EncodedInputs(inputIds, attentionMask, tokenTypeIds, realLen);
     }
+
+    /**
+     * Decodes a sequence of token IDs to clean readable text.
+     * Matches Python WordPieceTokenizer.decode() in server/vision_server.py.
+     */
+    public String decode(List<Integer> tokenIds, boolean skipSpecialTokens, int bosTokenId) {
+        if (tokenIds == null || tokenIds.isEmpty()) {
+            return "";
+        }
+        List<String> words = new ArrayList<>();
+        java.util.Set<Integer> specialIds = new java.util.HashSet<>();
+        specialIds.add(padTokenId);
+        specialIds.add(unkTokenId);
+        specialIds.add(clsTokenId);
+        specialIds.add(sepTokenId);
+        specialIds.add(2); // EOS_TOKEN_ID
+        specialIds.add(bosTokenId); // DEFAULT_BOS_TOKEN_ID (30522)
+
+        for (int tid : tokenIds) {
+            if (skipSpecialTokens && specialIds.contains(tid)) {
+                continue;
+            }
+            String token = invVocab.get(tid);
+            if (token == null || token.isEmpty()) {
+                continue;
+            }
+            if (token.startsWith("##")) {
+                if (!words.isEmpty()) {
+                    int lastIdx = words.size() - 1;
+                    words.set(lastIdx, words.get(lastIdx) + token.substring(2));
+                } else {
+                    words.add(token.substring(2));
+                }
+            } else {
+                words.add(token);
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < words.size(); i++) {
+            if (i > 0) sb.append(' ');
+            sb.append(words.get(i));
+        }
+        String text = sb.toString();
+        // Clean spacing around punctuation matching Python: re.sub(r'\s+([,.:;!?"\'])', r'\1', text)
+        text = text.replaceAll("\\s+([,.:;!?\"'])", "$1");
+        return text.trim();
+    }
 }

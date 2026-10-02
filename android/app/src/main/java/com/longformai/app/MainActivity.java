@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativeFFmpegPlugin.class);
         registerPlugin(NativeWhisperPlugin.class);
         registerPlugin(NativeMiniLMPlugin.class);
+        registerPlugin(NativeBlipPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
