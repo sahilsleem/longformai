@@ -19,8 +19,9 @@ add_library(whisper_native SHARED ${WHISPER_SOURCES})
 
 target_include_directories(whisper_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+target_compile_options(whisper_native PRIVATE -O3 -fvisibility=hidden -fvisibility-inlines-hidden)
+
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_options(whisper_native PRIVATE -O3 -fvisibility=hidden -fvisibility-inlines-hidden)
     target_link_options(whisper_native PRIVATE -Wl,--gc-sections)
 endif()
 
