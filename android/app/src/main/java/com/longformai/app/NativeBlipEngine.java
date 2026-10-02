@@ -100,6 +100,37 @@ public class NativeBlipEngine {
         return lastError;
     }
 
+    /**
+     * Releases in-memory ONNX Runtime inference sessions and tokenizer.
+     * Safely resets engine state to UNINITIALIZED so memory can be reclaimed.
+     * Preserves model files on disk for instant re-initialization.
+     */
+    public void releaseModel() {
+        synchronized (lock) {
+            try {
+                if (session0 != null) {
+                    session0.close();
+                    session0 = null;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error closing session0", e);
+            }
+            try {
+                if (session1 != null) {
+                    session1.close();
+                    session1 = null;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error closing session1", e);
+            }
+            tokenizer = null;
+            state = State.UNINITIALIZED;
+            lastError = null;
+            Log.i(TAG, "BLIP model sessions released");
+            System.gc();
+        }
+    }
+
     private File ensureAssetCopied(Context context, String assetPath, String localSubdir, String fileName, long minExpectedSize) throws IOException {
         File dir = new File(context.getFilesDir(), localSubdir);
         if (!dir.exists()) {

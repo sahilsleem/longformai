@@ -98,4 +98,27 @@ public class NativeBlipPlugin extends Plugin {
             }
         });
     }
+
+    @PluginMethod
+    public void releaseModel(PluginCall call) {
+        sExecutor.execute(() -> {
+            try {
+                NativeBlipEngine.getInstance().releaseModel();
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to release NativeBlip", e);
+                call.reject("Failed to release NativeBlip: " + e.getMessage(), e);
+            }
+        });
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        super.handleOnDestroy();
+        try {
+            NativeBlipEngine.getInstance().releaseModel();
+        } catch (Exception ignored) {}
+    }
 }

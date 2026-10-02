@@ -127,20 +127,41 @@ async function transcribeNativeAndroid(
       endTime: s.end,
       text: s.text,
       confidence: s.confidence,
-      words: s.words,
+      words: s.words ? s.words.map((w) => ({ ...w })) : undefined,
     }));
 
-    return {
+    const response = {
       segments,
       duration: result.duration || (segments.length > 0 ? segments[segments.length - 1].endTime : 0),
       language: result.language || 'en',
     };
+
+    return response;
   } finally {
     if (tempFileName) {
       Filesystem.deleteFile({
         directory: Directory.Cache,
         path: tempFileName,
       }).catch(() => {});
+    }
+    // Always release Whisper model after transcription completes or fails
+    try {
+      await NativeWhisper.releaseModel();
+    } catch (e) {
+      console.warn('Failed to release NativeWhisper model:', e);
+    }
+  }
+}
+
+/**
+ * Explicitly releases Native Whisper in-memory context on Android.
+ */
+export async function releaseTranscriptionModel(): Promise<void> {
+  if (isNativeAndroid()) {
+    try {
+      await NativeWhisper.releaseModel();
+    } catch (e) {
+      console.warn('Failed to release NativeWhisper model:', e);
     }
   }
 }

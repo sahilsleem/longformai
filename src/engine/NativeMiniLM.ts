@@ -28,6 +28,7 @@ export interface NativeMiniLMPlugin {
   getSystemInfo(): Promise<NativeMiniLMSystemInfo>;
   embed(options: NativeMiniLMEmbedOptions): Promise<NativeMiniLMEmbedResult>;
   embedBatch(options: NativeMiniLMEmbedBatchOptions): Promise<NativeMiniLMEmbedBatchResult>;
+  releaseModel(): Promise<{ success: boolean }>;
 }
 
 const NativeMiniLM = registerPlugin<NativeMiniLMPlugin>('NativeMiniLM');

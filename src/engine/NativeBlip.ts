@@ -23,6 +23,7 @@ export interface NativeBlipPlugin {
   isReady(): Promise<NativeBlipStatus>;
   initialize(): Promise<NativeBlipStatus>;
   generateCaption(options: NativeBlipCaptionOptions): Promise<NativeBlipCaptionResult>;
+  releaseModel(): Promise<{ success: boolean }>;
 }
 
 export const NativeBlip = registerPlugin<NativeBlipPlugin>('NativeBlip');

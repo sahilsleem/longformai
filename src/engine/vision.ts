@@ -467,3 +467,16 @@ export async function analyzeKeyframesSemantics(
     throw err instanceof Error ? err : new Error(String(err));
   }
 }
+
+/**
+ * Explicitly releases Native BLIP in-memory ONNX Runtime sessions on Android.
+ */
+export async function releaseVisionModel(): Promise<void> {
+  if (isNativeAndroid()) {
+    try {
+      await NativeBlip.releaseModel();
+    } catch (e) {
+      console.warn('Failed to release NativeBlip model:', e);
+    }
+  }
+}

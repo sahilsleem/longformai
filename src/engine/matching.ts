@@ -824,3 +824,16 @@ export async function batchMatchMediaForSegments(
 
   return resultsMap;
 }
+
+/**
+ * Explicitly releases Native MiniLM in-memory ONNX Runtime session on Android.
+ */
+export async function releaseMatchingModel(): Promise<void> {
+  if (isNativeAndroid()) {
+    try {
+      await NativeMiniLM.releaseModel();
+    } catch (e) {
+      console.warn('Failed to release NativeMiniLM model:', e);
+    }
+  }
+}

@@ -261,4 +261,40 @@ public class NativeMiniLMPlugin extends Plugin {
             }
         });
     }
+
+    @PluginMethod
+    public void releaseModel(PluginCall call) {
+        sExecutor.execute(() -> {
+            synchronized (sLock) {
+                try {
+                    if (sSession != null) {
+                        sSession.close();
+                        sSession = null;
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Error closing MiniLM session", e);
+                }
+                sTokenizer = null;
+                Log.i(TAG, "MiniLM model session released");
+                System.gc();
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        });
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        super.handleOnDestroy();
+        synchronized (sLock) {
+            try {
+                if (sSession != null) {
+                    sSession.close();
+                    sSession = null;
+                }
+            } catch (Exception ignored) {}
+            sTokenizer = null;
+        }
+    }
 }

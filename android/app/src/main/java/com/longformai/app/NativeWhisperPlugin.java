@@ -151,6 +151,7 @@ public class NativeWhisperPlugin extends Plugin {
                 WhisperBridge.freeModel(sContextPtr);
                 sContextPtr = 0L;
                 Log.i(TAG, "Whisper model released");
+                System.gc();
             }
         }
         JSObject ret = new JSObject();

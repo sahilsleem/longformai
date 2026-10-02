@@ -4,6 +4,7 @@ import { createDefaultTransform, createInitialProject, classifyAspectRatio, DEFA
 import { extractAudioWaveform } from '../engine/audio';
 import { transcribeAudioFile } from '../engine/transcription';
 import { analyzeMediaAsset } from '../engine/mediaAnalysis';
+import { releaseVisionModel } from '../engine/vision';
 import { generateDraftTimeline, DraftOptions, DraftStats } from '../engine/draftTimeline';
 import { prepareProjectPipeline, PreparationProgress, PreparationResult } from '../engine/preparation';
 import {
@@ -488,6 +489,8 @@ export function useProject() {
             : m
         ),
       }));
+    } finally {
+      await releaseVisionModel();
     }
   }, [project.media]);
 
@@ -504,48 +507,51 @@ export function useProject() {
       message: `Analyzing 0/${targets.length} media assets...`,
     });
 
-    for (let i = 0; i < targets.length; i++) {
-      const targetAsset = targets[i];
-      setPreparationProgress({
-        stage: 'analyzing_media',
-        percent: Math.round(((i + 1) / targets.length) * 100),
-        message: `Analyzing visual media (${i + 1}/${targets.length}): ${targetAsset.name}...`,
-        currentItem: targetAsset.name,
-      });
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        const targetAsset = targets[i];
+        setPreparationProgress({
+          stage: 'analyzing_media',
+          percent: Math.round(((i + 1) / targets.length) * 100),
+          message: `Analyzing visual media (${i + 1}/${targets.length}): ${targetAsset.name}...`,
+          currentItem: targetAsset.name,
+        });
 
-      // Mark this asset analyzing
-      setProject((prev) => ({
-        ...prev,
-        media: prev.media.map((m) =>
-          m.id === targetAsset.id ? { ...m, analysis: { analyzed: false, analyzing: true } } : m
-        ),
-      }));
-
-      try {
-        const analysisResult = await analyzeMediaAsset(targetAsset);
+        // Mark this asset analyzing
         setProject((prev) => ({
           ...prev,
           media: prev.media.map((m) =>
-            m.id === targetAsset.id ? { ...m, analysis: analysisResult } : m
+            m.id === targetAsset.id ? { ...m, analysis: { analyzed: false, analyzing: true } } : m
           ),
         }));
-        setIsDirty(true);
-      } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : 'Analysis failed';
-        console.warn(`Analysis failed for ${targetAsset.name}:`, err);
-        setProject((prev) => ({
-          ...prev,
-          media: prev.media.map((m) =>
-            m.id === targetAsset.id
-              ? { ...m, analysis: { analyzed: false, analyzing: false, error: errMsg } }
-              : m
-          ),
-        }));
+
+        try {
+          const analysisResult = await analyzeMediaAsset(targetAsset);
+          setProject((prev) => ({
+            ...prev,
+            media: prev.media.map((m) =>
+              m.id === targetAsset.id ? { ...m, analysis: analysisResult } : m
+            ),
+          }));
+          setIsDirty(true);
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : 'Analysis failed';
+          console.warn(`Analysis failed for ${targetAsset.name}:`, err);
+          setProject((prev) => ({
+            ...prev,
+            media: prev.media.map((m) =>
+              m.id === targetAsset.id
+                ? { ...m, analysis: { analyzed: false, analyzing: false, error: errMsg } }
+                : m
+            ),
+          }));
+        }
       }
+    } finally {
+      setIsPreparing(false);
+      setPreparationProgress(null);
+      await releaseVisionModel();
     }
-
-    setIsPreparing(false);
-    setPreparationProgress(null);
   }, [project.media]);
 
   // Voiceover Volume & Mute Controls
@@ -679,60 +685,64 @@ export function useProject() {
       const visualAssets = newAssets.filter((a) => a.type === 'video' || a.type === 'image');
       if (visualAssets.length > 0) {
         (async () => {
-          for (const newAsset of visualAssets) {
-            try {
-              // Avoid analyzing if already analyzed
-              let isAlreadyAnalyzed = false;
-              setProject((prev) => {
-                const current = prev.media.find((m) => m.id === newAsset.id);
-                if (current?.analysis?.analyzed) {
-                  isAlreadyAnalyzed = true;
-                  return prev;
-                }
-                return {
-                  ...prev,
-                  media: prev.media.map((m) =>
-                    m.id === newAsset.id
-                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: true } }
-                      : m
-                  ),
-                };
-              });
+          try {
+            for (const newAsset of visualAssets) {
+              try {
+                // Avoid analyzing if already analyzed
+                let isAlreadyAnalyzed = false;
+                setProject((prev) => {
+                  const current = prev.media.find((m) => m.id === newAsset.id);
+                  if (current?.analysis?.analyzed) {
+                    isAlreadyAnalyzed = true;
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    media: prev.media.map((m) =>
+                      m.id === newAsset.id
+                        ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: true } }
+                        : m
+                    ),
+                  };
+                });
 
-              if (isAlreadyAnalyzed) continue;
+                if (isAlreadyAnalyzed) continue;
 
-              const analysisResult = await analyzeMediaAsset(newAsset);
+                const analysisResult = await analyzeMediaAsset(newAsset);
 
-              setProject((prev) => {
-                const exists = prev.media.some((m) => m.id === newAsset.id);
-                if (!exists) return prev;
+                setProject((prev) => {
+                  const exists = prev.media.some((m) => m.id === newAsset.id);
+                  if (!exists) return prev;
 
-                return {
-                  ...prev,
-                  media: prev.media.map((m) =>
-                    m.id === newAsset.id ? { ...m, analysis: analysisResult } : m
-                  ),
-                  updatedAt: new Date().toISOString(),
-                };
-              });
-              setIsDirty(true);
-            } catch (err: unknown) {
-              const errMsg = err instanceof Error ? err.message : 'Automatic analysis failed';
-              console.warn(`Automatic background analysis failed for ${newAsset.name}:`, err);
-              setProject((prev) => {
-                const exists = prev.media.some((m) => m.id === newAsset.id);
-                if (!exists) return prev;
+                  return {
+                    ...prev,
+                    media: prev.media.map((m) =>
+                      m.id === newAsset.id ? { ...m, analysis: analysisResult } : m
+                    ),
+                    updatedAt: new Date().toISOString(),
+                  };
+                });
+                setIsDirty(true);
+              } catch (err: unknown) {
+                const errMsg = err instanceof Error ? err.message : 'Automatic analysis failed';
+                console.warn(`Automatic background analysis failed for ${newAsset.name}:`, err);
+                setProject((prev) => {
+                  const exists = prev.media.some((m) => m.id === newAsset.id);
+                  if (!exists) return prev;
 
-                return {
-                  ...prev,
-                  media: prev.media.map((m) =>
-                    m.id === newAsset.id
-                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: false, error: errMsg } }
-                      : m
-                  ),
-                };
-              });
+                  return {
+                    ...prev,
+                    media: prev.media.map((m) =>
+                      m.id === newAsset.id
+                        ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: false, error: errMsg } }
+                        : m
+                    ),
+                  };
+                });
+              }
             }
+          } finally {
+            await releaseVisionModel();
           }
         })();
       }
@@ -782,55 +792,59 @@ export function useProject() {
       const visualAssets = newAssets.filter((a) => a.type === 'video' || a.type === 'image');
       if (visualAssets.length > 0) {
         (async () => {
-          for (const newAsset of visualAssets) {
-            try {
-              let isAlreadyAnalyzed = false;
-              setProject((prev) => {
-                const current = prev.media.find((m) => m.id === newAsset.id);
-                if (current?.analysis?.analyzed) {
-                  isAlreadyAnalyzed = true;
-                  return prev;
-                }
-                return {
-                  ...prev,
-                  media: prev.media.map((m) =>
-                    m.id === newAsset.id
-                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: true } }
-                      : m
-                  ),
-                };
-              });
+          try {
+            for (const newAsset of visualAssets) {
+              try {
+                let isAlreadyAnalyzed = false;
+                setProject((prev) => {
+                  const current = prev.media.find((m) => m.id === newAsset.id);
+                  if (current?.analysis?.analyzed) {
+                    isAlreadyAnalyzed = true;
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    media: prev.media.map((m) =>
+                      m.id === newAsset.id
+                        ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: true } }
+                        : m
+                    ),
+                  };
+                });
 
-              if (isAlreadyAnalyzed) continue;
-              const analysisResult = await analyzeMediaAsset(newAsset);
+                if (isAlreadyAnalyzed) continue;
+                const analysisResult = await analyzeMediaAsset(newAsset);
 
-              setProject((prev) => {
-                const exists = prev.media.some((m) => m.id === newAsset.id);
-                if (!exists) return prev;
-                return {
-                  ...prev,
-                  media: prev.media.map((m) =>
-                    m.id === newAsset.id ? { ...m, analysis: analysisResult } : m
-                  ),
-                  updatedAt: new Date().toISOString(),
-                };
-              });
-              setIsDirty(true);
-            } catch (err: unknown) {
-              const errMsg = err instanceof Error ? err.message : 'Automatic analysis failed';
-              setProject((prev) => {
-                const exists = prev.media.some((m) => m.id === newAsset.id);
-                if (!exists) return prev;
-                return {
-                  ...prev,
-                  media: prev.media.map((m) =>
-                    m.id === newAsset.id
-                      ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: false, error: errMsg } }
-                      : m
-                  ),
-                };
-              });
+                setProject((prev) => {
+                  const exists = prev.media.some((m) => m.id === newAsset.id);
+                  if (!exists) return prev;
+                  return {
+                    ...prev,
+                    media: prev.media.map((m) =>
+                      m.id === newAsset.id ? { ...m, analysis: analysisResult } : m
+                    ),
+                    updatedAt: new Date().toISOString(),
+                  };
+                });
+                setIsDirty(true);
+              } catch (err: unknown) {
+                const errMsg = err instanceof Error ? err.message : 'Automatic analysis failed';
+                setProject((prev) => {
+                  const exists = prev.media.some((m) => m.id === newAsset.id);
+                  if (!exists) return prev;
+                  return {
+                    ...prev,
+                    media: prev.media.map((m) =>
+                      m.id === newAsset.id
+                        ? { ...m, analysis: { ...(m.analysis || {}), analyzed: false, analyzing: false, error: errMsg } }
+                        : m
+                    ),
+                  };
+                });
+              }
             }
+          } finally {
+            await releaseVisionModel();
           }
         })();
       }
