@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NativeFFmpegPlugin.class);
         registerPlugin(NativeWhisperPlugin.class);
+        registerPlugin(NativeMiniLMPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

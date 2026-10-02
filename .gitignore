@@ -25,7 +25,7 @@ server/exports/
 # Model caches / downloaded weights
 /models/
 *.safetensors
-*.onnx
+android/app/src/main/assets/models/minilm/model.onnx
 android/app/src/main/assets/models/ggml-base.bin
 *.pt
 *.pth
