@@ -59,18 +59,23 @@ export async function prepareProjectPipeline(
         });
 
         try {
-          let audioSource: Blob;
-          if (updatedVoiceover.file) {
-            audioSource = updatedVoiceover.file;
-          } else if (updatedVoiceover.url) {
-            const res = await fetch(updatedVoiceover.url);
-            audioSource = await res.blob();
-          } else {
-            throw new Error('Voiceover audio file not found in memory.');
+          let audioSource: Blob | undefined;
+          const nativePath = updatedVoiceover.nativePath;
+
+          if (!nativePath) {
+            if (updatedVoiceover.file) {
+              audioSource = updatedVoiceover.file;
+            } else if (updatedVoiceover.url) {
+              const res = await fetch(updatedVoiceover.url);
+              audioSource = await res.blob();
+            } else {
+              throw new Error('Voiceover audio file not found in memory.');
+            }
           }
 
           const transcriptionRes = await transcribeAudioFile(audioSource, updatedVoiceover.name, {
             modelSize: 'base',
+            nativePath,
           });
 
           updatedVoiceover = {
