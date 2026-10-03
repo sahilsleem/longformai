@@ -20,7 +20,6 @@ import {
   RENDER_WORKER_URL,
   RenderHealth,
   RenderJobResult,
-  saveNativeRenderOutput,
 } from '../engine/render';
 import { formatSecondsToMinutes } from '../engine/schema';
 import { validateProjectForRender, ProjectValidationResult } from '../engine/validation';
@@ -66,13 +65,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     // Android: prevent the default localhost navigation
     e.preventDefault();
     
-    try {
-      const safeName = await saveNativeRenderOutput(renderResult.filename);
-      alert(`Video successfully saved to your Documents folder:\n${safeName}`);
-    } catch (err: any) {
-      console.error('Failed to save native video:', err);
-      alert(`Failed to save video: ${err.message || 'Unknown error'}`);
-    }
+    alert(`Video is saved in your device Photos/Gallery:\nMovies/LongFormAI/${renderResult.filename}`);
   };
 
   const handleStartRender = async () => {
@@ -275,11 +268,21 @@ export const RenderModal: React.FC<RenderModalProps> = ({
               <div className="flex items-center gap-3 pt-1">
                 <a
                   href={`${RENDER_WORKER_URL}${renderResult.downloadUrl}`}
-                  download={renderResult.filename} onClick={handleDownloadClick}
+                  download={renderResult.filename}
+                  onClick={handleDownloadClick}
                   className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-900/40"
                 >
-                  <Download className="w-4 h-4" />
-                  Download Master MP4
+                  {isNativeAndroid() ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Saved to Gallery
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Download Master MP4
+                    </>
+                  )}
                 </a>
               </div>
             </div>
@@ -301,7 +304,9 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shrink-0">
           <div className="text-[10px] sm:text-[11px] text-slate-500 flex items-center gap-1.5">
             <HardDrive className="w-3.5 h-3.5" />
-            <span className="truncate">Saved to server/exports/</span>
+            <span className="truncate">
+              {isNativeAndroid() ? 'Saved to Gallery' : 'Saved to server/exports/'}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">

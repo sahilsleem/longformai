@@ -1,5 +1,11 @@
 package com.longformai.app;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.MediaStore;
+
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -12,6 +18,12 @@ import com.arthenica.ffmpegkit.FFmpegSession;
 import com.arthenica.ffmpegkit.ReturnCode;
 
 import org.json.JSONException;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 @CapacitorPlugin(name = "NativeFFmpeg")
 public class NativeFFmpegPlugin extends Plugin {
@@ -46,4 +58,103 @@ public class NativeFFmpegPlugin extends Plugin {
             call.reject("Error parsing arguments", e);
         }
     }
+
+    @PluginMethod
+    public void saveToGallery(PluginCall call) {
+        String filePath = call.getString("filePath");
+        if (filePath == null || filePath.trim().isEmpty()) {
+            call.reject("Must provide filePath");
+            return;
+        }
+
+        String rawFilename = call.getString("filename");
+        final String filename;
+        if (rawFilename == null || rawFilename.trim().isEmpty()) {
+            filename = "LongFormAI_" + System.currentTimeMillis() + ".mp4";
+        } else if (!rawFilename.endsWith(".mp4")) {
+            filename = rawFilename + ".mp4";
+        } else {
+            filename = rawFilename;
+        }
+
+        String rawRelPath = call.getString("relativePath", "Movies/LongFormAI/");
+        if (!rawRelPath.endsWith("/")) {
+            rawRelPath = rawRelPath + "/";
+        }
+        final String relativePath = rawRelPath;
+
+        String cleanPath = filePath.startsWith("file://") ? filePath.substring(7) : filePath;
+        File srcFile = new File(cleanPath);
+        if (!srcFile.exists() || !srcFile.isFile()) {
+            call.reject("Source video file does not exist: " + cleanPath);
+            return;
+        }
+
+        getBridge().execute(() -> {
+            ContentResolver resolver = getContext().getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Video.Media.DISPLAY_NAME, filename);
+            values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+            long nowSec = System.currentTimeMillis() / 1000;
+            values.put(MediaStore.Video.Media.DATE_ADDED, nowSec);
+            values.put(MediaStore.Video.Media.DATE_MODIFIED, nowSec);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(MediaStore.Video.Media.RELATIVE_PATH, relativePath);
+                values.put(MediaStore.Video.Media.IS_PENDING, 1);
+            }
+
+            Uri collectionUri;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                collectionUri = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            } else {
+                collectionUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+            }
+
+            Uri itemUri = null;
+            try {
+                itemUri = resolver.insert(collectionUri, values);
+                if (itemUri == null) {
+                    call.reject("Failed to create MediaStore entry for " + filename);
+                    return;
+                }
+
+                try (InputStream in = new FileInputStream(srcFile);
+                     OutputStream out = resolver.openOutputStream(itemUri)) {
+                    if (out == null) {
+                        throw new IOException("Failed to open output stream for MediaStore Uri: " + itemUri);
+                    }
+                    byte[] buffer = new byte[64 * 1024];
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                    }
+                    out.flush();
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.clear();
+                    values.put(MediaStore.Video.Media.IS_PENDING, 0);
+                    resolver.update(itemUri, values, null, null);
+                }
+
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                ret.put("uri", itemUri.toString());
+                ret.put("filename", filename);
+                ret.put("relativePath", relativePath);
+                call.resolve(ret);
+            } catch (Exception e) {
+                if (itemUri != null) {
+                    try {
+                        resolver.delete(itemUri, null, null);
+                    } catch (Exception delEx) {
+                        // ignore cleanup errors
+                    }
+                }
+                call.reject("Failed to save video to Gallery: " + e.getMessage(), e);
+            }
+        });
+    }
 }
+

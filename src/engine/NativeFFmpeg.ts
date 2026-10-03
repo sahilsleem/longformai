@@ -11,8 +11,22 @@ export interface NativeFFmpegExecuteResult {
   output: string;
 }
 
+export interface NativeFFmpegSaveToGalleryOptions {
+  filePath: string;
+  filename?: string;
+  relativePath?: string;
+}
+
+export interface NativeFFmpegSaveToGalleryResult {
+  success: boolean;
+  uri: string;
+  filename: string;
+  relativePath: string;
+}
+
 export interface NativeFFmpegPlugin {
   execute(options: NativeFFmpegExecuteOptions): Promise<NativeFFmpegExecuteResult>;
+  saveToGallery(options: NativeFFmpegSaveToGalleryOptions): Promise<NativeFFmpegSaveToGalleryResult>;
 }
 
 const NativeFFmpeg = registerPlugin<NativeFFmpegPlugin>('NativeFFmpeg');

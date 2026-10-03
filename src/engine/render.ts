@@ -129,13 +129,32 @@ export async function renderVideoNativeAndroid(
     }
 
     const stat = await Filesystem.stat({ directory: Directory.Cache, path: outName });
+    onProgress?.(95, 'Saving to Android Gallery...');
+
+    const galleryFilename = `LongFormAI_${Date.now()}.mp4`;
+    let mediaStoreUri = finalOut;
+    try {
+      if (typeof NativeFFmpeg.saveToGallery === 'function') {
+        const mediaStoreRes = await NativeFFmpeg.saveToGallery({
+          filePath: finalOut,
+          filename: galleryFilename,
+          relativePath: 'Movies/LongFormAI/',
+        });
+        if (mediaStoreRes?.uri) {
+          mediaStoreUri = mediaStoreRes.uri;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not save to MediaStore:', e);
+    }
+
     onProgress?.(100, 'Render complete!');
 
     return {
       success: true,
-      outputPath: finalOut,
+      outputPath: mediaStoreUri,
       downloadUrl: finalOut,
-      filename: outName,
+      filename: galleryFilename,
       width: 1920,
       height: 1080,
       fps: 30,
@@ -206,6 +225,29 @@ export async function checkRenderWorkerHealth(
   } catch {
     return null;
   }
+}
+
+/**
+ * Saves a completed native video file to the Android MediaStore under Movies/LongFormAI/.
+ */
+export async function saveVideoToMediaStore(
+  filePath: string,
+  filename?: string
+): Promise<{ success: boolean; uri: string; filename: string; relativePath: string }> {
+  if (isNativeAndroid() && typeof NativeFFmpeg.saveToGallery === 'function') {
+    return NativeFFmpeg.saveToGallery({
+      filePath,
+      filename,
+      relativePath: 'Movies/LongFormAI/',
+    });
+  }
+
+  return {
+    success: true,
+    uri: filePath,
+    filename: filename || `LongFormAI_${Date.now()}.mp4`,
+    relativePath: 'Movies/LongFormAI/',
+  };
 }
 
 /**
