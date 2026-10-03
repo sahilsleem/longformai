@@ -251,6 +251,33 @@ export async function saveVideoToMediaStore(
 }
 
 /**
+ * Opens the native Android share sheet for a rendered video using its MediaStore URI.
+ */
+export async function shareRenderedVideoNativeAndroid(
+  uri: string,
+  filename?: string,
+  title?: string
+): Promise<{ success: boolean }> {
+  if (!isNativeAndroid()) {
+    throw new Error('Native sharing is only available on Android');
+  }
+
+  if (!uri || !uri.startsWith('content://')) {
+    throw new Error('Invalid MediaStore URI. The video must be exported to Gallery before sharing.');
+  }
+
+  if (typeof NativeFFmpeg.shareVideo !== 'function') {
+    throw new Error('Native share plugin method is not available');
+  }
+
+  return NativeFFmpeg.shareVideo({
+    uri,
+    filename,
+    title: title || filename || 'Share Video',
+  });
+}
+
+/**
  * Saves a native rendered file from the app's cache directory to the public Documents directory.
  */
 export async function saveNativeRenderOutput(filename: string): Promise<string> {

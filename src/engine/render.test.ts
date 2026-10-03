@@ -32,6 +32,8 @@ vi.mock('@capacitor/filesystem', () => {
 vi.mock('./NativeFFmpeg', () => ({
   default: {
     execute: vi.fn().mockResolvedValue({ success: true, returnCode: 0, cancel: false, output: '' }),
+    saveToGallery: vi.fn().mockResolvedValue({ success: true, uri: 'content://media/external/video/media/1', filename: 'test.mp4', relativePath: 'Movies/LongFormAI/' }),
+    shareVideo: vi.fn().mockResolvedValue({ success: true }),
   },
 }));
 
@@ -281,7 +283,7 @@ describe('requestVideoRender routing', () => {
 // ---------------------------------------------------------------------------
 // saveNativeRenderOutput
 // ---------------------------------------------------------------------------
-import { saveNativeRenderOutput } from './render';
+import { saveNativeRenderOutput, shareRenderedVideoNativeAndroid } from './render';
 import { Directory } from '@capacitor/filesystem';
 
 describe('saveNativeRenderOutput', () => {
@@ -301,5 +303,48 @@ describe('saveNativeRenderOutput', () => {
       to: resultName,
       toDirectory: Directory.Documents
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shareRenderedVideoNativeAndroid
+// ---------------------------------------------------------------------------
+describe('shareRenderedVideoNativeAndroid', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('delegates to NativeFFmpeg.shareVideo when given a valid content:// URI on Android', async () => {
+    vi.mocked(androidMedia.isNativeAndroid).mockReturnValue(true);
+    vi.mocked(NativeFFmpeg.shareVideo).mockResolvedValue({ success: true });
+
+    const result = await shareRenderedVideoNativeAndroid(
+      'content://media/external_primary/video/media/12345',
+      'LongFormAI_123.mp4',
+      'Test Video'
+    );
+
+    expect(result.success).toBe(true);
+    expect(NativeFFmpeg.shareVideo).toHaveBeenCalledWith({
+      uri: 'content://media/external_primary/video/media/12345',
+      filename: 'LongFormAI_123.mp4',
+      title: 'Test Video',
+    });
+  });
+
+  it('rejects if isNativeAndroid is false', async () => {
+    vi.mocked(androidMedia.isNativeAndroid).mockReturnValue(false);
+
+    await expect(
+      shareRenderedVideoNativeAndroid('content://media/external/video/media/123')
+    ).rejects.toThrow('Native sharing is only available on Android');
+  });
+
+  it('rejects if uri does not start with content://', async () => {
+    vi.mocked(androidMedia.isNativeAndroid).mockReturnValue(true);
+
+    await expect(
+      shareRenderedVideoNativeAndroid('/sdcard/test.mp4')
+    ).rejects.toThrow('Invalid MediaStore URI');
   });
 });

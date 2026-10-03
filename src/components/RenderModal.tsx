@@ -12,11 +12,13 @@ import {
   Sparkles,
   HardDrive,
   ShieldAlert,
+  Share2,
 } from 'lucide-react';
 import { LongFormProject } from '../types/project';
 import {
   checkRenderWorkerHealth,
   requestVideoRender,
+  shareRenderedVideoNativeAndroid,
   RENDER_WORKER_URL,
   RenderHealth,
   RenderJobResult,
@@ -66,6 +68,26 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     e.preventDefault();
     
     alert(`Video is saved in your device Photos/Gallery:\nMovies/LongFormAI/${renderResult.filename}`);
+  };
+
+  const handleShareClick = async () => {
+    if (!renderResult) return;
+
+    if (!renderResult.outputPath || !renderResult.outputPath.startsWith('content://')) {
+      alert('The video must be exported to Gallery before sharing.');
+      return;
+    }
+
+    try {
+      await shareRenderedVideoNativeAndroid(
+        renderResult.outputPath,
+        renderResult.filename,
+        renderResult.filename
+      );
+    } catch (err: any) {
+      console.error('Failed to open Android share sheet:', err);
+      alert(`Could not share video: ${err.message || 'Unknown error'}`);
+    }
   };
 
   const handleStartRender = async () => {
@@ -265,25 +287,36 @@ export const RenderModal: React.FC<RenderModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-1">
-                <a
-                  href={`${RENDER_WORKER_URL}${renderResult.downloadUrl}`}
-                  download={renderResult.filename}
-                  onClick={handleDownloadClick}
-                  className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-900/40"
-                >
-                  {isNativeAndroid() ? (
-                    <>
+              <div className="flex items-center gap-3 pt-1 flex-wrap sm:flex-nowrap">
+                {isNativeAndroid() ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleDownloadClick}
+                      className="flex-1 min-w-[140px] py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-900/40"
+                    >
                       <CheckCircle2 className="w-4 h-4" />
                       Saved to Gallery
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4" />
-                      Download Master MP4
-                    </>
-                  )}
-                </a>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShareClick}
+                      className="flex-1 min-w-[140px] py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-900/40"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      Share
+                    </button>
+                  </>
+                ) : (
+                  <a
+                    href={`${RENDER_WORKER_URL}${renderResult.downloadUrl}`}
+                    download={renderResult.filename}
+                    className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-900/40"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download Master MP4
+                  </a>
+                )}
               </div>
             </div>
           )}

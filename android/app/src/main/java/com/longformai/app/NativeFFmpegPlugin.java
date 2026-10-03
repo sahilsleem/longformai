@@ -1,7 +1,9 @@
 package com.longformai.app;
 
+import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
@@ -155,6 +157,62 @@ public class NativeFFmpegPlugin extends Plugin {
                 call.reject("Failed to save video to Gallery: " + e.getMessage(), e);
             }
         });
+    }
+
+    @PluginMethod
+    public void shareVideo(PluginCall call) {
+        String uriStr = call.getString("uri");
+        if (uriStr == null || uriStr.trim().isEmpty()) {
+            call.reject("Must provide video uri to share");
+            return;
+        }
+
+        if (!uriStr.startsWith("content://")) {
+            call.reject("Invalid MediaStore URI. The video must be exported to Gallery before sharing.");
+            return;
+        }
+
+        try {
+            String title = call.getString("title");
+            if (title == null || title.trim().isEmpty()) {
+                title = call.getString("filename", "Share Video");
+            }
+
+            Uri contentUri = Uri.parse(uriStr);
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("video/mp4");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            shareIntent.setClipData(ClipData.newRawUri("Video", contentUri));
+            if (title != null && !title.isEmpty()) {
+                shareIntent.putExtra(Intent.EXTRA_SUBJECT, title);
+            }
+
+            Intent chooser = Intent.createChooser(shareIntent, title != null ? title : "Share Video");
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    try {
+                        getActivity().startActivity(chooser);
+                        JSObject ret = new JSObject();
+                        ret.put("success", true);
+                        call.resolve(ret);
+                    } catch (Exception actEx) {
+                        call.reject("Failed to open share sheet: " + actEx.getMessage(), actEx);
+                    }
+                });
+            } else {
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(chooser);
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            }
+        } catch (Exception e) {
+            call.reject("Failed to open share sheet: " + e.getMessage(), e);
+        }
     }
 }
 
