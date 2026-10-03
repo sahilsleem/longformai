@@ -341,23 +341,30 @@ export async function hydrateProjectWithBlobs(storedProject: LongFormProject): P
 
   let hydratedVoiceover: VoiceoverTrack | undefined = storedProject.voiceover;
   if (storedProject.voiceover) {
-    const voBlobRecord = await getMediaBlob(storedProject.voiceover.id);
-    if (voBlobRecord && voBlobRecord.blob) {
-      const file = new File([voBlobRecord.blob], storedProject.voiceover.name, {
-        type: voBlobRecord.mimeType || voBlobRecord.blob.type,
-        lastModified: storedProject.voiceover.createdAt || Date.now(),
-      });
-      const url = URL.createObjectURL(file);
+    if (storedProject.voiceover.nativePath) {
       hydratedVoiceover = {
         ...storedProject.voiceover,
-        file,
-        url,
+        url: resolveNativeMediaUrl(storedProject.voiceover.nativePath),
       };
     } else {
-      hydratedVoiceover = {
-        ...storedProject.voiceover,
-        url: '',
-      };
+      const voBlobRecord = await getMediaBlob(storedProject.voiceover.id);
+      if (voBlobRecord && voBlobRecord.blob) {
+        const file = new File([voBlobRecord.blob], storedProject.voiceover.name, {
+          type: voBlobRecord.mimeType || voBlobRecord.blob.type,
+          lastModified: storedProject.voiceover.createdAt || Date.now(),
+        });
+        const url = URL.createObjectURL(file);
+        hydratedVoiceover = {
+          ...storedProject.voiceover,
+          file,
+          url,
+        };
+      } else {
+        hydratedVoiceover = {
+          ...storedProject.voiceover,
+          url: '',
+        };
+      }
     }
   }
 

@@ -24,7 +24,7 @@ import {
   clearLocalProject,
   hydrateProjectWithBlobs,
 } from '../engine/persistence';
-import { removeNativeMedia } from '../platform/androidMedia';
+import { removeNativeMedia, NativeVoiceoverAsset } from '../platform/androidMedia';
 
 /**
  * Safely revokes a browser blob object URL if valid to prevent memory leaks
@@ -365,6 +365,71 @@ export function useProject() {
     setTranscriptionError(null);
   }, []);
 
+  // Set Native Voiceover Audio (Android native file picker)
+  const addNativeVoiceover = useCallback(async (asset: NativeVoiceoverAsset) => {
+    const ext = asset.name.split('.').pop()?.toLowerCase() || 'mp3';
+    const id = `voiceover_${Date.now()}`;
+
+    // 1. Extract duration if not already present
+    let duration = asset.duration || 0;
+    if (!duration) {
+      try {
+        const audioEl = document.createElement('audio');
+        audioEl.preload = 'metadata';
+        await new Promise<void>((resolve) => {
+          audioEl.onloadedmetadata = () => {
+            duration = audioEl.duration || 0;
+            resolve();
+          };
+          audioEl.onerror = () => resolve();
+          audioEl.src = asset.webPath;
+        });
+      } catch (e) {
+        console.warn('Native audio metadata extraction error:', e);
+      }
+    }
+
+    // 2. Waveform representation for timeline display (lightweight default)
+    const waveformData = Array(240).fill(0.3);
+
+    setProject((prev) => {
+      // Clean up previous voiceover blob/file
+      if (prev.voiceover?.id && prev.voiceover.id !== id) {
+        deleteMediaBlob(prev.voiceover.id).catch(() => {});
+      }
+      if (prev.voiceover?.nativePath && prev.voiceover.nativePath !== asset.nativePath) {
+        removeNativeMedia(prev.voiceover.nativePath).catch(() => {});
+      }
+      if (prev.voiceover?.url && !prev.voiceover?.nativePath && prev.voiceover.url !== asset.webPath) {
+        safeRevokeObjectURL(prev.voiceover.url);
+      }
+
+      const voiceover: VoiceoverTrack = {
+        id,
+        name: asset.name,
+        type: 'audio',
+        url: asset.webPath,
+        nativePath: asset.nativePath,
+        duration: Math.max(0.5, duration),
+        size: asset.size,
+        format: ext,
+        waveformData,
+        volume: 1.0,
+        isMuted: false,
+        segments: [],
+        createdAt: Date.now(),
+      };
+
+      return {
+        ...prev,
+        voiceover,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    setIsDirty(true);
+    setTranscriptionError(null);
+  }, []);
+
   // Remove Voiceover Audio
   const removeVoiceoverAudio = useCallback(() => {
     if (audioPlayerRef.current) {
@@ -375,7 +440,10 @@ export function useProject() {
       if (prev.voiceover?.id) {
         deleteMediaBlob(prev.voiceover.id).catch(() => {});
       }
-      if (prev.voiceover?.url) {
+      if (prev.voiceover?.nativePath) {
+        removeNativeMedia(prev.voiceover.nativePath).catch(() => {});
+      }
+      if (prev.voiceover?.url && !prev.voiceover?.nativePath) {
         safeRevokeObjectURL(prev.voiceover.url);
       }
       return {
@@ -400,18 +468,23 @@ export function useProject() {
       setTranscriptionError(null);
 
       try {
-        let audioSource: File | Blob;
-        if (project.voiceover.file) {
-          audioSource = project.voiceover.file;
-        } else if (project.voiceover.url) {
-          const res = await fetch(project.voiceover.url);
-          audioSource = await res.blob();
-        } else {
-          throw new Error('Audio file source not available in memory.');
+        let audioSource: File | Blob | undefined;
+        const nativePath = project.voiceover.nativePath;
+
+        if (!nativePath) {
+          if (project.voiceover.file) {
+            audioSource = project.voiceover.file;
+          } else if (project.voiceover.url) {
+            const res = await fetch(project.voiceover.url);
+            audioSource = await res.blob();
+          } else {
+            throw new Error('Audio file source not available in memory.');
+          }
         }
 
         const result = await transcribeAudioFile(audioSource, project.voiceover.name, {
           modelSize: options.modelSize,
+          nativePath,
         });
 
         setProject((prev) => {
@@ -1626,6 +1699,7 @@ export function useProject() {
     toggleVoiceoverMute,
     addMediaAssets,
     addNativeMediaAssets,
+    addNativeVoiceover,
     removeMediaAsset,
     addMediaToTimeline,
     removeTimelineItem,

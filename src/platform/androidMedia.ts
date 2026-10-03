@@ -15,6 +15,53 @@ export interface NativeMediaAsset {
   height?: number;
 }
 
+export interface NativeVoiceoverAsset {
+  nativePath: string;
+  webPath: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  duration?: number;
+}
+
+/**
+ * Opens the native Android file picker for audio, copies the selected voiceover
+ * to app-private persistent storage (Directory.Data), and returns the asset metadata.
+ */
+export async function pickAndroidVoiceover(): Promise<NativeVoiceoverAsset | null> {
+  if (!isNativeAndroid()) return null;
+
+  const result = await FilePicker.pickFiles({
+    types: ['audio/*'],
+    readData: false,
+    limit: 1,
+  });
+
+  if (!result.files || result.files.length === 0) return null;
+  const file = result.files[0];
+  if (!file.path) return null;
+
+  const ext = file.name.split('.').pop() || 'mp3';
+  const destName = `voiceover_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+
+  const copyResult = await Filesystem.copy({
+    from: file.path,
+    to: destName,
+    toDirectory: Directory.Data,
+  });
+
+  const webPath = Capacitor.convertFileSrc(copyResult.uri);
+
+  return {
+    nativePath: copyResult.uri,
+    webPath,
+    name: file.name,
+    mimeType: file.mimeType || 'audio/mpeg',
+    size: file.size,
+    duration: file.duration,
+  };
+}
+
 /**
  * Opens the native Android media picker, copies the selected files to app-private
  * persistent storage (so they survive app restarts), and returns the asset metadata.

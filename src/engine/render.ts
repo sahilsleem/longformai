@@ -80,7 +80,9 @@ export async function renderVideoNativeAndroid(
     });
 
     let voPath: string | undefined;
-    if (project.voiceover?.url) {
+    if (project.voiceover?.nativePath) {
+      voPath = project.voiceover.nativePath.replace(/^file:\/\//, '');
+    } else if (project.voiceover?.url) {
        try {
          const resp = await fetch(project.voiceover.url);
          const blob = await resp.blob();

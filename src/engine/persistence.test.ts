@@ -239,4 +239,27 @@ describe('Local Persistence & Refresh Recovery Engine', () => {
     expect(reloaded?.project.timeline[0].transform.y).toBe(-10);
     expect(reloaded?.project.timeline[0].transform.scale).toBe(1.5);
   });
+
+  it('preserves nativePath on voiceover during sanitization and hydration', async () => {
+    const project = createInitialProject('Native Voiceover Project');
+    project.voiceover = {
+      id: 'vo_native_1',
+      name: 'voiceover.mp3',
+      type: 'audio',
+      url: 'http://localhost/_capacitor_file_/data/user/0/com.longformai.app/files/voiceover_123.mp3',
+      nativePath: 'file:///data/user/0/com.longformai.app/files/voiceover_123.mp3',
+      duration: 45,
+      volume: 1,
+      isMuted: false,
+      createdAt: 1000,
+    };
+
+    const sanitized = sanitizeProjectForStorage(project);
+    expect(sanitized.voiceover?.nativePath).toBe('file:///data/user/0/com.longformai.app/files/voiceover_123.mp3');
+    expect(sanitized.voiceover?.url).toBe('');
+
+    const hydrated = await hydrateProjectWithBlobs(sanitized);
+    expect(hydrated.voiceover?.nativePath).toBe('file:///data/user/0/com.longformai.app/files/voiceover_123.mp3');
+    expect(hydrated.voiceover?.duration).toBe(45);
+  });
 });

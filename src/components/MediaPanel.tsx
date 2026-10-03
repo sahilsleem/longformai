@@ -43,6 +43,7 @@ interface MediaPanelProps {
   onRemove: (id: string) => void;
   onAddToTimeline: (mediaId: string) => void;
   onUploadVoiceover?: (file: File) => void;
+  onUploadNativeVoiceover?: () => void;
   onRemoveVoiceover?: () => void;
   onAnalyzeMedia?: (id: string) => void;
   onCreateFolder?: (name: string) => MediaFolder | void;
@@ -67,6 +68,7 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
   onRemove,
   onAddToTimeline,
   onUploadVoiceover,
+  onUploadNativeVoiceover,
   onAnalyzeMedia: _onAnalyzeMedia,
   onCreateFolder,
   onRenameFolder,
@@ -730,7 +732,13 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                 <span>Media</span>
               </button>
               <button
-                onClick={() => voiceoverInputRef.current?.click()}
+                onClick={() => {
+                  if (isNativeAndroid() && onUploadNativeVoiceover) {
+                    onUploadNativeVoiceover();
+                  } else {
+                    voiceoverInputRef.current?.click();
+                  }
+                }}
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-300 border border-slate-700/60 rounded transition-colors shadow-sm"
                 title="Voiceover drives the automatic edit"
               >

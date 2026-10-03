@@ -89,14 +89,17 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 async function transcribeNativeAndroid(
-  audioFileOrBlob: File | Blob,
-  fileName: string,
-  options: TranscriptionOptions
+  audioFileOrBlob?: File | Blob,
+  fileName: string = 'voiceover.mp3',
+  options: TranscriptionOptions = {}
 ): Promise<{ segments: AudioSegment[]; duration: number; language: string }> {
-  let inputPath = options.nativePath;
+  let inputPath = options.nativePath ? options.nativePath.replace(/^file:\/\//, '') : undefined;
   let tempFileName: string | null = null;
 
   if (!inputPath) {
+    if (!audioFileOrBlob) {
+      throw new Error('No audio file or nativePath provided for transcription');
+    }
     const ext = fileName.split('.').pop() || 'mp3';
     tempFileName = `vo_native_${Date.now()}.${ext}`;
     const base64Data = await blobToBase64(audioFileOrBlob);
@@ -173,12 +176,16 @@ export async function releaseTranscriptionModel(): Promise<void> {
  * Purely local - zero cloud API calls.
  */
 export async function transcribeAudioFile(
-  audioFileOrBlob: File | Blob,
+  audioFileOrBlob?: File | Blob,
   fileName: string = 'voiceover.mp3',
   options: TranscriptionOptions = {}
 ): Promise<{ segments: AudioSegment[]; duration: number; language: string }> {
   if (isNativeAndroid()) {
     return transcribeNativeAndroid(audioFileOrBlob, fileName, options);
+  }
+
+  if (!audioFileOrBlob) {
+    throw new Error('Audio file source not available in memory.');
   }
 
   const workerUrl = options.workerUrl || DEFAULT_WORKER_URL;

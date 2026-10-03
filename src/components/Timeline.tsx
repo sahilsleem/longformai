@@ -24,6 +24,7 @@ import { TimelineItem, MediaAsset, VoiceoverTrack, AudioSegment } from '../types
 import { formatTimecode } from '../engine/schema';
 import { DraftStats, DraftOptions } from '../engine/draftTimeline';
 import { ReplaceMediaModal } from './ReplaceMediaModal';
+import { isNativeAndroid } from '../platform/androidMedia';
 
 interface TimelineProps {
   timeline: TimelineItem[];
@@ -46,6 +47,7 @@ interface TimelineProps {
   onGenerateAIDraft?: (options?: DraftOptions) => void;
   onClearTimeline?: () => void;
   onUploadVoiceover?: (file: File) => void;
+  onUploadNativeVoiceover?: () => void;
   onRemoveVoiceover?: () => void;
   onSetVoiceoverVolume?: (vol: number) => void;
   onToggleVoiceoverMute?: () => void;
@@ -72,6 +74,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   onGenerateAIDraft,
   onClearTimeline,
   onUploadVoiceover,
+  onUploadNativeVoiceover,
   onRemoveVoiceover,
   onToggleVoiceoverMute,
 }) => {
@@ -533,7 +536,13 @@ export const Timeline: React.FC<TimelineProps> = ({
               </div>
             ) : (
               <div
-                onClick={() => audioInputRef.current?.click()}
+                onClick={() => {
+                  if (isNativeAndroid() && onUploadNativeVoiceover) {
+                    onUploadNativeVoiceover();
+                  } else {
+                    audioInputRef.current?.click();
+                  }
+                }}
                 className="h-full border border-dashed border-purple-500/30 hover:border-purple-400/70 rounded mx-2 flex items-center justify-center gap-2 text-xs text-purple-400 hover:text-purple-300 cursor-pointer bg-purple-950/20 hover:bg-purple-950/40 transition-colors"
               >
                 <Upload className="w-3.5 h-3.5" />

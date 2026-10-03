@@ -420,6 +420,7 @@ export interface VoiceoverTrack {
   type: 'audio';
   url: string;              // In-memory Object URL
   file?: File;              // Browser-only File instance
+  nativePath?: string;      // Android-only persistent app storage path
   duration: number;         // Total audio duration in seconds
   size?: number;            // File size in bytes
   format?: string;          // mp3, wav, m4a, aac, ogg

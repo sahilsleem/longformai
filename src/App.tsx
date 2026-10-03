@@ -10,7 +10,7 @@ import { MediaInspector } from './components/MediaInspector';
 import { Timeline } from './components/Timeline';
 import { useProject } from './state/useProjectStore';
 import { Film, Sparkles } from 'lucide-react';
-import { pickAndroidMedia } from './platform/androidMedia';
+import { pickAndroidMedia, pickAndroidVoiceover } from './platform/androidMedia';
 export const App: React.FC = () => {
   const {
     project,
@@ -62,6 +62,7 @@ export const App: React.FC = () => {
     toggleVoiceoverMute,
     addMediaAssets,
     addNativeMediaAssets,
+    addNativeVoiceover,
     removeMediaAsset,
     addMediaToTimeline,
     removeTimelineItem,
@@ -105,6 +106,17 @@ export const App: React.FC = () => {
       }
     } catch (e) {
       console.error('Native picker failed:', e);
+    }
+  };
+
+  const handleUploadNativeVoiceover = async () => {
+    try {
+      const asset = await pickAndroidVoiceover();
+      if (asset) {
+        await addNativeVoiceover(asset);
+      }
+    } catch (e) {
+      console.error('Native voiceover picker failed:', e);
     }
   };
 
@@ -227,6 +239,7 @@ export const App: React.FC = () => {
             onRemove={removeMediaAsset}
             onAddToTimeline={addMediaToTimeline}
             onUploadVoiceover={setVoiceoverAudio}
+            onUploadNativeVoiceover={handleUploadNativeVoiceover}
             onRemoveVoiceover={removeVoiceoverAudio}
             onAnalyzeMedia={analyzeMedia}
             onCreateFolder={createFolder}
@@ -314,6 +327,7 @@ export const App: React.FC = () => {
             onGenerateAIDraft={generateAIDraft}
             onClearTimeline={clearTimeline}
             onUploadVoiceover={setVoiceoverAudio}
+            onUploadNativeVoiceover={handleUploadNativeVoiceover}
             onRemoveVoiceover={removeVoiceoverAudio}
             onSetVoiceoverVolume={setVoiceoverVolume}
             onToggleVoiceoverMute={toggleVoiceoverMute}
@@ -375,6 +389,7 @@ export const App: React.FC = () => {
                 onRemove={removeMediaAsset}
                 onAddToTimeline={addMediaToTimeline}
                 onUploadVoiceover={setVoiceoverAudio}
+                onUploadNativeVoiceover={handleUploadNativeVoiceover}
                 onRemoveVoiceover={removeVoiceoverAudio}
                 onAnalyzeMedia={analyzeMedia}
                 onCreateFolder={createFolder}
@@ -439,6 +454,7 @@ export const App: React.FC = () => {
           onGenerateAIDraft={generateAIDraft}
           onClearTimeline={clearTimeline}
           onUploadVoiceover={setVoiceoverAudio}
+          onUploadNativeVoiceover={handleUploadNativeVoiceover}
           onRemoveVoiceover={removeVoiceoverAudio}
           onSetVoiceoverVolume={setVoiceoverVolume}
           onToggleVoiceoverMute={toggleVoiceoverMute}
