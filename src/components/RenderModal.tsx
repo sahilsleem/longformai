@@ -1,37 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Video,
-  Download,
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  X,
-  Layers,
-  Volume2,
-  Clock,
-  Sparkles,
-  HardDrive,
-  ShieldAlert,
-  Share2,
-} from 'lucide-react';
 import { LongFormProject } from '../types/project';
 import {
-  checkRenderWorkerHealth,
   requestVideoRender,
   shareRenderedVideoNativeAndroid,
-  RENDER_WORKER_URL,
-  RenderHealth,
-  RenderJobResult,
 } from '../engine/render';
-import { formatSecondsToMinutes } from '../engine/schema';
-import { validateProjectForRender, ProjectValidationResult } from '../engine/validation';
+import { formatTimecode } from '../engine/schema';
+import { validateProjectForRender } from '../engine/validation';
 import { isNativeAndroid } from '../platform/androidMedia';
+import { getBollywoodFrameDataUrl } from '../engine/frameAsset';
 
 interface RenderModalProps {
   isOpen: boolean;
   onClose: () => void;
   project: LongFormProject;
   totalDuration: number;
+  isFrameEnabled: boolean;
+  onToggleFrame: () => void;
+  onRelink: () => void;
 }
 
 export const RenderModal: React.FC<RenderModalProps> = ({
@@ -39,337 +24,169 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   onClose,
   project,
   totalDuration,
+  isFrameEnabled,
+  onToggleFrame,
+  onRelink
 }) => {
-  const [workerHealth, setWorkerHealth] = useState<RenderHealth | null>(null);
   const [isRendering, setIsRendering] = useState(false);
-  const [renderProgress, setRenderProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState('');
-  const [renderResult, setRenderResult] = useState<RenderJobResult | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [validationResult, setValidationResult] = useState<ProjectValidationResult | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [missingFiles, setMissingFiles] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
-      checkHealth();
-      const val = validateProjectForRender(project);
-      setValidationResult(val);
+      validateProjectForRender(project);
+      const unlinked = project.media.filter(m => !m.file && (!m.url || m.url.length === 0)).length;
+      setMissingFiles(unlinked);
     }
   }, [isOpen, project]);
 
-  const checkHealth = async () => {
-    const health = await checkRenderWorkerHealth();
-    setWorkerHealth(health);
-  };
-
-  const handleDownloadClick = async (e: React.MouseEvent) => {
-    if (!renderResult || !isNativeAndroid()) return;
-    
-    // Android: prevent the default localhost navigation
-    e.preventDefault();
-    
-    alert(`Video is saved in your device Photos/Gallery:\nMovies/LongFormAI/${renderResult.filename}`);
-  };
-
-  const handleShareClick = async () => {
-    if (!renderResult) return;
-
-    if (!renderResult.outputPath || !renderResult.outputPath.startsWith('content://')) {
-      alert('The video must be exported to Gallery before sharing.');
-      return;
-    }
-
-    try {
-      await shareRenderedVideoNativeAndroid(
-        renderResult.outputPath,
-        renderResult.filename,
-        renderResult.filename
-      );
-    } catch (err: any) {
-      console.error('Failed to open Android share sheet:', err);
-      alert(`Could not share video: ${err.message || 'Unknown error'}`);
-    }
-  };
-
   const handleStartRender = async () => {
-    // 1. Strict pre-render validation
-    const validation = validateProjectForRender(project);
-    setValidationResult(validation);
-
-    if (!validation.isValid) {
-      setErrorMessage(`Validation failed: ${validation.errors.join(' • ')}`);
-      return;
-    }
-
+    if (missingFiles > 0) return;
     setIsRendering(true);
-    setErrorMessage(null);
-    setRenderResult(null);
-    setRenderProgress(0);
-    setProgressMessage('Initializing local rendering pipeline...');
-
+    setError(null);
+    setResult(null);
+    setProgress(0);
     try {
-      const result = await requestVideoRender(project, (pct, msg) => {
-        setRenderProgress(pct);
-        setProgressMessage(msg);
-      });
-      setRenderResult(result);
-    } catch (err: any) {
-      console.error('Render error:', err);
-      setErrorMessage(err.message || 'Failed to render video');
+      const res = await requestVideoRender(project, (pct) => setProgress(pct));
+      setResult(res);
+    } catch (e: any) {
+      setError(e.message || 'Export failed.');
     } finally {
       setIsRendering(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (result && isNativeAndroid() && result.outputPath) {
+      try {
+        await shareRenderedVideoNativeAndroid(result.outputPath, result.filename, result.filename);
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
   if (!isOpen) return null;
 
   const clipCount = project.timeline.length;
-  const hasVoiceover = Boolean(project.voiceover);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]">
-        {/* Header */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-editor-panelBorder flex items-center justify-between bg-editor-surface/50 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30 shrink-0">
-              <Video className="w-4 h-4" />
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col justify-end animate-in fade-in duration-200 select-none">
+      <div className="bg-editor-panel rounded-t-3xl shadow-2xl p-6 animate-in slide-in-from-bottom duration-200">
+        
+        {/* State 1: Ready to Export */}
+        {!isRendering && !result && !error && (
+          <div className="flex flex-col items-center">
+            {/* Thumbnail preview with optional broadcast frame */}
+            <div className="w-40 aspect-video bg-slate-900 rounded-lg border border-slate-700 relative overflow-hidden mb-6 flex items-center justify-center">
+               <span className="text-slate-500 text-xs">Preview</span>
+               {isFrameEnabled && (
+                 <img src={getBollywoodFrameDataUrl()} className="absolute inset-0 w-full h-full object-fill pointer-events-none" />
+               )}
             </div>
-            <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-semibold text-white truncate">Master Video Export</h2>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Local Rendering • 100% Private</p>
+
+            <div className="flex items-center justify-between w-full bg-editor-surface p-3 rounded-xl mb-4 border border-editor-panelBorder">
+              <span className="text-sm font-medium text-slate-200">Broadcast frame</span>
+              <button 
+                onClick={onToggleFrame}
+                className={`w-12 h-6 rounded-full transition-colors relative ${isFrameEnabled ? 'bg-amber-400' : 'bg-slate-600'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${isFrameEnabled ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+
+            <div className="text-slate-400 text-sm mb-6 font-mono">
+              {formatTimecode(totalDuration)} · {clipCount} clips · 1080p
+            </div>
+
+            {missingFiles > 0 ? (
+              <div className="w-full flex items-center justify-between bg-amber-950/40 p-4 rounded-xl border border-amber-800/40">
+                <span className="text-amber-200 text-sm">{missingFiles} clips are missing files</span>
+                <button onClick={() => { onClose(); onRelink(); }} className="text-sm text-black font-semibold bg-amber-400 px-4 py-1.5 rounded-full">Fix</button>
+              </div>
+            ) : (
+              <button 
+                onClick={handleStartRender}
+                className="w-full py-4 bg-white text-black rounded-xl font-semibold text-[15px] active:scale-[0.98] transition-transform"
+              >
+                Export video
+              </button>
+            )}
+            
+            <button onClick={onClose} className="mt-4 text-sm text-slate-400 p-2">Cancel</button>
+          </div>
+        )}
+
+        {/* State 2: Exporting */}
+        {isRendering && (
+          <div className="flex flex-col items-center py-8">
+            <h2 className="text-lg font-semibold text-white mb-2">Exporting your video…</h2>
+            <p className="text-sm text-slate-400 mb-8">Keep Niggachu open.</p>
+            
+            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                style={{ width: `${Math.max(5, progress)}%` }}
+              />
+            </div>
+            <div className="mt-4 text-2xl font-bold text-amber-400 font-mono">{progress.toFixed(0)}%</div>
+          </div>
+        )}
+
+        {/* State 3: Done */}
+        {result && !isRendering && (
+          <div className="flex flex-col items-center py-6">
+            <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h2 className="text-xl font-bold text-white mb-1">Your video is ready</h2>
+            <p className="text-sm text-slate-400 mb-8">Saved to Gallery</p>
+
+            <div className="flex flex-col w-full gap-3">
+              <button 
+                onClick={handleShare}
+                className="w-full py-4 bg-blue-600 text-white rounded-xl font-semibold text-[15px] active:scale-[0.98] transition-transform"
+              >
+                Share
+              </button>
+              <button 
+                onClick={onClose}
+                className="w-full py-4 bg-editor-surface text-white rounded-xl font-semibold text-[15px] border border-editor-panelBorder active:scale-[0.98] transition-transform"
+              >
+                Done
+              </button>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            disabled={isRendering}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors disabled:opacity-50 shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        )}
 
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
-          {!workerHealth?.ffmpegAvailable && (
-            <div className="p-3 bg-amber-950/40 border border-amber-800/40 rounded-lg text-xs text-amber-300 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-amber-200">Local rendering is currently unavailable.</p>
-                <p className="mt-0.5 text-amber-400/90 leading-relaxed">
-                  Please ensure the LongFormAI application is fully running.
-                </p>
-              </div>
+        {/* Error State */}
+        {error && !isRendering && (
+          <div className="flex flex-col items-center py-6">
+            <div className="w-16 h-16 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </div>
-          )}
+            <h2 className="text-lg font-bold text-white mb-1">Export didn't finish</h2>
+            <p className="text-sm text-slate-400 mb-8 max-w-[250px] text-center truncate">{error}</p>
 
-          {/* Validation Warnings / Errors */}
-          {validationResult && !validationResult.isValid && (
-            <div className="p-3 bg-rose-950/40 border border-rose-800/40 rounded-lg text-xs text-rose-300 space-y-1.5">
-              <div className="flex items-center gap-2 font-semibold text-rose-200">
-                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>Render Preconditions Failed ({validationResult.errors.length})</span>
-              </div>
-              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-rose-300/90 pl-1">
-                {validationResult.errors.map((err, i) => (
-                  <li key={i}>{err}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {validationResult && validationResult.isValid && validationResult.warnings.length > 0 && (
-            <div className="p-3 bg-amber-950/30 border border-amber-800/30 rounded-lg text-xs text-amber-300 space-y-1">
-              <div className="flex items-center gap-2 font-medium text-amber-200">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Notice</span>
-              </div>
-              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-300/80 pl-1">
-                {validationResult.warnings.map((warn, i) => (
-                  <li key={i}>{warn}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Project Render Summary Card */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="p-3 bg-editor-surface rounded-lg border border-editor-panelBorder">
-              <span className="text-[11px] text-slate-400 block mb-1">Target Resolution</span>
-              <div className="font-semibold text-white text-xs flex items-center gap-1.5">
-                <Video className="w-3.5 h-3.5 text-blue-400" />
-                1920 × 1080
-              </div>
-              <span className="text-[10px] text-slate-500 font-mono">16:9 • 30 FPS</span>
-            </div>
-
-            <div className="p-3 bg-editor-surface rounded-lg border border-editor-panelBorder">
-              <span className="text-[11px] text-slate-400 block mb-1">Total Duration</span>
-              <div className="font-semibold text-white text-xs flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-blue-400" />
-                {formatSecondsToMinutes(totalDuration)}
-              </div>
-              <span className="text-[10px] text-slate-500 font-mono">{totalDuration.toFixed(1)}s total</span>
-            </div>
-
-            <div className="p-3 bg-editor-surface rounded-lg border border-editor-panelBorder">
-              <span className="text-[11px] text-slate-400 block mb-1">Visual Clips</span>
-              <div className="font-semibold text-white text-xs flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-blue-400" />
-                {clipCount} {clipCount === 1 ? 'clip' : 'clips'}
-              </div>
-              <span className="text-[10px] text-slate-500 font-mono">Chronological</span>
-            </div>
-
-            <div className="p-3 bg-editor-surface rounded-lg border border-editor-panelBorder">
-              <span className="text-[11px] text-slate-400 block mb-1">Voiceover Track</span>
-              <div className="font-semibold text-white text-xs flex items-center gap-1.5">
-                <Volume2 className="w-3.5 h-3.5 text-blue-400" />
-                {hasVoiceover ? 'Master Audio' : 'Silent Track'}
-              </div>
-              <span className="text-[10px] text-slate-500 font-mono">AAC 44.1kHz</span>
+            <div className="flex flex-col w-full gap-3">
+              <button 
+                onClick={handleStartRender}
+                className="w-full py-4 bg-amber-400 text-black rounded-xl font-semibold text-[15px] active:scale-[0.98] transition-transform"
+              >
+                Try again
+              </button>
+              <button 
+                onClick={onClose}
+                className="w-full py-4 bg-editor-surface text-white rounded-xl font-semibold text-[15px] border border-editor-panelBorder active:scale-[0.98] transition-transform"
+              >
+                Cancel
+              </button>
             </div>
           </div>
+        )}
 
-          {/* Render In Progress */}
-          {isRendering && (
-            <div className="p-4 bg-blue-950/30 border border-blue-800/40 rounded-lg space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-blue-300 flex items-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
-                  {progressMessage}
-                </span>
-                <span className="font-mono text-blue-400 font-bold">{renderProgress.toFixed(0)}%</span>
-              </div>
-              {/* Progress Bar */}
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-300 rounded-full"
-                  style={{ width: `${Math.max(4, renderProgress)}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-slate-400">
-                FFmpeg is encoding 1920x1080 16:9 video clips with per-clip framing, gap-fill, and AAC audio sync.
-              </p>
-            </div>
-          )}
-
-          {/* Render Succeeded */}
-          {renderResult && !isRendering && (
-            <div className="p-4 bg-emerald-950/40 border border-emerald-800/40 rounded-lg space-y-3">
-              <div className="flex items-center gap-2 text-emerald-300 text-sm font-semibold">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <span>Video Rendered Successfully!</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs bg-black/40 p-3 rounded border border-emerald-900/30 font-mono">
-                <div>
-                  <span className="text-slate-500">File:</span>{' '}
-                  <span className="text-slate-200">{renderResult.filename}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Resolution:</span>{' '}
-                  <span className="text-slate-200">
-                    {renderResult.width}×{renderResult.height} (16:9)
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Duration:</span>{' '}
-                  <span className="text-slate-200">{renderResult.duration}s @ {renderResult.fps}fps</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Size:</span>{' '}
-                  <span className="text-slate-200">
-                    {(renderResult.sizeBytes / (1024 * 1024)).toFixed(2)} MB
-                  </span>
-                </div>
-                <div className="col-span-2 text-[11px] text-slate-400">
-                  Codecs: {renderResult.videoCodec} • {renderResult.audioCodec}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-1 flex-wrap sm:flex-nowrap">
-                {isNativeAndroid() ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleDownloadClick}
-                      className="flex-1 min-w-[140px] min-h-[44px] py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/50"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Saved to Gallery
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleShareClick}
-                      className="flex-1 min-w-[140px] min-h-[44px] py-3 px-4 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-950/50"
-                    >
-                      <Share2 className="w-4 h-4" />
-                      Share Video
-                    </button>
-                  </>
-                ) : (
-                  <a
-                    href={`${RENDER_WORKER_URL}${renderResult.downloadUrl}`}
-                    download={renderResult.filename}
-                    className="flex-1 min-h-[44px] py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/50"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download Master MP4
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {errorMessage && !isRendering && (
-            <div className="p-3 bg-rose-950/40 border border-rose-800/40 rounded-lg text-xs text-rose-300 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-rose-200">Rendering Failed</p>
-                <p className="mt-0.5 text-rose-300/90 font-mono text-[11px] break-all">{errorMessage}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shrink-0">
-          <div className="text-[10px] sm:text-[11px] text-slate-500 flex items-center gap-1.5">
-            <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-            <span className="truncate">
-              {isNativeAndroid() ? 'Saved to Gallery (Movies/LongFormAI)' : 'Saved to server/exports/'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              disabled={isRendering}
-              className="min-h-[40px] px-3.5 sm:px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface active:scale-98 transition-colors disabled:opacity-50"
-            >
-              Close
-            </button>
-
-            <button
-              onClick={handleStartRender}
-              disabled={isRendering || !workerHealth?.ffmpegAvailable}
-              className="min-h-[40px] px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-500 active:scale-98 text-white rounded-lg transition-all flex items-center gap-2 shadow-md shadow-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isRendering ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Rendering...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  {renderResult ? 'Render Again' : 'Export 1080p Video'}
-                </>
-              )}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

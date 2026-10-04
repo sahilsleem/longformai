@@ -1,24 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import {
-  Film,
-  Upload,
-  RotateCcw,
-  Monitor,
-  Video,
-  Save,
-  AlertTriangle,
   MoreVertical,
-  X,
-  Clock,
 } from 'lucide-react';
 import { LongFormProject } from '../types/project';
 import {
   exportProjectToPortableJSON,
-  formatTimecode,
   validateAndParseProjectJSON,
 } from '../engine/schema';
-import { RenderModal } from './RenderModal';
-import { WorkerStatusIndicator } from './WorkerStatusIndicator';
 
 interface HeaderProps {
   project: LongFormProject;
@@ -40,47 +28,16 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   project,
-  currentTime,
-  totalDuration,
-  isDirty = false,
-  onMarkSaved,
   onImportProject,
-  onResetProject,
+  onSetProjectName,
   onOpenRenderModal,
-  onOpenRelinkModal,
-  unlinkedCount = 0,
 }) => {
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isInternalRenderModalOpen, setIsInternalRenderModalOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const handleSaveProject = () => {
-    const jsonStr = exportProjectToPortableJSON(project);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const safeName = project.name?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'longform_project';
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${safeName}.longform.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    onMarkSaved?.();
-    setIsMobileMenuOpen(false);
-  };
 
   const handleOpenProject = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (isDirty) {
-      const confirmDiscard = window.confirm(
-        'You have unsaved changes in your current project.\n\nAre you sure you want to load another project and discard unsaved changes?'
-      );
-      if (!confirmDiscard) {
-        e.target.value = '';
-        return;
-      }
-    }
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -88,236 +45,79 @@ export const Header: React.FC<HeaderProps> = ({
       const parseResult = validateAndParseProjectJSON(content);
 
       if (!parseResult.isValid || !parseResult.project) {
-        const errList = parseResult.errors.join('\n• ');
-        alert(`Failed to load project:\n\n• ${errList}`);
+        alert('Failed to load project.');
         return;
       }
-
       onImportProject(parseResult.project);
-      setIsMobileMenuOpen(false);
+      setIsMenuOpen(false);
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  const handleTriggerRender = () => {
-    setIsMobileMenuOpen(false);
-    if (onOpenRenderModal) {
-      onOpenRenderModal();
-    } else {
-      setIsInternalRenderModalOpen(true);
-    }
-  };
-
   return (
     <>
-      <header className="h-12 sm:h-13 bg-editor-panel border-b border-editor-panelBorder px-3 sm:px-4 flex items-center justify-between select-none relative z-30 shrink-0">
-        {/* Brand */}
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 bg-blue-600/20 text-blue-400 px-2.5 py-1 rounded-md border border-blue-500/30 shrink-0">
-            <Film className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="font-bold text-xs sm:text-sm tracking-wide text-white">LongFormAI</span>
-          </div>
-          <WorkerStatusIndicator />
+      <header className="sticky top-0 h-12 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-between select-none z-30">
+        <button
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className="p-2 text-slate-300 hover:text-white rounded-md transition-colors"
+        >
+          <MoreVertical className="w-5 h-5" />
+        </button>
+
+        <div className="flex-1 flex justify-center">
+          <input
+            type="text"
+            value={project.name || 'Untitled Project'}
+            onChange={(e) => onSetProjectName?.(e.target.value)}
+            className="bg-transparent text-center text-sm font-semibold text-slate-200 outline-none w-48 truncate"
+          />
         </div>
 
-        {/* Desktop Center: Timecode */}
-        <div className="hidden lg:flex items-center justify-center absolute inset-x-0 pointer-events-none">
-          <div className="flex items-center gap-1.5 font-mono text-xs bg-editor-surface px-3 py-1 rounded-md border border-editor-panelBorder pointer-events-auto shadow-sm">
-            <span className="text-blue-400 font-semibold">{formatTimecode(currentTime)}</span>
-            <span className="text-slate-500">/</span>
-            <span className="text-slate-400">{formatTimecode(totalDuration)}</span>
-          </div>
-        </div>
-
-        {/* Hidden file input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleOpenProject}
-          accept=".json,.longform.json"
-          className="hidden"
-        />
-
-        {/* Desktop Action Buttons */}
-        <div className="hidden md:flex items-center gap-2">
-          {unlinkedCount > 0 && onOpenRelinkModal && (
-            <button
-              onClick={onOpenRelinkModal}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 rounded-md border border-amber-700/60 transition-colors animate-pulse"
-              title={`${unlinkedCount} local media file(s) unlinked. Click to reconnect.`}
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              <span>Relink ({unlinkedCount})</span>
-            </button>
-          )}
-
+        <button
+          onClick={onOpenRenderModal}
+          disabled={project.timeline.length === 0}
+          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:bg-slate-800 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all"
+        >
+          <span>Export</span>
+        </button>
+      </header>
+      
+      {isMenuOpen && (
+        <div className="absolute top-12 left-4 w-48 bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl p-2 z-50">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-editor-surface hover:bg-editor-surfaceHover text-slate-300 rounded-md border border-editor-panelBorder transition-colors"
-            title="Open / Load LongFormAI Project (.longform.json)"
+            className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-editor-surface rounded-lg"
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Open</span>
+            Open project file
           </button>
-
-          <button
-            onClick={handleSaveProject}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-              isDirty
-                ? 'bg-blue-600/30 text-blue-300 border-blue-500/50 hover:bg-blue-600/50'
-                : 'bg-editor-surface hover:bg-editor-surfaceHover text-slate-300 border-editor-panelBorder'
-            }`}
-            title="Save Project to portable .longform.json file"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>Save</span>
-          </button>
-
-          <button
-            onClick={handleTriggerRender}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-sm shadow-blue-900/30 hover:shadow-blue-600/40"
-            title="Render Final 1920x1080 MP4 Video"
-          >
-            <Video className="w-3.5 h-3.5" />
-            <span>Render</span>
-          </button>
-
           <button
             onClick={() => {
-              if (
-                isDirty &&
-                !confirm('You have unsaved changes in this project. Reset timeline and media?')
-              ) {
-                return;
-              } else if (!isDirty && !confirm('Reset project timeline and media?')) {
-                return;
-              }
-              onResetProject();
+              const jsonStr = exportProjectToPortableJSON(project);
+              const blob = new Blob([jsonStr], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const safeName = project.name?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'longform_project';
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${safeName}.longform.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+              setIsMenuOpen(false);
             }}
-            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-editor-surface rounded-md transition-colors ml-0.5"
-            title="Reset project"
+            className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-editor-surface rounded-lg"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Mobile Header Controls: Render + Menu button (Touch-friendly >= 40px) */}
-        <div className="flex md:hidden items-center gap-1.5">
-          {unlinkedCount > 0 && onOpenRelinkModal && (
-            <button
-              onClick={onOpenRelinkModal}
-              className="flex items-center gap-1 min-h-[36px] px-2.5 py-1 text-xs font-semibold bg-amber-950/80 text-amber-300 rounded-md border border-amber-700/60 animate-pulse"
-              title={`${unlinkedCount} unlinked file(s)`}
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              <span>{unlinkedCount}</span>
-            </button>
-          )}
-
-          <button
-            onClick={handleTriggerRender}
-            className="flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rounded-md shadow-sm shadow-blue-900/40"
-            title="Render Final Video"
-          >
-            <Video className="w-3.5 h-3.5" />
-            <span>Render</span>
-          </button>
-
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 text-slate-300 hover:text-white hover:bg-editor-surface rounded-md transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center active:scale-95"
-            title="More Options"
-          >
-            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <MoreVertical className="w-4 h-4" />}
-          </button>
-        </div>
-      </header>
-
-      {/* Mobile Drawer / Dropdown Menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-x-0 top-12 bg-editor-panel/95 backdrop-blur-md border-b border-editor-panelBorder z-40 p-3.5 shadow-2xl space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-150 select-none">
-          {/* Status specs */}
-          <div className="flex items-center justify-between p-2.5 rounded bg-editor-surface border border-editor-panelBorder text-xs text-slate-300">
-            <div className="flex items-center gap-1.5">
-              <Monitor className="w-3.5 h-3.5 text-blue-400" />
-              <span className="font-semibold text-white">1920×1080 (16:9)</span>
-              <span className="text-slate-500">·</span>
-              <span>{project.fps} FPS</span>
-            </div>
-            <div className="flex items-center gap-1 font-mono text-[11px] text-blue-300">
-              <Clock className="w-3 h-3" />
-              <span>{formatTimecode(currentTime)} / {formatTimecode(totalDuration)}</span>
-            </div>
-          </div>
-
-          {/* Action grid */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => {
-                fileInputRef.current?.click();
-              }}
-              className="flex items-center justify-center gap-2 p-3 bg-editor-surface hover:bg-editor-surfaceHover rounded-lg border border-editor-panelBorder text-xs font-medium text-slate-200"
-            >
-              <Upload className="w-4 h-4 text-blue-400" />
-              <span>Open Project</span>
-            </button>
-
-            <button
-              onClick={handleSaveProject}
-              className={`flex items-center justify-center gap-2 p-3 rounded-lg border text-xs font-medium ${
-                isDirty
-                  ? 'bg-blue-600/30 text-blue-300 border-blue-500/50'
-                  : 'bg-editor-surface hover:bg-editor-surfaceHover text-slate-200 border-editor-panelBorder'
-              }`}
-            >
-              <Save className="w-4 h-4 text-blue-400" />
-              <span>Save Project</span>
-            </button>
-          </div>
-
-          {unlinkedCount > 0 && onOpenRelinkModal && (
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onOpenRelinkModal();
-              }}
-              className="w-full flex items-center justify-center gap-2 p-2.5 bg-amber-950/60 hover:bg-amber-900/60 text-amber-300 rounded-lg border border-amber-700/60 text-xs font-semibold"
-            >
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <span>Relink Missing Media Files ({unlinkedCount})</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => {
-              setIsMobileMenuOpen(false);
-              if (
-                isDirty &&
-                !confirm('You have unsaved changes in this project. Reset timeline and media?')
-              ) {
-                return;
-              } else if (!isDirty && !confirm('Reset project timeline and media?')) {
-                return;
-              }
-              onResetProject();
-            }}
-            className="w-full flex items-center justify-center gap-2 p-2 text-red-400 hover:bg-red-950/30 rounded-lg text-xs transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Project to Empty State</span>
+            Back up project
           </button>
         </div>
       )}
 
-      {!onOpenRenderModal && (
-        <RenderModal
-          isOpen={isInternalRenderModalOpen}
-          onClose={() => setIsInternalRenderModalOpen(false)}
-          project={project}
-          totalDuration={totalDuration}
-        />
-      )}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleOpenProject}
+        accept=".json,.longform.json"
+        className="hidden"
+      />
     </>
   );
 };
