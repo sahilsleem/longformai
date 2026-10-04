@@ -65,8 +65,8 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="w-8 h-8" />
       </div>
 
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/5 backdrop-blur-md px-4 py-1 rounded-full border border-white/10 shadow-sm">
-        <h1 className="text-2xl text-white tracking-wide" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <h1 className="text-xl text-white tracking-wide" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
       </div>
       
       <div className="relative">

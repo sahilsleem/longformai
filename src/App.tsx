@@ -59,6 +59,7 @@ export const App: React.FC = () => {
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
   const [replaceModeItemId, setReplaceModeItemId] = useState<string | null>(null);
+  const [folderPrompt, setFolderPrompt] = useState<{ isOpen: boolean; initialName?: string; onSubmit?: (name: string) => void }>({ isOpen: false });
 
   useEffect(() => {
     let target = 0;
@@ -249,8 +250,8 @@ export const App: React.FC = () => {
               </h3>
               <button
                 onClick={() => {
-                  const name = window.prompt('Folder name:');
-                  if (name && name.trim()) createFolder(name.trim());
+                  setFolderPrompt({ isOpen: true, initialName: '', onSubmit: (name) => { if (name.trim()) createFolder(name.trim()); } });
+                  
                 }}
                 className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-1.5 rounded-full"
               >
@@ -405,6 +406,49 @@ export const App: React.FC = () => {
         onRelinkSingleAsset={relinkSingleMediaAsset}
         onRelinkVoiceover={relinkVoiceover}
       />
+
+      {folderPrompt.isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-editor-panel border border-editor-panelBorder rounded-2xl w-full max-w-sm shadow-2xl p-6 flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-white">Folder Name</h2>
+            <input 
+              type="text"
+              autoFocus
+              className="bg-editor-bg border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-amber-400 font-medium"
+              placeholder="e.g. B-Roll"
+              defaultValue={folderPrompt.initialName || ''}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = e.currentTarget.value;
+                  setFolderPrompt({ isOpen: false });
+                  if (folderPrompt.onSubmit) folderPrompt.onSubmit(val);
+                } else if (e.key === 'Escape') {
+                  setFolderPrompt({ isOpen: false });
+                }
+              }}
+              id="folder-prompt-input"
+            />
+            <div className="flex justify-end gap-3 mt-2">
+              <button 
+                onClick={() => setFolderPrompt({ isOpen: false })}
+                className="px-4 py-2 text-slate-400 font-medium hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  const el = document.getElementById('folder-prompt-input') as HTMLInputElement;
+                  setFolderPrompt({ isOpen: false });
+                  if (folderPrompt.onSubmit) folderPrompt.onSubmit(el?.value || '');
+                }}
+                className="px-6 py-2 bg-amber-400 text-black font-bold rounded-lg hover:bg-amber-300 transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hidden inputs */}
       <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addMediaAssets(e.target.files, activeFolderId || undefined); e.target.value = ''; }} multiple accept="video/*,image/*" className="hidden" />
