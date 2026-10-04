@@ -560,12 +560,12 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       </div>
 
       {/* Bottom Transport Controls & Zoom Controls */}
-      <div className="h-12 bg-editor-panel border-t border-editor-panelBorder px-3 sm:px-6 flex items-center justify-between shrink-0">
+      <div className="h-13 sm:h-12 bg-editor-panel border-t border-editor-panelBorder px-3 sm:px-6 flex items-center justify-between shrink-0">
         {/* Playback Transport Buttons */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           <button
             onClick={() => onSeek(Math.max(0, currentTime - 1))}
-            className="p-2 sm:p-2.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded-full transition-colors"
+            className="w-10 h-10 hover:bg-editor-surface text-slate-300 hover:text-white rounded-full transition-colors flex items-center justify-center active:scale-95"
             title="Step Back 1s (Left Arrow)"
           >
             <SkipBack className="w-5 h-5" />
@@ -573,7 +573,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
           <button
             onClick={onPlayPause}
-            className="p-3 sm:p-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-all shadow-md active:scale-95 flex items-center justify-center"
+            className="w-11 h-11 sm:w-12 sm:h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-all shadow-md shadow-blue-900/40 active:scale-95 flex items-center justify-center"
             title="Play / Pause (Space)"
           >
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 translate-x-[1px]" />}
@@ -581,7 +581,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
           <button
             onClick={() => onSeek(Math.min(totalDuration, currentTime + 1))}
-            className="p-2 sm:p-2.5 hover:bg-editor-surface text-slate-300 hover:text-white rounded-full transition-colors"
+            className="w-10 h-10 hover:bg-editor-surface text-slate-300 hover:text-white rounded-full transition-colors flex items-center justify-center active:scale-95"
             title="Step Forward 1s (Right Arrow)"
           >
             <SkipForward className="w-5 h-5" />
@@ -590,17 +590,17 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
         {/* Zoom Buttons */}
         {activeItem && onUpdateTransform ? (
-          <div className="flex items-center gap-1.5 text-slate-400">
+          <div className="flex items-center gap-1 text-slate-400">
             <button
               onClick={() => updateZoom((transform.scale || 1.0) - 0.1)}
-              className="p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+              className="w-9 h-9 hover:bg-editor-surface text-slate-300 hover:text-white rounded-md transition-colors flex items-center justify-center active:scale-95"
               title="Zoom Out"
             >
               <ZoomOut className="w-5 h-5" />
             </button>
             <button
               onClick={() => updateZoom((transform.scale || 1.0) + 0.1)}
-              className="p-2 hover:bg-editor-surface text-slate-300 hover:text-white rounded transition-colors"
+              className="w-9 h-9 hover:bg-editor-surface text-slate-300 hover:text-white rounded-md transition-colors flex items-center justify-center active:scale-95"
               title="Zoom In"
             >
               <ZoomIn className="w-5 h-5" />

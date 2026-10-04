@@ -293,7 +293,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
                     <button
                       type="button"
                       onClick={handleDownloadClick}
-                      className="flex-1 min-w-[140px] py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-900/40"
+                      className="flex-1 min-w-[140px] min-h-[44px] py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/50"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       Saved to Gallery
@@ -301,17 +301,17 @@ export const RenderModal: React.FC<RenderModalProps> = ({
                     <button
                       type="button"
                       onClick={handleShareClick}
-                      className="flex-1 min-w-[140px] py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-900/40"
+                      className="flex-1 min-w-[140px] min-h-[44px] py-3 px-4 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-950/50"
                     >
                       <Share2 className="w-4 h-4" />
-                      Share
+                      Share Video
                     </button>
                   </>
                 ) : (
                   <a
                     href={`${RENDER_WORKER_URL}${renderResult.downloadUrl}`}
                     download={renderResult.filename}
-                    className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-900/40"
+                    className="flex-1 min-h-[44px] py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/50"
                   >
                     <Download className="w-4 h-4" />
                     Download Master MP4
@@ -336,9 +336,9 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         {/* Footer */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-editor-panelBorder bg-editor-surface/30 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shrink-0">
           <div className="text-[10px] sm:text-[11px] text-slate-500 flex items-center gap-1.5">
-            <HardDrive className="w-3.5 h-3.5" />
+            <HardDrive className="w-3.5 h-3.5 text-slate-400" />
             <span className="truncate">
-              {isNativeAndroid() ? 'Saved to Gallery' : 'Saved to server/exports/'}
+              {isNativeAndroid() ? 'Saved to Gallery (Movies/LongFormAI)' : 'Saved to server/exports/'}
             </span>
           </div>
 
@@ -346,7 +346,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             <button
               onClick={onClose}
               disabled={isRendering}
-              className="px-3 sm:px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface transition-colors disabled:opacity-50"
+              className="min-h-[40px] px-3.5 sm:px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-lg hover:bg-editor-surface active:scale-98 transition-colors disabled:opacity-50"
             >
               Close
             </button>
@@ -354,16 +354,16 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             <button
               onClick={handleStartRender}
               disabled={isRendering || !workerHealth?.ffmpegAvailable}
-              className="px-4 sm:px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[40px] px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-500 active:scale-98 text-white rounded-lg transition-all flex items-center gap-2 shadow-md shadow-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRendering ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Rendering...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-4 h-4" />
                   {renderResult ? 'Render Again' : 'Export 1080p Video'}
                 </>
               )}

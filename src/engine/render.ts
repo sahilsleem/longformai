@@ -4,9 +4,7 @@ import { getRenderWorkerUrl } from '../config/workerConfig';
 import { getBollywoodFrameBlob } from './frameAsset';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import NativeFFmpeg from './NativeFFmpeg';
-import { buildSegmentCommand, buildConcatCommand, buildPairwiseTransitionCommand } from './ffmpegBuilder';
-import { resolveRenderPlan } from './renderPlan';
-import { generateTypographyOverlayBase64 } from './typographyAsset';
+import { buildSegmentCommand, buildConcatCommand } from './ffmpegBuilder';
 
 export const RENDER_WORKER_URL = getRenderWorkerUrl();
 
@@ -40,235 +38,134 @@ export async function renderVideoNativeAndroid(
     }
 
     const segmentPaths: string[] = [];
-    const renderPlan = resolveRenderPlan(project);
-    const totalSegments = renderPlan.segments.length;
-    const tempTypographyFiles: string[] = [];
-    const tempTransitionFiles: string[] = [];
+    const totalItems = project.timeline.length;
 
-    try {
-      for (let i = 0; i < totalSegments; i++) {
-        const segment = renderPlan.segments[i];
-        const segmentOut = `${cacheBase}/segment_${i}.mp4`;
-        segmentPaths.push(segmentOut);
+    for (let i = 0; i < totalItems; i++) {
+      const item = project.timeline[i];
+      const segmentOut = `${cacheBase}/segment_${i}.mp4`;
+      segmentPaths.push(segmentOut);
 
-        let mediaNativePath: string | undefined;
-        let mediaDef: any;
+      const mediaNativePath = mediaMap.get(item.mediaId);
+      const mediaDef = project.media.find(m => m.id === item.mediaId);
 
-        if (!segment.isGap && segment.timelineItem) {
-          mediaNativePath = mediaMap.get(segment.timelineItem.mediaId);
-          mediaDef = project.media.find(m => m.id === segment.timelineItem!.mediaId);
-        }
-
-        let overlayNativePath: string | undefined;
-        let overlayStart: number | undefined;
-        let overlayEnd: number | undefined;
-
-        if (segment.typographyOverlay) {
-          try {
-            const overlayFilename = `typo_${i}_${Date.now()}.png`;
-            const base64Data = await generateTypographyOverlayBase64({
-              type: segment.typographyOverlay.type,
-              text: segment.typographyOverlay.text,
-            });
-            await Filesystem.writeFile({
-              directory: Directory.Cache,
-              path: overlayFilename,
-              data: base64Data,
-            });
-            overlayNativePath = `${cacheBase}/${overlayFilename}`;
-            overlayStart = segment.typographyOverlay.startTime;
-            overlayEnd = segment.typographyOverlay.endTime;
-            tempTypographyFiles.push(overlayFilename);
-          } catch (e) {
-            console.warn(`Could not generate typography overlay for segment ${i}:`, e);
-          }
-        }
-
-        const segCmd = buildSegmentCommand({
-          isGap: segment.isGap,
-          timelineItem: segment.timelineItem,
-          treatment: segment.treatment,
-          mediaPath: mediaNativePath,
-          duration: segment.duration,
-          tailHandle: segment.tailHandle,
-          outPath: segmentOut,
-          isImage: mediaDef?.type === 'image',
-          width: mediaDef?.width,
-          height: mediaDef?.height,
-          overlayPath: overlayNativePath,
-          overlayStart,
-          overlayEnd,
-        });
-
-        const args = segCmd[0] === 'ffmpeg' ? segCmd.slice(1) : segCmd;
-        onProgress?.(10 + (i / totalSegments) * 50, `Rendering segment ${i + 1}/${totalSegments}...`);
-
-        const result = await NativeFFmpeg.execute({ arguments: args });
-        if (!result.success) {
-          throw new Error(`Segment ${i} render failed: ${result.returnCode}\n${result.output}`);
-        }
-      }
-
-      // Stage 3D: Pairwise transition execution pass
-      const mergedPairs = new Map<number, string>();
-
-      for (let i = 1; i < totalSegments; i++) {
-        const segB = renderPlan.segments[i];
-        if (segB.transitionPlan?.type === 'CROSSFADE') {
-          const segAPath = segmentPaths[i - 1];
-          const segBPath = segmentPaths[i];
-          const xfadeFilename = `xfade_${i - 1}_${i}_${Date.now()}.mp4`;
-          const xfadeOut = `${cacheBase}/${xfadeFilename}`;
-          tempTransitionFiles.push(xfadeFilename);
-
-          onProgress?.(60 + (i / totalSegments) * 5, `Applying crossfade transition between segments ${i} and ${i + 1}...`);
-
-          try {
-            const xfadeCmd = buildPairwiseTransitionCommand({
-              segAPath,
-              segBPath,
-              duration: segB.transitionPlan.duration,
-              offset: segB.transitionPlan.offset,
-              outPath: xfadeOut,
-            });
-
-            const xfadeArgs = xfadeCmd[0] === 'ffmpeg' ? xfadeCmd.slice(1) : xfadeCmd;
-            const xfadeRes = await NativeFFmpeg.execute({ arguments: xfadeArgs });
-
-            if (xfadeRes.success) {
-              mergedPairs.set(i, xfadeOut);
-            } else {
-              console.warn(`Pairwise crossfade between segments ${i - 1} and ${i} failed (code ${xfadeRes.returnCode}), falling back to HARD_CUT:`, xfadeRes.output);
-            }
-          } catch (xfadeErr) {
-            console.warn(`Pairwise crossfade between segments ${i - 1} and ${i} threw error, falling back to HARD_CUT:`, xfadeErr);
-          }
-        }
-      }
-
-      onProgress?.(65, 'Creating concatenation plan...');
-      let concatData = '';
-      let k = 0;
-      while (k < totalSegments) {
-        if (mergedPairs.has(k + 1)) {
-          // Pair (k, k+1) was merged into a single transition clip
-          concatData += `file '${mergedPairs.get(k + 1)}'\n`;
-          k += 2;
-        } else {
-          concatData += `file '${segmentPaths[k]}'\n`;
-          k += 1;
-        }
-      }
-      await Filesystem.writeFile({
-        directory: Directory.Cache,
-        path: 'concat.txt',
-        data: concatData,
-        encoding: Encoding.UTF8
+      const segCmd = buildSegmentCommand({
+        timelineItem: item as any,
+        mediaPath: mediaNativePath,
+        duration: item.duration,
+        outPath: segmentOut,
+        isImage: mediaDef?.type === 'image',
+        width: mediaDef?.width,
+        height: mediaDef?.height
       });
 
-      let voPath: string | undefined;
-      if (project.voiceover?.nativePath) {
-        voPath = project.voiceover.nativePath.replace(/^file:\/\//, '');
-      } else if (project.voiceover?.url) {
-         try {
-           const resp = await fetch(project.voiceover.url);
-           const blob = await resp.blob();
-           const b64 = await blobToBase64(blob);
-           await Filesystem.writeFile({ directory: Directory.Cache, path: 'vo.wav', data: b64 });
-           voPath = `${cacheBase}/vo.wav`;
-         } catch (e) {
-           console.warn('Could not process voiceover natively:', e);
-         }
-      }
+      const args = segCmd[0] === 'ffmpeg' ? segCmd.slice(1) : segCmd;
+      onProgress?.(10 + (i / totalItems) * 50, `Rendering segment ${i + 1}/${totalItems}...`);
 
-      let framePath: string | undefined;
-      const frameConfig = project.frame || { enabled: true };
-      if (frameConfig.enabled !== false) {
-         try {
-           const frameBlob = await getBollywoodFrameBlob(frameConfig.src);
-           const b64 = await blobToBase64(frameBlob);
-           await Filesystem.writeFile({ directory: Directory.Cache, path: 'frame.png', data: b64 });
-           framePath = `${cacheBase}/frame.png`;
-         } catch (e) {
-           console.warn('Could not process frame overlay natively:', e);
-         }
-      }
-
-      const totalDuration = renderPlan.segments.reduce((acc, s) => acc + s.duration, 0);
-
-      onProgress?.(70, 'Running final video assembly...');
-      const concatCmd = buildConcatCommand({
-        concatListPath: concatTxtPath,
-        voiceoverPath: voPath,
-        totalDuration: totalDuration,
-        outPath: finalOut,
-        frameConfig: {
-          enabled: frameConfig.enabled !== false,
-          id: frameConfig.id || '',
-          name: frameConfig.name || '',
-          src: frameConfig.src || ''
-        },
-        overlayAssetPath: framePath
-      });
-
-      const finalArgs = concatCmd[0] === 'ffmpeg' ? concatCmd.slice(1) : concatCmd;
-      const concatRes = await NativeFFmpeg.execute({ arguments: finalArgs });
-      if (!concatRes.success) {
-        throw new Error(`Concat render failed: ${concatRes.returnCode}\n${concatRes.output}`);
-      }
-
-      const stat = await Filesystem.stat({ directory: Directory.Cache, path: outName });
-      onProgress?.(95, 'Saving to Android Gallery...');
-
-      const galleryFilename = `LongFormAI_${Date.now()}.mp4`;
-      let mediaStoreUri = finalOut;
-      try {
-        if (typeof NativeFFmpeg.saveToGallery === 'function') {
-          const mediaStoreRes = await NativeFFmpeg.saveToGallery({
-            filePath: finalOut,
-            filename: galleryFilename,
-            relativePath: 'Movies/LongFormAI/',
-          });
-          if (mediaStoreRes?.uri) {
-            mediaStoreUri = mediaStoreRes.uri;
-          }
-        }
-      } catch (e) {
-        console.warn('Could not save to MediaStore:', e);
-      }
-
-      onProgress?.(100, 'Render complete!');
-
-      return {
-        success: true,
-        outputPath: mediaStoreUri,
-        downloadUrl: finalOut,
-        filename: galleryFilename,
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        duration: totalDuration,
-        sizeBytes: stat.size,
-        aspectRatio: '16:9',
-        videoCodec: 'libx264',
-        audioCodec: 'aac'
-      };
-    } finally {
-      for (const tempFile of tempTypographyFiles) {
-        try {
-          await Filesystem.deleteFile({ directory: Directory.Cache, path: tempFile });
-        } catch {
-          // ignore cleanup errors
-        }
-      }
-      for (const tempFile of tempTransitionFiles) {
-        try {
-          await Filesystem.deleteFile({ directory: Directory.Cache, path: tempFile });
-        } catch {
-          // ignore cleanup errors
-        }
+      const result = await NativeFFmpeg.execute({ arguments: args });
+      if (!result.success) {
+        throw new Error(`Segment ${i} render failed: ${result.returnCode}\n${result.output}`);
       }
     }
+
+    onProgress?.(65, 'Creating concatenation plan...');
+    let concatData = '';
+    for (const p of segmentPaths) {
+      concatData += `file '${p}'\n`;
+    }
+    await Filesystem.writeFile({
+      directory: Directory.Cache,
+      path: 'concat.txt',
+      data: concatData,
+      encoding: Encoding.UTF8
+    });
+
+    let voPath: string | undefined;
+    if (project.voiceover?.nativePath) {
+      voPath = project.voiceover.nativePath.replace(/^file:\/\//, '');
+    } else if (project.voiceover?.url) {
+       try {
+         const resp = await fetch(project.voiceover.url);
+         const blob = await resp.blob();
+         const b64 = await blobToBase64(blob);
+         await Filesystem.writeFile({ directory: Directory.Cache, path: 'vo.wav', data: b64 });
+         voPath = `${cacheBase}/vo.wav`;
+       } catch (e) {
+         console.warn('Could not process voiceover natively:', e);
+       }
+    }
+
+    let framePath: string | undefined;
+    const frameConfig = project.frame || { enabled: true };
+    if (frameConfig.enabled !== false) {
+       try {
+         const frameBlob = await getBollywoodFrameBlob(frameConfig.src);
+         const b64 = await blobToBase64(frameBlob);
+         await Filesystem.writeFile({ directory: Directory.Cache, path: 'frame.png', data: b64 });
+         framePath = `${cacheBase}/frame.png`;
+       } catch (e) {
+         console.warn('Could not process frame overlay natively:', e);
+       }
+    }
+
+    const totalDuration = project.timeline.reduce((acc, item) => acc + item.duration, 0);
+
+    onProgress?.(70, 'Running final video assembly...');
+    const concatCmd = buildConcatCommand({
+      concatListPath: concatTxtPath,
+      voiceoverPath: voPath,
+      totalDuration: totalDuration,
+      outPath: finalOut,
+      frameConfig: {
+        enabled: frameConfig.enabled !== false,
+        id: frameConfig.id || '',
+        name: frameConfig.name || '',
+        src: frameConfig.src || ''
+      },
+      overlayAssetPath: framePath
+    });
+
+    const finalArgs = concatCmd[0] === 'ffmpeg' ? concatCmd.slice(1) : concatCmd;
+    const concatRes = await NativeFFmpeg.execute({ arguments: finalArgs });
+    if (!concatRes.success) {
+      throw new Error(`Concat render failed: ${concatRes.returnCode}\n${concatRes.output}`);
+    }
+
+    const stat = await Filesystem.stat({ directory: Directory.Cache, path: outName });
+    onProgress?.(95, 'Saving to Android Gallery...');
+
+    const galleryFilename = `LongFormAI_${Date.now()}.mp4`;
+    let mediaStoreUri = finalOut;
+    try {
+      if (typeof NativeFFmpeg.saveToGallery === 'function') {
+        const mediaStoreRes = await NativeFFmpeg.saveToGallery({
+          filePath: finalOut,
+          filename: galleryFilename,
+          relativePath: 'Movies/LongFormAI/',
+        });
+        if (mediaStoreRes?.uri) {
+          mediaStoreUri = mediaStoreRes.uri;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not save to MediaStore:', e);
+    }
+
+    onProgress?.(100, 'Render complete!');
+
+    return {
+      success: true,
+      outputPath: mediaStoreUri,
+      downloadUrl: finalOut,
+      filename: galleryFilename,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      duration: totalDuration,
+      sizeBytes: stat.size,
+      aspectRatio: '16:9',
+      videoCodec: 'libx264',
+      audioCodec: 'aac'
+    };
   } catch (err) {
     console.error('renderVideoNativeAndroid failed:', err);
     throw err;

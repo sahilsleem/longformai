@@ -48,16 +48,16 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
   const isDraftReady = timelineClipCount > 0;
 
   return (
-    <div className="h-9 sm:h-9 bg-editor-surface/60 border-b border-editor-panelBorder px-2 sm:px-4 flex items-center justify-between text-xs select-none overflow-x-auto scrollbar-none gap-2 shrink-0">
-      {/* Workflow Progression Strip: Media → Prepare → Draft → Framing → Render */}
-      <div className="flex items-center gap-1 sm:gap-2 shrink-0 py-0.5">
+    <div className="min-h-[44px] h-11 sm:h-10 bg-editor-surface/80 border-b border-editor-panelBorder px-2.5 sm:px-4 flex items-center justify-between text-xs select-none overflow-x-auto scrollbar-none gap-2 shrink-0">
+      {/* Workflow Progression Strip: 1. Media → 2. Analyze → 3. Draft → 4. Frame → 5. Render */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 py-1">
         {/* Step 1: Media */}
         <button
           onClick={() => onSwitchTab?.('media')}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded transition-colors whitespace-nowrap shrink-0 text-[11px] font-medium ${
+          className={`flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 rounded-md transition-colors whitespace-nowrap shrink-0 text-xs font-medium ${
             isMediaReady
-              ? 'bg-blue-950/40 text-blue-300 border border-blue-800/40 hover:bg-blue-900/50'
-              : 'bg-slate-900/40 text-slate-400 border border-slate-800 hover:bg-slate-800'
+              ? 'bg-blue-950/50 text-blue-300 border border-blue-700/50 hover:bg-blue-900/60 active:scale-98'
+              : 'bg-slate-900/60 text-slate-400 border border-slate-800 hover:bg-slate-800 active:scale-98'
           }`}
           title={isMediaReady ? `${mediaCount} media asset(s)${voiceover ? ' + voiceover audio' : ''}` : 'Import video, images, or voiceover'}
         >
@@ -66,40 +66,45 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
           ) : (
             <Film className="w-3.5 h-3.5 text-slate-500 shrink-0" />
           )}
-          <span>Media</span>
+          <span>1. Media</span>
+          {isMediaReady && (
+            <span className="ml-0.5 text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-blue-900/70 text-blue-200 border border-blue-700/50">
+              {mediaCount}
+            </span>
+          )}
         </button>
 
         <ChevronRight className="w-3.5 h-3.5 text-slate-600 shrink-0" />
 
-        {/* Step 2: Prepare Project */}
+        {/* Step 2: Prepare Project / Analyze */}
         {isPreparing ? (
-          <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-600/70 px-2.5 py-1 rounded text-blue-200 shrink-0 text-[11px] font-medium animate-pulse">
+          <div className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] bg-blue-950/90 border border-blue-500/80 px-3 py-1.5 rounded-md text-blue-200 shrink-0 text-xs font-medium animate-pulse shadow-sm shadow-blue-950">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
-            <span className="truncate max-w-[130px] sm:max-w-[190px]">
+            <span className="truncate max-w-[140px] sm:max-w-[210px]">
               {preparationMessage || 'Analyzing...'}
             </span>
           </div>
         ) : isProjectPrepared ? (
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 whitespace-nowrap shrink-0 text-[11px] font-medium"
+            className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 rounded-md bg-emerald-950/50 text-emerald-300 border border-emerald-700/50 whitespace-nowrap shrink-0 text-xs font-medium"
             title="All media and voiceover are prepared and ready for drafting"
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Analyzed</span>
+            <span>2. Analyzed</span>
           </div>
         ) : (
           <button
             onClick={onPrepareProject}
             disabled={!isMediaReady && !voiceover}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded transition-all whitespace-nowrap shrink-0 text-[11px] font-medium ${
+            className={`flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 rounded-md transition-all whitespace-nowrap shrink-0 text-xs font-medium ${
               isMediaReady || voiceover
-                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-xs'
-                : 'bg-slate-900/40 text-slate-500 border border-slate-800 cursor-not-allowed'
+                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-900/40 active:scale-98'
+                : 'bg-slate-900/60 text-slate-500 border border-slate-800 cursor-not-allowed'
             }`}
             title="Read audio & visuals to prepare for drafting"
           >
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>Analyze Content</span>
+            <span>2. Analyze</span>
           </button>
         )}
 
@@ -108,33 +113,36 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
         {/* Step 3: AI Draft */}
         {isDraftReady ? (
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-950/40 text-purple-300 border border-purple-800/40 whitespace-nowrap shrink-0 text-[11px] font-medium"
+            className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 rounded-md bg-purple-950/50 text-purple-300 border border-purple-700/50 whitespace-nowrap shrink-0 text-xs font-medium"
             title={`${timelineClipCount} clips on timeline`}
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Draft Ready</span>
+            <span>3. Draft Ready</span>
+            <span className="ml-0.5 text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-purple-900/70 text-purple-200 border border-purple-700/50">
+              {timelineClipCount}
+            </span>
           </div>
         ) : isGeneratingDraft ? (
-          <div className="flex items-center gap-1.5 bg-purple-950/60 border border-purple-800/60 px-2.5 py-1 rounded text-purple-300 shrink-0 text-[11px] font-medium">
+          <div className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] bg-purple-950/80 border border-purple-600/70 px-3 py-1.5 rounded-md text-purple-200 shrink-0 text-xs font-medium animate-pulse">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
             <span>Drafting...</span>
           </div>
         ) : isProjectPrepared && onGenerateAIDraft ? (
           <button
             onClick={onGenerateAIDraft}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors whitespace-nowrap shrink-0 text-[11px] shadow-xs"
+            className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors whitespace-nowrap shrink-0 text-xs shadow-sm shadow-purple-900/40 active:scale-98"
             title="Generate AI Draft timeline from prepared footage and voiceover"
           >
             <Layers className="w-3.5 h-3.5 shrink-0" />
-            <span>Generate Draft</span>
+            <span>3. Generate Draft</span>
           </button>
         ) : (
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-900/40 text-slate-500 border border-slate-800 whitespace-nowrap shrink-0 text-[11px] font-medium"
+            className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 rounded-md bg-slate-900/60 text-slate-500 border border-slate-800 whitespace-nowrap shrink-0 text-xs font-medium"
             title="Prepare project first to enable AI Draft generation"
           >
             <Layers className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-            <span>Draft</span>
+            <span>3. Draft</span>
           </div>
         )}
 
@@ -142,10 +150,10 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
 
         {/* Step 4: Frame */}
         <div
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap shrink-0 text-[11px] font-medium"
+          className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700 whitespace-nowrap shrink-0 text-xs font-medium"
           title="Adjust clip framing directly in 16:9 preview (drag to pan, scroll/pinch to zoom)"
         >
-          <span>Frame</span>
+          <span>4. Frame</span>
         </div>
 
         <ChevronRight className="w-3.5 h-3.5 text-slate-600 shrink-0" />
@@ -153,14 +161,13 @@ export const WorkflowBar: React.FC<WorkflowBarProps> = ({
         {/* Step 5: Render */}
         <button
           onClick={onOpenRenderModal}
-          className="flex items-center gap-1.5 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors whitespace-nowrap shrink-0 text-[11px] shadow-sm"
+          className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors whitespace-nowrap shrink-0 text-xs shadow-md shadow-blue-900/40 active:scale-98"
           title="Render Final 1920x1080 MP4 Video"
         >
           <Video className="w-3.5 h-3.5 shrink-0" />
-          <span>Render</span>
+          <span>5. Render</span>
         </button>
       </div>
-
     </div>
   );
 };

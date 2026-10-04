@@ -309,14 +309,14 @@ export const Timeline: React.FC<TimelineProps> = ({
       />
 
       {/* Timeline Controls Header */}
-      <div className="h-9 border-b border-editor-panelBorder px-3 sm:px-4 flex items-center justify-between bg-editor-panel shrink-0">
+      <div className="h-10 sm:h-9 border-b border-editor-panelBorder px-3 sm:px-4 flex items-center justify-between bg-editor-panel shrink-0">
         <div className="flex items-center gap-1.5 sm:gap-3">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
             <Layers className="w-3.5 h-3.5 text-blue-400" />
             <span>Timeline</span>
           </div>
 
-          <span className="text-[10px] text-slate-400 bg-editor-surface px-1.5 py-0.5 rounded border border-editor-panelBorder">
+          <span className="text-[10px] text-slate-400 bg-editor-surface px-2 py-0.5 rounded-md border border-editor-panelBorder font-mono">
             {timeline.length} {timeline.length === 1 ? 'clip' : 'clips'}
           </span>
 
@@ -325,12 +325,12 @@ export const Timeline: React.FC<TimelineProps> = ({
             <button
               onClick={() => onGenerateAIDraft()}
               disabled={isGeneratingDraft || !voiceover?.segments || voiceover.segments.length === 0}
-              className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 min-h-[30px] px-2.5 sm:px-3 py-1 rounded-md text-xs font-semibold transition-all ${
                 isGeneratingDraft
                   ? 'bg-purple-950 text-purple-300 cursor-wait border border-purple-800'
                   : !voiceover?.segments || voiceover.segments.length === 0
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
-                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-xs'
+                  ? 'bg-slate-900/60 text-slate-500 cursor-not-allowed border border-slate-800'
+                  : 'bg-purple-600 hover:bg-purple-500 active:scale-95 text-white shadow-sm shadow-purple-900/40'
               }`}
               title={
                 !voiceover?.segments || voiceover.segments.length === 0
@@ -340,12 +340,12 @@ export const Timeline: React.FC<TimelineProps> = ({
             >
               {isGeneratingDraft ? (
                 <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Drafting...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-3 h-3" />
+                  <Sparkles className="w-3.5 h-3.5" />
                   <span>Generate AI Draft</span>
                 </>
               )}
@@ -357,7 +357,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             <div className="flex items-center gap-1 sm:gap-1.5">
               <button
                 onClick={() => setShowReviewModal(true)}
-                className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px] font-medium bg-purple-950/80 hover:bg-purple-900 text-purple-200 px-2 sm:px-2.5 py-1 rounded border border-purple-800/50 shadow-sm transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 min-h-[30px] text-[11px] font-medium bg-purple-950/80 hover:bg-purple-900 active:scale-95 text-purple-200 px-2.5 py-1 rounded-md border border-purple-800/50 shadow-sm transition-colors whitespace-nowrap"
                 title="Review AI Draft Statistics, Warnings & Shot Provenance"
               >
                 <FileText className="w-3 h-3 text-purple-400 shrink-0" />
@@ -365,7 +365,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                 <span className="sm:hidden">Review ({draftStats.coveragePercentage}%)</span>
               </button>
 
-              <div className="hidden xl:flex items-center gap-1 text-[10px] font-mono bg-editor-surface text-slate-300 px-2 py-1 rounded border border-editor-panelBorder">
+              <div className="hidden xl:flex items-center gap-1 text-[10px] font-mono bg-editor-surface text-slate-300 px-2.5 py-1 rounded-md border border-editor-panelBorder">
                 <span>
                   {draftStats.assignedSegments}/{draftStats.totalSegments} assigned
                 </span>
@@ -385,10 +385,10 @@ export const Timeline: React.FC<TimelineProps> = ({
                   onClearTimeline();
                 }
               }}
-              className="text-slate-500 hover:text-red-400 text-[11px] flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded hover:bg-editor-surface"
+              className="text-slate-400 hover:text-red-400 text-xs flex items-center gap-1 transition-colors min-h-[30px] px-2 py-1 rounded-md hover:bg-editor-surface"
               title="Clear all clips"
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Clear</span>
             </button>
           )}

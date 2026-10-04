@@ -19,6 +19,7 @@ import {
   CheckSquare,
   Square,
   Tag,
+  Film,
 } from 'lucide-react';
 import { MediaAsset, MediaFolder, VoiceoverTrack } from '../types/project';
 import { formatSecondsToMinutes } from '../engine/schema';
@@ -704,19 +705,19 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
               {unlinkedCount > 0 && onOpenRelinkModal && (
                 <button
                   onClick={onOpenRelinkModal}
-                  className="px-2 py-1 text-[11px] font-medium bg-amber-950/80 hover:bg-amber-900 text-amber-300 rounded border border-amber-700/60 transition-colors"
+                  className="min-h-[34px] sm:min-h-[30px] px-2.5 py-1.5 text-xs font-semibold bg-amber-950/80 hover:bg-amber-900 text-amber-300 rounded-md border border-amber-700/60 transition-colors animate-pulse"
                   title="Relink missing media files"
                 >
-                  Relink
+                  Relink ({unlinkedCount})
                 </button>
               )}
               <button
                 onClick={() => setIsCreatingFolder(true)}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-amber-600/30 hover:bg-amber-600/40 text-amber-300 border border-amber-500/40 rounded transition-colors shadow-sm"
+                className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-2.5 sm:px-3 py-1.5 text-xs font-medium bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 border border-amber-600/50 rounded-md transition-all active:scale-95 shadow-sm"
                 title="Create a new logical folder for celebrity / scene clips"
               >
-                <FolderPlus className="w-3.5 h-3.5" />
-                <span>+ Add Folder</span>
+                <FolderPlus className="w-3.5 h-3.5 text-amber-400" />
+                <span>+ Folder</span>
               </button>
               <button
                 onClick={() => {
@@ -726,10 +727,10 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                     fileInputRef.current?.click();
                   }
                 }}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors shadow-sm"
+                className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all active:scale-95 shadow-sm shadow-blue-900/40"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Media</span>
+                <span>+ Media</span>
               </button>
               <button
                 onClick={() => {
@@ -739,11 +740,11 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
                     voiceoverInputRef.current?.click();
                   }
                 }}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-300 border border-slate-700/60 rounded transition-colors shadow-sm"
+                className="flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] px-3 py-1.5 text-xs font-medium bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 border border-purple-700/60 rounded-md transition-all active:scale-95 shadow-sm"
                 title="Voiceover drives the automatic edit"
               >
                 <Music className="w-3.5 h-3.5 text-purple-400" />
-                <span>Voiceover</span>
+                <span>+ Voiceover</span>
               </button>
             </div>
           </div>
@@ -939,22 +940,64 @@ export const MediaPanel: React.FC<MediaPanelProps> = ({
               </div>
 
               {displayedMedia.length === 0 ? (
-                <div
-                  onClick={() => {
-                    if (isNativeAndroid() && onUploadNative) {
-                      onUploadNative(currentFolderId || undefined);
-                    } else {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  className="h-36 border-2 border-dashed border-editor-panelBorder hover:border-slate-500 rounded-lg flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-colors bg-editor-surface/30 hover:bg-editor-surface/60"
-                >
-                  <Upload className="w-6 h-6 text-slate-500 mb-1.5" />
-                  <p className="text-xs font-medium text-slate-300">
-                    {rootViewTab === 'folders' ? 'No unassigned clips' : 'Drop videos or photos here'}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Click to browse local files</p>
-                </div>
+                mediaList.length === 0 ? (
+                  <div className="py-8 px-4 border-2 border-dashed border-editor-panelBorder rounded-xl flex flex-col items-center justify-center text-center bg-editor-surface/30 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-blue-950/60 border border-blue-700/40 flex items-center justify-center text-blue-400 shadow-inner">
+                      <Film className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-200">No media imported yet</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
+                        Import video clips, photos, and voiceover audio to start building your story.
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-1 w-full max-w-xs">
+                      <button
+                        onClick={() => {
+                          if (isNativeAndroid() && onUploadNative) {
+                            onUploadNative();
+                          } else {
+                            fileInputRef.current?.click();
+                          }
+                        }}
+                        className="w-full min-h-[40px] px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md shadow-blue-900/40 transition-all"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Video & Photos</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (isNativeAndroid() && onUploadNativeVoiceover) {
+                            onUploadNativeVoiceover();
+                          } else {
+                            voiceoverInputRef.current?.click();
+                          }
+                        }}
+                        className="w-full min-h-[40px] px-4 py-2 bg-purple-950/70 hover:bg-purple-900 text-purple-200 border border-purple-700/60 active:scale-95 text-xs font-medium rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all"
+                      >
+                        <Music className="w-4 h-4 text-purple-400" />
+                        <span>Add Voiceover</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => {
+                      if (isNativeAndroid() && onUploadNative) {
+                        onUploadNative(currentFolderId || undefined);
+                      } else {
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    className="h-36 border-2 border-dashed border-editor-panelBorder hover:border-slate-500 rounded-lg flex flex-col items-center justify-center p-4 text-center cursor-pointer transition-colors bg-editor-surface/30 hover:bg-editor-surface/60"
+                  >
+                    <Upload className="w-6 h-6 text-slate-500 mb-1.5" />
+                    <p className="text-xs font-medium text-slate-300">
+                      {rootViewTab === 'folders' ? 'No unassigned clips' : 'Drop videos or photos here'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Click to browse local files</p>
+                  </div>
+                )
               ) : (
                 <div className="space-y-2">
                   {displayedMedia.map((asset) => renderMediaCard(asset, false))}

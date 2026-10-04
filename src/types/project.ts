@@ -1,5 +1,3 @@
-import type { VisualTreatmentPlan } from '../engine/visualStoryDirector';
-
 export type MediaType = 'video' | 'image' | 'audio';
 export type FitMode = 'cover' | 'contain' | 'custom';
 
@@ -458,7 +456,6 @@ export interface LongFormProject {
   folders?: MediaFolder[];
   voiceover?: VoiceoverTrack;
   frame?: ProjectFrameConfig;
-  visualTreatmentPlan?: VisualTreatmentPlan;
   createdAt: string;
   updatedAt: string;
 }

@@ -111,10 +111,10 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="h-12 bg-editor-panel border-b border-editor-panelBorder px-3 sm:px-4 flex items-center justify-between select-none relative z-30 shrink-0">
+      <header className="h-12 sm:h-13 bg-editor-panel border-b border-editor-panelBorder px-3 sm:px-4 flex items-center justify-between select-none relative z-30 shrink-0">
         {/* Brand */}
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 bg-blue-600/20 text-blue-400 px-2 py-1 rounded-md border border-blue-500/30 shrink-0">
+          <div className="flex items-center gap-1.5 bg-blue-600/20 text-blue-400 px-2.5 py-1 rounded-md border border-blue-500/30 shrink-0">
             <Film className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="font-bold text-xs sm:text-sm tracking-wide text-white">LongFormAI</span>
           </div>
@@ -123,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Desktop Center: Timecode */}
         <div className="hidden lg:flex items-center justify-center absolute inset-x-0 pointer-events-none">
-          <div className="flex items-center gap-1.5 font-mono text-xs bg-editor-surface px-2.5 py-1 rounded border border-editor-panelBorder pointer-events-auto shadow-sm">
+          <div className="flex items-center gap-1.5 font-mono text-xs bg-editor-surface px-3 py-1 rounded-md border border-editor-panelBorder pointer-events-auto shadow-sm">
             <span className="text-blue-400 font-semibold">{formatTimecode(currentTime)}</span>
             <span className="text-slate-500">/</span>
             <span className="text-slate-400">{formatTimecode(totalDuration)}</span>
@@ -140,11 +140,11 @@ export const Header: React.FC<HeaderProps> = ({
         />
 
         {/* Desktop Action Buttons */}
-        <div className="hidden md:flex items-center gap-1.5">
+        <div className="hidden md:flex items-center gap-2">
           {unlinkedCount > 0 && onOpenRelinkModal && (
             <button
               onClick={onOpenRelinkModal}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-semibold bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 rounded border border-amber-700/60 transition-colors animate-pulse"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 rounded-md border border-amber-700/60 transition-colors animate-pulse"
               title={`${unlinkedCount} local media file(s) unlinked. Click to reconnect.`}
             >
               <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
@@ -154,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-editor-surface hover:bg-editor-surfaceHover text-slate-300 rounded border border-editor-panelBorder transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-editor-surface hover:bg-editor-surfaceHover text-slate-300 rounded-md border border-editor-panelBorder transition-colors"
             title="Open / Load LongFormAI Project (.longform.json)"
           >
             <Upload className="w-3.5 h-3.5" />
@@ -163,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={handleSaveProject}
-            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
               isDirty
                 ? 'bg-blue-600/30 text-blue-300 border-blue-500/50 hover:bg-blue-600/50'
                 : 'bg-editor-surface hover:bg-editor-surfaceHover text-slate-300 border-editor-panelBorder'
@@ -176,7 +176,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={handleTriggerRender}
-            className="flex items-center gap-1 px-3 py-1 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded transition-all shadow-sm shadow-blue-900/30 hover:shadow-blue-600/40"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-sm shadow-blue-900/30 hover:shadow-blue-600/40"
             title="Render Final 1920x1080 MP4 Video"
           >
             <Video className="w-3.5 h-3.5" />
@@ -195,29 +195,29 @@ export const Header: React.FC<HeaderProps> = ({
               }
               onResetProject();
             }}
-            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-editor-surface rounded transition-colors ml-0.5"
+            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-editor-surface rounded-md transition-colors ml-0.5"
             title="Reset project"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Mobile Header Controls: Render + Menu button */}
-        <div className="flex md:hidden items-center gap-1">
+        {/* Mobile Header Controls: Render + Menu button (Touch-friendly >= 40px) */}
+        <div className="flex md:hidden items-center gap-1.5">
           {unlinkedCount > 0 && onOpenRelinkModal && (
             <button
               onClick={onOpenRelinkModal}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold bg-amber-950/80 text-amber-300 rounded border border-amber-700/60 animate-pulse"
+              className="flex items-center gap-1 min-h-[36px] px-2.5 py-1 text-xs font-semibold bg-amber-950/80 text-amber-300 rounded-md border border-amber-700/60 animate-pulse"
               title={`${unlinkedCount} unlinked file(s)`}
             >
-              <AlertTriangle className="w-3 h-3 text-amber-400" />
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
               <span>{unlinkedCount}</span>
             </button>
           )}
 
           <button
             onClick={handleTriggerRender}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded shadow-sm"
+            className="flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rounded-md shadow-sm shadow-blue-900/40"
             title="Render Final Video"
           >
             <Video className="w-3.5 h-3.5" />
@@ -226,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-editor-surface rounded transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+            className="p-2 text-slate-300 hover:text-white hover:bg-editor-surface rounded-md transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center active:scale-95"
             title="More Options"
           >
             {isMobileMenuOpen ? <X className="w-4 h-4" /> : <MoreVertical className="w-4 h-4" />}

@@ -342,7 +342,7 @@ export const App: React.FC = () => {
               e.preventDefault();
               document.getElementById('mobile-section-media')?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
+            className="flex items-center gap-1.5 min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-semibold bg-editor-surface hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700/60 transition-all shrink-0"
           >
             <Film className="w-3.5 h-3.5 text-blue-400" />
             <span>Media ({project.media.length})</span>
@@ -354,7 +354,7 @@ export const App: React.FC = () => {
               e.preventDefault();
               document.getElementById('mobile-section-info')?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-editor-surface hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-colors shrink-0"
+            className="flex items-center gap-1.5 min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-semibold bg-editor-surface hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700/60 transition-all shrink-0"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Media Info</span>

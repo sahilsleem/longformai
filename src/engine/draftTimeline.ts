@@ -1,6 +1,5 @@
 import { AudioSegment, MediaAsset, MediaFolder, TimelineItem, TransformState, SemanticMatchCandidate, NarrationRole, NarrationBeatType, PacingClass, VisualState, SubjectContinuityLevel, FramingScale, FramingIntent, AtmosphericTone, AtmosphericIntent, CameraMotion, MotionIntent, SceneSetting, SettingIntent, SubjectDensity, DensityIntent, CameraAngle, AngleIntent, TimeOfDay, TimeIntent, WeatherCondition, WeatherIntent, DepthOfField, DepthIntent, TemporalRate, TemporalIntent, VisualMedium, MediumIntent, CompositionBalance, CompositionIntent, LightingSetup, LightingIntent, PointOfView, POVIntent, ChromaticGrading, ChromaticIntent, ActionTrajectory, TrajectoryIntent, OpticalLensPerspective, LensIntent, VisualTexture, TextureIntent } from '../types/project';
 import { createDefaultTransform } from './schema';
-import { generateVisualTreatmentPlan, VisualTreatmentPlan } from './visualStoryDirector';
 import { matchMediaForSegment, batchMatchMediaForSegments } from './matching';
 import { expandMultilingualEntityVariants, matchEntityInNarration } from './entityNormalization';
 
@@ -250,7 +249,6 @@ export interface DraftResult {
   timeline: TimelineItem[];
   stats: DraftStats;
   unassignedSegmentIds: string[];
-  treatmentPlan: VisualTreatmentPlan;
 }
 
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.30;
@@ -10279,7 +10277,6 @@ export async function generateDraftTimeline(
         generatedAt: Date.now(),
       },
       unassignedSegmentIds: visualBeats.map((s) => s.id),
-      treatmentPlan: generateVisualTreatmentPlan([], { segments, mediaAssets, folders }),
     };
   }
 
@@ -10325,7 +10322,6 @@ export async function generateDraftTimeline(
         generatedAt: Date.now(),
       },
       unassignedSegmentIds: visualBeats.map((s) => s.id),
-      treatmentPlan: generateVisualTreatmentPlan([], { segments, mediaAssets, folders }),
     };
   }
 
@@ -11896,12 +11892,6 @@ export async function generateDraftTimeline(
     }
   });
 
-  const treatmentPlan = generateVisualTreatmentPlan(timelineItems, {
-    segments,
-    mediaAssets,
-    folders,
-  });
-
   return {
     timeline: timelineItems,
     stats: {
@@ -12122,6 +12112,5 @@ export async function generateDraftTimeline(
       generatedAt: Date.now(),
     },
     unassignedSegmentIds,
-    treatmentPlan,
   };
 }
