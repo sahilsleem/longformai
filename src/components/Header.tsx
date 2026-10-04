@@ -31,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onImportProject,
   onSetProjectName,
   onOpenRenderModal,
+  onResetProject,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,60 +57,78 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <>
-      <header className="sticky top-0 h-12 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-between select-none z-30">
-        <button
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="p-2 text-slate-300 hover:text-white rounded-md transition-colors"
-        >
-          <MoreVertical className="w-5 h-5" />
-        </button>
+    <header className="relative h-14 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-between select-none z-30">
+      <div className="flex-1 flex items-center">
+        <input
+          type="text"
+          value={project.name || 'Untitled Project'}
+          onChange={(e) => onSetProjectName?.(e.target.value)}
+          className="bg-transparent text-left text-lg font-bold text-slate-100 outline-none w-full truncate placeholder-slate-600"
+          placeholder="Project name"
+        />
+      </div>
 
-        <div className="flex-1 flex justify-center">
-          <input
-            type="text"
-            value={project.name || 'Untitled Project'}
-            onChange={(e) => onSetProjectName?.(e.target.value)}
-            className="bg-transparent text-center text-sm font-semibold text-slate-200 outline-none w-48 truncate"
-          />
-        </div>
-
+      <div className="flex items-center gap-3">
         <button
           onClick={onOpenRenderModal}
           disabled={project.timeline.length === 0}
-          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:bg-slate-800 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all"
+          className="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:bg-slate-800 text-black rounded-full text-xs font-bold transition-all shadow-lg shadow-amber-500/20"
         >
-          <span>Export</span>
+          Export
         </button>
-      </header>
-      
-      {isMenuOpen && (
-        <div className="absolute top-12 left-4 w-48 bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl p-2 z-50">
+
+        <div className="relative">
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-editor-surface rounded-lg"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className={`p-2 rounded-full transition-colors ${isMenuOpen ? 'bg-editor-surface text-white' : 'text-slate-400 hover:bg-editor-surface hover:text-slate-200'}`}
           >
-            Open project file
+            <MoreVertical className="w-5 h-5" />
           </button>
-          <button
-            onClick={() => {
-              const jsonStr = exportProjectToPortableJSON(project);
-              const blob = new Blob([jsonStr], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const safeName = project.name?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'longform_project';
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `${safeName}.longform.json`;
-              a.click();
-              URL.revokeObjectURL(url);
-              setIsMenuOpen(false);
-            }}
-            className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-editor-surface rounded-lg"
-          >
-            Back up project
-          </button>
+
+          {isMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)} />
+              <div className="absolute top-full right-0 mt-2 w-48 bg-editor-panel border border-editor-panelBorder rounded-xl shadow-2xl py-1 z-50 overflow-hidden origin-top-right animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  onClick={() => { fileInputRef.current?.click(); setIsMenuOpen(false); }}
+                  className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-editor-surface hover:text-white transition-colors"
+                >
+                  Open project
+                </button>
+                <button
+                  onClick={() => {
+                    const jsonStr = exportProjectToPortableJSON(project);
+                    const blob = new Blob([jsonStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const safeName = project.name?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'longform_project';
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${safeName}.longform.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-editor-surface hover:text-white transition-colors"
+                >
+                  Back up project
+                </button>
+                <div className="h-px w-full bg-editor-panelBorder my-1" />
+                <button
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to reset the project? All media and edits will be lost.')) {
+                      onResetProject();
+                      setIsMenuOpen(false);
+                    }
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-400/10 transition-colors font-medium"
+                >
+                  Reset project
+                </button>
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <input
         type="file"
@@ -118,6 +137,6 @@ export const Header: React.FC<HeaderProps> = ({
         accept=".json,.longform.json"
         className="hidden"
       />
-    </>
+    </header>
   );
 };

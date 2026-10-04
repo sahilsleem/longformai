@@ -22,6 +22,8 @@ export const App: React.FC = () => {
     effectiveTimelineItem,
     effectiveMediaAsset,
     isGeneratingDraft,
+    isPreparing,
+    preparationProgress,
     prepareProject,
     generateAIDraft,
     relinkSingleMediaAsset,
@@ -163,7 +165,7 @@ export const App: React.FC = () => {
           />
           
           {/* Build My Video Overlay */}
-          {!hasDraft && canBuild && !isGeneratingDraft && (
+          {!hasDraft && canBuild && !isGeneratingDraft && !isPreparing && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm z-20">
               <button 
                 onClick={handleBuildVideo}
@@ -174,10 +176,29 @@ export const App: React.FC = () => {
               </button>
             </div>
           )}
-          {isGeneratingDraft && (
-            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-20">
-              <Loader2 className="w-8 h-8 text-amber-400 animate-spin mb-3" />
-              <div className="text-white font-semibold">Building timeline...</div>
+          {(isPreparing || isGeneratingDraft) && (
+            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 backdrop-blur-md">
+              <Loader2 className="w-10 h-10 text-amber-400 animate-spin mb-4" />
+              
+              {isPreparing && preparationProgress ? (
+                <>
+                  <div className="text-amber-400 font-bold text-2xl mb-1">
+                    {Math.round(preparationProgress.percent)}%
+                  </div>
+                  <div className="text-slate-300 font-medium text-sm text-center px-6">
+                    {preparationProgress.message}
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-48 h-1.5 bg-slate-800 rounded-full mt-4 overflow-hidden">
+                    <div 
+                      className="h-full bg-amber-400 transition-all duration-300 ease-out"
+                      style={{ width: `${preparationProgress.percent}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="text-white font-semibold text-lg">Building timeline...</div>
+              )}
             </div>
           )}
         </div>
@@ -371,11 +392,11 @@ export const App: React.FC = () => {
             <section className="pt-8 pb-4">
               <button 
                 onClick={handleBuildVideo}
-                disabled={isGeneratingDraft}
-                className="w-full py-4 bg-editor-panel border border-editor-panelBorder text-slate-300 rounded-xl font-semibold flex items-center justify-center gap-2 active:bg-slate-800 transition-colors"
+                disabled={isGeneratingDraft || isPreparing}
+                className="w-full py-4 bg-editor-panel border border-editor-panelBorder text-slate-300 rounded-xl font-semibold flex items-center justify-center gap-2 active:bg-slate-800 transition-colors disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                Rebuild video
+                {isPreparing || isGeneratingDraft ? 'Rebuilding...' : 'Rebuild video'}
               </button>
             </section>
           )}
