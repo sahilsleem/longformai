@@ -61,16 +61,12 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="relative h-14 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-between select-none z-30">
       <div className="flex items-center gap-2">
-        <button className="p-2 text-slate-400 hover:text-white transition-colors" onClick={() => {}} title="Undo">
-          <Undo2 className="w-5 h-5" />
-        </button>
-        <button className="p-2 text-slate-400 hover:text-white transition-colors" onClick={() => {}} title="Redo">
-          <Redo2 className="w-5 h-5" />
-        </button>
+        {/* Placeholder for left side to keep title centered */}
+        <div className="w-8 h-8" />
       </div>
 
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <h1 className="text-3xl text-white tracking-wide" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/5 backdrop-blur-md px-4 py-1 rounded-full border border-white/10 shadow-sm">
+        <h1 className="text-2xl text-white tracking-wide" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
       </div>
       
       <div className="relative">

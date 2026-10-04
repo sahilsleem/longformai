@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { TimelineItem, MediaAsset } from '../types/project';
-import { Trash2, ArrowLeftRight, Play, Pause } from 'lucide-react';
+import { Trash2, ArrowLeftRight, Play, Pause, Undo2, Redo2 } from 'lucide-react';
 
 interface TimelineProps {
   timeline: TimelineItem[];
@@ -192,49 +192,64 @@ export const Timeline: React.FC<TimelineProps> = ({
       </div>
       
       {/* Fixed Playhead */}
-      <div className="absolute top-0 bottom-4 left-1/2 w-[2px] bg-amber-400 z-30 pointer-events-none -translate-x-1/2">
+      <div className="absolute top-0 left-1/2 w-[2px] h-[116px] bg-amber-400 z-30 pointer-events-none -translate-x-1/2">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[6px] border-transparent border-t-amber-400" />
       </div>
       
       {/* Action Toolbar */}
-      <div className="flex justify-center gap-6 mt-2 mb-2 animate-in fade-in slide-in-from-top-2 duration-150">
-        {selectedItemId ? (
-          <button 
-            onClick={() => onReplaceClipMedia(selectedItemId)}
-            className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-white"
-          >
-            <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
-              <ArrowLeftRight className="w-5 h-5" />
-            </div>
-            <span className="text-[11px] font-medium tracking-wide">Replace</span>
-          </button>
-        ) : (
-          <div className="w-12 h-12" /> // spacer
-        )}
+      <div className="flex justify-center gap-4 mt-2 mb-2 animate-in fade-in slide-in-from-top-2 duration-150">
         
+        {/* Undo */}
+        <button className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition-colors">
+          <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
+            <Undo2 className="w-5 h-5" />
+          </div>
+          <span className="text-[11px] font-medium tracking-wide">Undo</span>
+        </button>
+
+        {/* Replace */}
+        <button 
+          onClick={() => selectedItemId && onReplaceClipMedia(selectedItemId)}
+          className={`flex flex-col items-center gap-1.5 transition-colors ${selectedItemId ? 'text-slate-300 hover:text-white' : 'text-slate-600 opacity-50 cursor-not-allowed'}`}
+          disabled={!selectedItemId}
+        >
+          <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
+            <ArrowLeftRight className="w-5 h-5" />
+          </div>
+          <span className="text-[11px] font-medium tracking-wide">Replace</span>
+        </button>
+        
+        {/* Play/Pause */}
         <button 
           onClick={onPlayPause}
-          className="flex flex-col items-center gap-1.5 text-white hover:text-amber-400"
+          className="flex flex-col items-center gap-1.5 text-white hover:text-amber-400 -mt-1 mx-2"
         >
-          <div className="w-14 h-14 rounded-full bg-amber-400 text-black flex items-center justify-center shadow-lg border border-amber-500/30 pl-1">
-            {isPlaying ? <Pause className="w-6 h-6 ml-[-4px]" /> : <Play className="w-6 h-6" />}
+          <div className="w-16 h-16 rounded-full bg-amber-400 text-black flex items-center justify-center shadow-lg border border-amber-500/30 pl-1">
+            {isPlaying ? <Pause className="w-7 h-7 ml-[-4px]" /> : <Play className="w-7 h-7" />}
           </div>
           <span className="text-[11px] font-medium tracking-wide">{isPlaying ? 'Pause' : 'Play'}</span>
         </button>
 
-        {selectedItemId ? (
-          <button 
-            onClick={() => onRemoveClip(selectedItemId)}
-            className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-red-400"
-          >
-            <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
-              <Trash2 className="w-5 h-5 text-red-400" />
-            </div>
-            <span className="text-[11px] font-medium tracking-wide">Delete</span>
-          </button>
-        ) : (
-          <div className="w-12 h-12" /> // spacer
-        )}
+        {/* Delete */}
+        <button 
+          onClick={() => selectedItemId && onRemoveClip(selectedItemId)}
+          className={`flex flex-col items-center gap-1.5 transition-colors ${selectedItemId ? 'text-slate-300 hover:text-red-400' : 'text-slate-600 opacity-50 cursor-not-allowed'}`}
+          disabled={!selectedItemId}
+        >
+          <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
+            <Trash2 className="w-5 h-5" />
+          </div>
+          <span className="text-[11px] font-medium tracking-wide">Delete</span>
+        </button>
+
+        {/* Redo */}
+        <button className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition-colors">
+          <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
+            <Redo2 className="w-5 h-5" />
+          </div>
+          <span className="text-[11px] font-medium tracking-wide">Redo</span>
+        </button>
+
       </div>
     </div>
   );
