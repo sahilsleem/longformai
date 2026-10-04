@@ -9846,12 +9846,12 @@ export function refineShotDuration(
 
   // 1. If source video has insufficient footage to cover full segment
   if (availableFootage < segmentDuration) {
-    const clampedDur = Math.round(Math.max(0.1, availableFootage) * 100) / 100;
+    
     return {
-      duration: clampedDur,
+      duration: origDur,
       originalSegmentDuration: origDur,
       isAdjusted: true,
-      reason: `Duration constrained to ${clampedDur.toFixed(1)}s of available source footage.`,
+      reason: `Footage shorter than audio, holding on last frame.`,
     };
   }
 
