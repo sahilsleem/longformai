@@ -52,17 +52,22 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     if (!video || !activeAsset || activeAsset.type !== 'video') return;
     const drift = Math.abs(video.currentTime - clipTime);
     
-    // Smooth playback: don't aggressively seek while playing unless drifting a lot
-    if (!isPlaying && drift > 0.05) {
-      video.currentTime = clipTime;
-    } else if (isPlaying && drift > 0.35) {
-      video.currentTime = clipTime;
-    }
-
-    if (isPlaying && video.paused) {
-      video.play().catch(() => {});
-    } else if (!isPlaying && !video.paused) {
-      video.pause();
+    // Extreme smooth playback: DO NOT snap while playing unless it's way out of sync or just unpaused
+    if (!isPlaying) {
+      if (drift > 0.05) {
+        video.currentTime = clipTime;
+      }
+      if (!video.paused) {
+        video.pause();
+      }
+    } else {
+      if (video.paused) {
+        video.currentTime = clipTime;
+        video.play().catch(() => {});
+      } else if (drift > 1.5) {
+        // Only force sync if drift is massive (e.g. clip changed or sought)
+        video.currentTime = clipTime;
+      }
     }
   }, [currentTime, isPlaying, clipTime, activeAsset]);
 

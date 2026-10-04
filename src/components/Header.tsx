@@ -57,7 +57,12 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="relative h-14 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-end select-none z-30">
+    <header className="relative h-14 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-between select-none z-30">
+      <div className="flex items-center gap-3">
+        <img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded-full object-cover shadow-sm border border-slate-700" />
+        <h1 className="text-2xl text-white tracking-wide mt-1" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
+      </div>
+      
       <div className="relative">
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}

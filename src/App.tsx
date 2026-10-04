@@ -58,6 +58,7 @@ export const App: React.FC = () => {
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
+  const [replaceModeItemId, setReplaceModeItemId] = useState<string | null>(null);
 
   useEffect(() => {
     let target = 0;
@@ -109,7 +110,8 @@ export const App: React.FC = () => {
   };
 
   const handleReplaceClip = (id: string) => {
-    setSelectedItemId(id); // Ensure selected
+    setSelectedItemId(id);
+    setReplaceModeItemId(id);
     footageRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -288,9 +290,9 @@ export const App: React.FC = () => {
                           key={asset.id} 
                           className="aspect-square bg-slate-900 rounded-lg overflow-hidden relative active:scale-95 transition-transform shadow-md"
                           onClick={() => {
-                            if (effectiveTimelineItem) {
-                              replaceTimelineItemMedia(effectiveTimelineItem.id, asset.id);
-                            } else {
+                            if (replaceModeItemId) {
+                              replaceTimelineItemMedia(replaceModeItemId, asset.id); setReplaceModeItemId(null);
+                            } else if (!hasDraft) {
                               addMediaToTimeline(asset.id);
                             }
                           }}
@@ -339,9 +341,9 @@ export const App: React.FC = () => {
                           key={asset.id} 
                           className="aspect-square bg-slate-900 rounded-lg overflow-hidden relative active:scale-95 transition-transform shadow-md"
                           onClick={() => {
-                            if (effectiveTimelineItem) {
-                              replaceTimelineItemMedia(effectiveTimelineItem.id, asset.id);
-                            } else {
+                            if (replaceModeItemId) {
+                              replaceTimelineItemMedia(replaceModeItemId, asset.id); setReplaceModeItemId(null);
+                            } else if (!hasDraft) {
                               addMediaToTimeline(asset.id);
                             }
                           }}
