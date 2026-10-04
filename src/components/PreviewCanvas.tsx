@@ -194,15 +194,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         <div className="text-slate-600 text-sm">Add your footage and voiceover below</div>
       )}
 
-      {/* Play/Pause Overlay */}
+      {/* Timecode Overlay */}
       {showOverlay && activeAsset && (
-        <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center pointer-events-none z-10 transition-opacity duration-200">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onPlayPause(); }}
-            className="w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white pointer-events-auto transition-colors"
-          >
-            {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-1" />}
-          </button>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 transition-opacity duration-200">
           <div className="absolute bottom-3 left-3 text-white text-xs font-mono drop-shadow-md">
             {formatTimecode(currentTime)} / {formatTimecode(totalDuration)}
           </div>

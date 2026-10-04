@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
 import {
   MoreVertical,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import { LongFormProject } from '../types/project';
 import {
@@ -58,9 +60,17 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="relative h-14 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-between select-none z-30">
-      <div className="flex items-center gap-3">
-        <img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded-full object-cover shadow-sm border border-slate-700" />
-        <h1 className="text-2xl text-white tracking-wide mt-1" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
+      <div className="flex items-center gap-2">
+        <button className="p-2 text-slate-400 hover:text-white transition-colors" onClick={() => {}} title="Undo">
+          <Undo2 className="w-5 h-5" />
+        </button>
+        <button className="p-2 text-slate-400 hover:text-white transition-colors" onClick={() => {}} title="Redo">
+          <Redo2 className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <h1 className="text-3xl text-white tracking-wide" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
       </div>
       
       <div className="relative">

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { TimelineItem, MediaAsset } from '../types/project';
-import { Trash2, ArrowLeftRight } from 'lucide-react';
+import { Trash2, ArrowLeftRight, Play, Pause } from 'lucide-react';
 
 interface TimelineProps {
   timeline: TimelineItem[];
@@ -9,6 +9,8 @@ interface TimelineProps {
   currentTime: number;
   totalDuration: number;
   timelineScale: number;
+  isPlaying?: boolean;
+  onPlayPause?: () => void;
   onSelectClip: (id: string | null) => void;
   onSeek: (time: number) => void;
   onRemoveClip: (id: string) => void;
@@ -192,9 +194,9 @@ export const Timeline: React.FC<TimelineProps> = ({
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[6px] border-transparent border-t-amber-400" />
       </div>
       
-      {/* Clip Chips (Contextual Actions) */}
-      {selectedItemId && (
-        <div className="flex justify-center gap-6 mt-2 mb-2 animate-in fade-in slide-in-from-top-2 duration-150">
+      {/* Action Toolbar */}
+      <div className="flex justify-center gap-6 mt-2 mb-2 animate-in fade-in slide-in-from-top-2 duration-150">
+        {selectedItemId ? (
           <button 
             onClick={() => onReplaceClipMedia(selectedItemId)}
             className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-white"
@@ -204,7 +206,21 @@ export const Timeline: React.FC<TimelineProps> = ({
             </div>
             <span className="text-[11px] font-medium tracking-wide">Replace</span>
           </button>
-          
+        ) : (
+          <div className="w-12 h-12" /> // spacer
+        )}
+        
+        <button 
+          onClick={onPlayPause}
+          className="flex flex-col items-center gap-1.5 text-white hover:text-amber-400"
+        >
+          <div className="w-14 h-14 rounded-full bg-amber-400 text-black flex items-center justify-center shadow-lg border border-amber-500/30 pl-1">
+            {isPlaying ? <Pause className="w-6 h-6 ml-[-4px]" /> : <Play className="w-6 h-6" />}
+          </div>
+          <span className="text-[11px] font-medium tracking-wide">{isPlaying ? 'Pause' : 'Play'}</span>
+        </button>
+
+        {selectedItemId ? (
           <button 
             onClick={() => onRemoveClip(selectedItemId)}
             className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-red-400"
@@ -214,8 +230,10 @@ export const Timeline: React.FC<TimelineProps> = ({
             </div>
             <span className="text-[11px] font-medium tracking-wide">Delete</span>
           </button>
-        </div>
-      )}
+        ) : (
+          <div className="w-12 h-12" /> // spacer
+        )}
+      </div>
     </div>
   );
 };
