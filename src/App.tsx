@@ -56,7 +56,7 @@ export const App: React.FC = () => {
 
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
-  const [isReframeMode, setIsReframeMode] = useState(false);
+
   
   const footageRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -97,41 +97,6 @@ export const App: React.FC = () => {
     );
   }
 
-  // --- REFRAME MODE ---
-  if (isReframeMode && effectiveTimelineItem) {
-    return (
-      <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
-        <div className="flex-1 flex flex-col justify-center">
-          <PreviewCanvas
-            activeItem={effectiveTimelineItem}
-            activeAsset={effectiveMediaAsset}
-            currentTime={currentTime}
-            isPlaying={isPlaying}
-            onPlayPause={() => setIsPlaying(!isPlaying)}
-            onSeek={setCurrentTime}
-            totalDuration={totalDuration}
-            onUpdateTransform={(u) => updateItemTransform(effectiveTimelineItem.id, u)}
-            isReframeMode={true}
-          />
-        </div>
-        <div className="h-20 bg-editor-panel border-t border-editor-panelBorder px-6 flex items-center justify-between shrink-0">
-          <button 
-            onClick={() => updateItemTransform(effectiveTimelineItem.id, { x: 0, y: 0, scale: 1.0 })}
-            className="text-slate-300 font-medium px-4 py-2"
-          >
-            Reset
-          </button>
-          <button 
-            onClick={() => setIsReframeMode(false)}
-            className="bg-amber-400 text-black px-8 py-2.5 rounded-full font-bold"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const canBuild = project.media.length > 0 && voiceover;
   const hasDraft = project.timeline.length > 0;
 
@@ -162,6 +127,7 @@ export const App: React.FC = () => {
             onPlayPause={() => setIsPlaying(!isPlaying)}
             onSeek={setCurrentTime}
             totalDuration={totalDuration}
+            onUpdateTransform={effectiveTimelineItem ? ((u) => updateItemTransform(effectiveTimelineItem.id, u)) : undefined}
           />
           
           {/* Build My Video Overlay */}
@@ -218,7 +184,6 @@ export const App: React.FC = () => {
               onRemoveClip={removeTimelineItem}
               onReplaceClipMedia={handleReplaceClip}
               onUpdateDuration={(id, d) => updateTimelineItem(id, { duration: d })}
-              onReframeClip={(id) => { setSelectedItemId(id); setIsReframeMode(true); }}
             />
           </div>
         )}

@@ -12,7 +12,6 @@ interface PreviewCanvasProps {
   onSeek: (time: number) => void;
   totalDuration: number;
   onUpdateTransform?: (transformUpdates: Partial<TimelineItem['transform']>) => void;
-  isReframeMode?: boolean;
 }
 
 export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
@@ -23,7 +22,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   onPlayPause,
   totalDuration,
   onUpdateTransform,
-  isReframeMode = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -87,7 +85,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const bounds = calculatePanBounds(sourceWidth, sourceHeight, transform.scale || 1.0, transform.fitMode || 'cover');
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!isReframeMode || !activeItem || !onUpdateTransform) {
+    if (!activeItem || !onUpdateTransform) {
       if (e.target === containerRef.current || e.currentTarget === containerRef.current) {
         setShowOverlay(!showOverlay);
       }
@@ -116,6 +114,12 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     if (!isInteractiveDragging) return;
     setIsInteractiveDragging(false);
     e.currentTarget.releasePointerCapture(e.pointerId);
+    
+    // Distinguish click from drag
+    const moveDist = Math.hypot(e.clientX - dragStartPos.current.mouseX, e.clientY - dragStartPos.current.mouseY);
+    if (moveDist < 5) {
+      setShowOverlay(!showOverlay);
+    }
   };
 
   const updateZoom = useCallback((targetScale: number) => {
@@ -128,7 +132,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   }, [activeItem, onUpdateTransform, sourceWidth, sourceHeight, transform]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isReframeMode) return;
+    if (!activeItem || !onUpdateTransform) return;
     if (e.touches.length === 2) {
       const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       touchPinchRef.current = { initialDist: dist, initialScale: transform.scale || 1.0 };
@@ -136,7 +140,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isReframeMode || !touchPinchRef.current) return;
+    if (!touchPinchRef.current || !activeItem || !onUpdateTransform) return;
     if (e.touches.length === 2) {
       const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       const ratio = dist / Math.max(1, touchPinchRef.current.initialDist);
@@ -155,7 +159,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       onPointerUp={handlePointerUp}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
-      className={`w-full aspect-video bg-black flex items-center justify-center relative overflow-hidden select-none ${isReframeMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`w-full aspect-video bg-black flex items-center justify-center relative overflow-hidden select-none ${onUpdateTransform ? 'cursor-grab active:cursor-grabbing' : ''}`}
       style={{ touchAction: 'none' }}
     >
       {activeAsset && activeItem ? (
@@ -180,7 +184,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       )}
 
       {/* Play/Pause Overlay */}
-      {!isReframeMode && showOverlay && activeAsset && (
+      {showOverlay && activeAsset && (
         <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center pointer-events-none z-10 transition-opacity duration-200">
           <button 
             onClick={(e) => { e.stopPropagation(); onPlayPause(); }}

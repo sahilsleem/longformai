@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { TimelineItem, MediaAsset } from '../types/project';
-import { Trash2, ArrowLeftRight, Move } from 'lucide-react';
+import { Trash2, ArrowLeftRight } from 'lucide-react';
 
 interface TimelineProps {
   timeline: TimelineItem[];
@@ -12,9 +12,8 @@ interface TimelineProps {
   onSelectClip: (id: string | null) => void;
   onSeek: (time: number) => void;
   onRemoveClip: (id: string) => void;
-  onReplaceClipMedia: (id: string) => void; // now triggers scroll
+  onReplaceClipMedia: (id: string) => void;
   onUpdateDuration: (id: string, duration: number) => void;
-  onReframeClip: (id: string) => void; // Triggers full-screen reframe
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -29,7 +28,6 @@ export const Timeline: React.FC<TimelineProps> = ({
   onRemoveClip,
   onReplaceClipMedia,
   onUpdateDuration,
-  onReframeClip,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isScrubbingRef = useRef(false);
@@ -70,7 +68,6 @@ export const Timeline: React.FC<TimelineProps> = ({
     return () => window.removeEventListener('pointerup', handlePointerUp);
   }, []);
 
-  const totalWidthPx = Math.max(0, totalDuration * timelineScale) + (scrollContainerRef.current?.clientWidth || 0);
   const padOffset = (scrollContainerRef.current?.clientWidth || 0) / 2;
 
   const handleStartResize = (e: React.PointerEvent, item: TimelineItem) => {
@@ -112,25 +109,24 @@ export const Timeline: React.FC<TimelineProps> = ({
         ref={scrollContainerRef}
         onScroll={handleScroll}
         onPointerDown={handlePointerDown}
-        className="overflow-x-auto overflow-y-hidden scrollbar-none touch-pan-x"
+        className="overflow-x-auto overflow-y-hidden scrollbar-none touch-pan-x w-full"
       >
         <div 
-          className="relative h-24"
-          style={{ width: `${totalWidthPx}px` }}
+          className="flex items-center h-24 relative"
+          style={{ paddingLeft: `${padOffset}px`, paddingRight: `${padOffset}px` }}
         >
           {timeline.map((item) => {
             const asset = mediaList.find(m => m.id === item.mediaId);
             const isSelected = selectedItemId === item.id;
-            const leftPx = padOffset + item.startTime * timelineScale;
             const widthPx = Math.max(32, item.duration * timelineScale);
 
             return (
               <div
                 key={item.id}
                 onClick={() => onSelectClip(item.id)}
-                style={{ left: `${leftPx}px`, width: `${widthPx}px` }}
-                className={`absolute top-2 bottom-2 rounded-lg overflow-hidden flex flex-col justify-between transition-all select-none cursor-pointer ${
-                  isSelected ? 'ring-2 ring-amber-400 z-20 shadow-lg' : 'opacity-80 hover:opacity-100 z-10'
+                style={{ width: `${widthPx}px` }}
+                className={`relative h-20 shrink-0 rounded-lg overflow-hidden flex flex-col justify-between transition-all select-none cursor-pointer border-2 ${
+                  isSelected ? 'border-amber-400 z-20 shadow-lg scale-105' : 'border-transparent opacity-80 hover:opacity-100 z-10 mx-[1px]'
                 }`}
               >
                 {asset && (
@@ -145,12 +141,14 @@ export const Timeline: React.FC<TimelineProps> = ({
                 )}
                 
                 {/* Right Resize Handle */}
-                <div
-                  onPointerDown={(e) => handleStartResize(e, item)}
-                  className={`absolute top-0 right-0 bottom-0 w-4 cursor-ew-resize flex items-center justify-center transition-colors z-20 ${isSelected ? 'bg-amber-400/20 hover:bg-amber-400/40' : ''}`}
-                >
-                  <div className={`w-1 h-6 rounded-full pointer-events-none ${isSelected ? 'bg-amber-400' : 'bg-white/50'}`} />
-                </div>
+                {isSelected && (
+                  <div
+                    onPointerDown={(e) => handleStartResize(e, item)}
+                    className="absolute top-0 right-0 bottom-0 w-6 cursor-ew-resize flex items-center justify-center transition-colors z-30 bg-black/40"
+                  >
+                    <div className="w-1 h-6 rounded-full bg-amber-400 pointer-events-none" />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -164,35 +162,25 @@ export const Timeline: React.FC<TimelineProps> = ({
       
       {/* Clip Chips (Contextual Actions) */}
       {selectedItemId && (
-        <div className="flex justify-center gap-4 mt-2 mb-2 animate-in fade-in slide-in-from-top-2 duration-150">
-          <button 
-            onClick={() => onReframeClip(selectedItemId)}
-            className="flex flex-col items-center gap-1 text-slate-300 hover:text-white"
-          >
-            <div className="w-10 h-10 rounded-full bg-editor-surface flex items-center justify-center shadow">
-              <Move className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-medium">Reframe</span>
-          </button>
-          
+        <div className="flex justify-center gap-6 mt-2 mb-2 animate-in fade-in slide-in-from-top-2 duration-150">
           <button 
             onClick={() => onReplaceClipMedia(selectedItemId)}
-            className="flex flex-col items-center gap-1 text-slate-300 hover:text-white"
+            className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-white"
           >
-            <div className="w-10 h-10 rounded-full bg-editor-surface flex items-center justify-center shadow">
+            <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
               <ArrowLeftRight className="w-5 h-5" />
             </div>
-            <span className="text-[10px] font-medium">Replace</span>
+            <span className="text-[11px] font-medium tracking-wide">Replace</span>
           </button>
           
           <button 
             onClick={() => onRemoveClip(selectedItemId)}
-            className="flex flex-col items-center gap-1 text-slate-300 hover:text-red-400"
+            className="flex flex-col items-center gap-1.5 text-slate-300 hover:text-red-400"
           >
-            <div className="w-10 h-10 rounded-full bg-editor-surface flex items-center justify-center shadow">
+            <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
               <Trash2 className="w-5 h-5 text-red-400" />
             </div>
-            <span className="text-[10px] font-medium">Delete</span>
+            <span className="text-[11px] font-medium tracking-wide">Delete</span>
           </button>
         </div>
       )}
