@@ -5,7 +5,7 @@ import { Timeline } from './components/Timeline';
 import { RenderModal } from './components/RenderModal';
 import { RelinkModal } from './components/RelinkModal';
 import { useProject } from './state/useProjectStore';
-import { Music, Plus, Film, Sparkles, Loader2 } from 'lucide-react';
+import { Music, Plus, Sparkles, Loader2, Folder } from 'lucide-react';
 import { pickAndroidMedia, pickAndroidVoiceover, isNativeAndroid } from './platform/androidMedia';
 import { formatSecondsToMinutes } from './engine/schema';
 
@@ -45,6 +45,11 @@ export const App: React.FC = () => {
     importProject,
     resetProject,
     setProjectName,
+    folders,
+    activeFolderId,
+    setActiveFolderId,
+    createFolder,
+    deleteFolder,
   } = useProject();
 
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
@@ -58,10 +63,10 @@ export const App: React.FC = () => {
   const unlinkedCount = project.media.filter((m) => !m.file && (!m.url || m.url.length === 0)).length + 
     (project.voiceover && !project.voiceover.file && (!project.voiceover.url || project.voiceover.url.length === 0) ? 1 : 0);
 
-  const handleUploadNative = async () => {
+  const handleUploadNative = async (targetFolderId?: string) => {
     try {
       const assets = await pickAndroidMedia();
-      if (assets.length > 0) await addNativeMediaAssets(assets);
+      if (assets.length > 0) await addNativeMediaAssets(assets, targetFolderId);
     } catch (e) { console.error(e); }
   };
 
@@ -231,51 +236,133 @@ export const App: React.FC = () => {
             )}
           </section>
 
-          {/* Footage Section */}
+          {/* Folders Section */}
           <section ref={footageRef}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-                <Film className="w-4 h-4 text-slate-400" />
-                Footage <span className="text-slate-500 font-normal">({project.media.length})</span>
+                <Folder className="w-4 h-4 text-slate-400" />
+                Folders <span className="text-slate-500 font-normal">({folders.length})</span>
               </h3>
               <button
-                onClick={() => isNativeAndroid() ? handleUploadNative() : fileInputRef.current?.click()}
-                className="text-xs font-semibold text-blue-400 bg-blue-400/10 px-3 py-1.5 rounded-full"
+                onClick={() => {
+                  const name = window.prompt('Folder name:');
+                  if (name && name.trim()) createFolder(name.trim());
+                }}
+                className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-1.5 rounded-full"
               >
-                + Add
+                + New Folder
               </button>
             </div>
             
-            <div className="grid grid-cols-3 gap-2">
-              {project.media.map(asset => (
-                <div 
-                  key={asset.id} 
-                  className="aspect-square bg-slate-900 rounded-lg overflow-hidden relative active:scale-95 transition-transform"
-                  onClick={() => {
-                    if (effectiveTimelineItem && !effectiveTimelineItem.mediaId) {
-                      replaceTimelineItemMedia(effectiveTimelineItem.id, asset.id);
-                    } else if (effectiveTimelineItem) {
-                      replaceTimelineItemMedia(effectiveTimelineItem.id, asset.id);
-                    } else {
-                      addMediaToTimeline(asset.id);
-                    }
-                  }}
-                >
-                  {asset.type === 'video' ? (
-                    <video src={asset.url} className="w-full h-full object-cover" />
-                  ) : (
-                    <img src={asset.url} className="w-full h-full object-cover" />
-                  )}
-                  {(!asset.file && (!asset.url || asset.url.length === 0)) && (
-                    <div className="absolute inset-0 bg-red-900/50 flex items-center justify-center text-[10px] text-red-200 font-bold">MISSING</div>
-                  )}
-                </div>
-              ))}
-              {project.media.length === 0 && (
-                <div className="col-span-3 aspect-video border-2 border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-500 text-sm">
-                  Add photos or videos
-                </div>
-              )}
+            <div className="space-y-4">
+              {folders.map(folder => {
+                const folderMedia = project.media.filter(m => m.folderIds?.includes(folder.id));
+                return (
+                  <div key={folder.id} className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden">
+                    <div className="px-3 py-2 bg-editor-surface flex items-center justify-between border-b border-editor-panelBorder">
+                      <span className="text-sm font-medium text-slate-300">{folder.name} <span className="text-slate-500 text-xs">({folderMedia.length})</span></span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => {
+                          if (window.confirm(`Delete folder "${folder.name}"? Media will remain in project.`)) {
+                            deleteFolder(folder.id);
+                          }
+                        }} className="text-slate-500 hover:text-red-400 p-1 transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveFolderId(folder.id);
+                            isNativeAndroid() ? handleUploadNative(folder.id) : fileInputRef.current?.click();
+                          }}
+                          className="text-xs font-semibold text-blue-400 bg-blue-400/10 px-3 py-1.5 rounded-full hover:bg-blue-400/20 active:bg-blue-400/30 transition-colors"
+                        >
+                          + Add Media
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-2 grid grid-cols-3 gap-2">
+                      {folderMedia.map(asset => (
+                        <div 
+                          key={asset.id} 
+                          className="aspect-square bg-slate-900 rounded-lg overflow-hidden relative active:scale-95 transition-transform shadow-md"
+                          onClick={() => {
+                            if (effectiveTimelineItem) {
+                              replaceTimelineItemMedia(effectiveTimelineItem.id, asset.id);
+                            } else {
+                              addMediaToTimeline(asset.id);
+                            }
+                          }}
+                        >
+                          {asset.type === 'video' ? (
+                            <video src={asset.url} className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={asset.url} className="w-full h-full object-cover" />
+                          )}
+                          {(!asset.file && (!asset.url || asset.url.length === 0)) && (
+                            <div className="absolute inset-0 bg-red-900/50 flex items-center justify-center text-[10px] text-red-200 font-bold">MISSING</div>
+                          )}
+                        </div>
+                      ))}
+                      {folderMedia.length === 0 && (
+                        <div className="col-span-3 py-8 text-center text-slate-500 text-xs">
+                          Folder is empty
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Uncategorized Media */}
+              {(() => {
+                const uncategorized = project.media.filter(m => !m.folderIds || m.folderIds.length === 0);
+                if (uncategorized.length === 0 && folders.length > 0) return null;
+                return (
+                  <div className="bg-editor-panel border border-editor-panelBorder rounded-xl overflow-hidden">
+                    <div className="px-3 py-2 bg-editor-surface flex items-center justify-between border-b border-editor-panelBorder">
+                      <span className="text-sm font-medium text-slate-300">Uncategorized <span className="text-slate-500 text-xs">({uncategorized.length})</span></span>
+                      <button
+                        onClick={() => {
+                          setActiveFolderId(null);
+                          isNativeAndroid() ? handleUploadNative() : fileInputRef.current?.click();
+                        }}
+                        className="text-xs font-semibold text-blue-400 bg-blue-400/10 px-3 py-1.5 rounded-full hover:bg-blue-400/20 active:bg-blue-400/30 transition-colors"
+                      >
+                        + Add Media
+                      </button>
+                    </div>
+                    <div className="p-2 grid grid-cols-3 gap-2">
+                      {uncategorized.map(asset => (
+                        <div 
+                          key={asset.id} 
+                          className="aspect-square bg-slate-900 rounded-lg overflow-hidden relative active:scale-95 transition-transform shadow-md"
+                          onClick={() => {
+                            if (effectiveTimelineItem) {
+                              replaceTimelineItemMedia(effectiveTimelineItem.id, asset.id);
+                            } else {
+                              addMediaToTimeline(asset.id);
+                            }
+                          }}
+                        >
+                          {asset.type === 'video' ? (
+                            <video src={asset.url} className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={asset.url} className="w-full h-full object-cover" />
+                          )}
+                          {(!asset.file && (!asset.url || asset.url.length === 0)) && (
+                            <div className="absolute inset-0 bg-red-900/50 flex items-center justify-center text-[10px] text-red-200 font-bold">MISSING</div>
+                          )}
+                        </div>
+                      ))}
+                      {uncategorized.length === 0 && (
+                        <div className="col-span-3 py-8 text-center text-slate-500 text-xs">
+                          No uncategorized media
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </section>
 
@@ -316,7 +403,7 @@ export const App: React.FC = () => {
       />
 
       {/* Hidden inputs */}
-      <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addMediaAssets(e.target.files); e.target.value = ''; }} multiple accept="video/*,image/*" className="hidden" />
+      <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addMediaAssets(e.target.files, activeFolderId || undefined); e.target.value = ''; }} multiple accept="video/*,image/*" className="hidden" />
       <input type="file" ref={voiceoverInputRef} onChange={(e) => { if (e.target.files?.[0]) setVoiceoverAudio(e.target.files[0]); e.target.value = ''; }} accept="audio/*" className="hidden" />
     </div>
   );
