@@ -18,6 +18,15 @@ export interface RenderSegmentPlan {
   overlayPath?: string;
   overlayStart?: number;
   overlayEnd?: number;
+  tailHandle?: number;
+}
+
+export interface PairwiseTransitionPlan {
+  segAPath: string;
+  segBPath: string;
+  outPath: string;
+  duration: number;
+  offset: number;
 }
 
 export interface RenderConcatPlan {
@@ -47,6 +56,8 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
 
   const item = plan.timelineItem;
   const dur = plan.duration;
+  const tailHandle = plan.tailHandle ? Math.max(0, plan.tailHandle) : 0;
+  const renderDur = Number((dur + tailHandle).toFixed(2));
   const transform = item.transform || {};
   const scale = transform.scale !== undefined ? transform.scale : 1.0;
   const pan_x = transform.x !== undefined ? transform.x : 0.0;
@@ -90,12 +101,12 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
   if (motion === 'SLOW_ZOOM') {
     const startScale = params.startScale ?? 1.0;
     const endScale = params.endScale ?? 1.05;
-    filter_str += `;[base]zoompan=z='${startScale}+(${endScale}-${startScale})*(time/${dur})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}${motionOutTag}`;
+    filter_str += `;[base]zoompan=z='${startScale}+(${endScale}-${startScale})*(time/${renderDur})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}${motionOutTag}`;
   } else if (motion === 'PUNCH_ZOOM') {
     const targetScale = params.scale ?? 1.2;
     const triggerTime = params.triggerTime ?? 0.0;
     const ramp = 0.3;
-    const t0 = Math.min(Math.max(0, triggerTime), Math.max(0, dur - ramp));
+    const t0 = Math.min(Math.max(0, triggerTime), Math.max(0, renderDur - ramp));
 
     // min(max(time-t0\,0)/ramp\,1.0)
     filter_str += `;[base]zoompan=z='1.0+(${targetScale}-1.0)*min(max(time-${t0}\\,0)/${ramp}\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}${motionOutTag}`;
@@ -112,7 +123,7 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
 
   const cmd: string[] = ["ffmpeg", "-y"];
   if (plan.isImage) {
-    cmd.push("-loop", "1", "-t", `${dur}`, "-i", plan.mediaPath);
+    cmd.push("-loop", "1", "-t", `${renderDur}`, "-i", plan.mediaPath);
   } else {
     if (source_start > 0.0) {
       cmd.push("-ss", `${source_start}`);
@@ -132,13 +143,38 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
     "-preset", "ultrafast",
     "-pix_fmt", "yuv420p",
     "-r", `${TARGET_FPS}`,
-    "-t", `${dur}`,
+    "-t", `${renderDur}`,
     "-avoid_negative_ts", "make_zero",
     "-movflags", "+faststart",
     plan.outPath
   );
   
   return cmd;
+}
+
+/**
+ * Builds the FFmpeg command array for executing a pairwise crossfade transition between two segments.
+ * Transitions from segAPath to segBPath using xfade=transition=fade.
+ */
+export function buildPairwiseTransitionCommand(plan: PairwiseTransitionPlan): string[] {
+  const d = Number(plan.duration.toFixed(2));
+  const o = Number(plan.offset.toFixed(2));
+
+  return [
+    "ffmpeg", "-y",
+    "-i", plan.segAPath,
+    "-i", plan.segBPath,
+    "-filter_complex", `[0:v][1:v]xfade=transition=fade:duration=${d}:offset=${o}[outv]`,
+    "-map", "[outv]",
+    "-an",
+    "-c:v", "libx264",
+    "-preset", "ultrafast",
+    "-pix_fmt", "yuv420p",
+    "-r", `${TARGET_FPS}`,
+    "-avoid_negative_ts", "make_zero",
+    "-movflags", "+faststart",
+    plan.outPath
+  ];
 }
 
 /**

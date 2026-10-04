@@ -8,6 +8,12 @@ export interface ResolvedTypographyOverlay {
   endTime: number;
 }
 
+export interface ResolvedTransitionPlan {
+  type: 'HARD_CUT' | 'CROSSFADE';
+  duration: number;
+  offset: number;
+}
+
 export interface ResolvedRenderSegment {
   isGap: boolean;
   startTime: number;
@@ -15,6 +21,8 @@ export interface ResolvedRenderSegment {
   timelineItem?: TimelineItem;
   treatment?: VisualTreatment;
   typographyOverlay?: ResolvedTypographyOverlay;
+  tailHandle?: number;
+  transitionPlan?: ResolvedTransitionPlan;
 }
 
 export interface ResolvedRenderPlan {
@@ -177,6 +185,64 @@ export function resolveRenderPlan(project: LongFormProject): ResolvedRenderPlan 
       startTime: 0,
       duration: totalDuration,
     });
+  }
+
+  // Stage 3D: Resolve transitions across adjacent segments
+  for (let i = 1; i < segments.length; i++) {
+    const curr = segments[i];
+    const prev = segments[i - 1];
+    const treatment = curr.treatment;
+
+    if (!treatment || treatment.transition !== 'CROSSFADE') {
+      continue;
+    }
+
+    // Guardrail 1: Neither segment can be a gap
+    if (prev.isGap || curr.isGap) {
+      continue;
+    }
+
+    // Guardrail 2: Both segments must have duration >= 1.0s
+    if (prev.duration < 1.0 || curr.duration < 1.0) {
+      continue;
+    }
+
+    // Guardrail 3: Transition duration must be positive
+    const requestedDuration = treatment.transitionDuration !== undefined ? treatment.transitionDuration : 0.5;
+    if (requestedDuration <= 0) {
+      continue;
+    }
+
+    // Guardrail 4: Transition duration must be smaller than usable duration
+    const maxAllowedT = Math.min(prev.duration - 0.5, curr.duration - 0.5);
+    if (maxAllowedT < 0.1) {
+      continue;
+    }
+    const tDur = Math.min(requestedDuration, maxAllowedT);
+    if (tDur <= 0) {
+      continue;
+    }
+
+    // Guardrail 5: Consecutive crossfade safety
+    // Do not allow a segment to participate in two CROSSFADE operations
+    // unless there is clearly sufficient body duration between them (at least 1.0s).
+    if (prev.transitionPlan && prev.transitionPlan.type === 'CROSSFADE') {
+      const incomingT = prev.transitionPlan.duration;
+      if (prev.duration - incomingT < 1.0) {
+        continue;
+      }
+    }
+
+    // All safety conditions passed: assign tailHandle and transitionPlan
+    const roundedTDur = Number(tDur.toFixed(2));
+    const offset = Number(prev.duration.toFixed(2));
+
+    prev.tailHandle = roundedTDur;
+    curr.transitionPlan = {
+      type: 'CROSSFADE',
+      duration: roundedTDur,
+      offset: offset,
+    };
   }
 
   return { segments };

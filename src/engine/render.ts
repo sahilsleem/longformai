@@ -4,7 +4,7 @@ import { getRenderWorkerUrl } from '../config/workerConfig';
 import { getBollywoodFrameBlob } from './frameAsset';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import NativeFFmpeg from './NativeFFmpeg';
-import { buildSegmentCommand, buildConcatCommand } from './ffmpegBuilder';
+import { buildSegmentCommand, buildConcatCommand, buildPairwiseTransitionCommand } from './ffmpegBuilder';
 import { resolveRenderPlan } from './renderPlan';
 import { generateTypographyOverlayBase64 } from './typographyAsset';
 
@@ -43,6 +43,7 @@ export async function renderVideoNativeAndroid(
     const renderPlan = resolveRenderPlan(project);
     const totalSegments = renderPlan.segments.length;
     const tempTypographyFiles: string[] = [];
+    const tempTransitionFiles: string[] = [];
 
     try {
       for (let i = 0; i < totalSegments; i++) {
@@ -89,6 +90,7 @@ export async function renderVideoNativeAndroid(
           treatment: segment.treatment,
           mediaPath: mediaNativePath,
           duration: segment.duration,
+          tailHandle: segment.tailHandle,
           outPath: segmentOut,
           isImage: mediaDef?.type === 'image',
           width: mediaDef?.width,
@@ -107,10 +109,55 @@ export async function renderVideoNativeAndroid(
         }
       }
 
+      // Stage 3D: Pairwise transition execution pass
+      const mergedPairs = new Map<number, string>();
+
+      for (let i = 1; i < totalSegments; i++) {
+        const segB = renderPlan.segments[i];
+        if (segB.transitionPlan?.type === 'CROSSFADE') {
+          const segAPath = segmentPaths[i - 1];
+          const segBPath = segmentPaths[i];
+          const xfadeFilename = `xfade_${i - 1}_${i}_${Date.now()}.mp4`;
+          const xfadeOut = `${cacheBase}/${xfadeFilename}`;
+          tempTransitionFiles.push(xfadeFilename);
+
+          onProgress?.(60 + (i / totalSegments) * 5, `Applying crossfade transition between segments ${i} and ${i + 1}...`);
+
+          try {
+            const xfadeCmd = buildPairwiseTransitionCommand({
+              segAPath,
+              segBPath,
+              duration: segB.transitionPlan.duration,
+              offset: segB.transitionPlan.offset,
+              outPath: xfadeOut,
+            });
+
+            const xfadeArgs = xfadeCmd[0] === 'ffmpeg' ? xfadeCmd.slice(1) : xfadeCmd;
+            const xfadeRes = await NativeFFmpeg.execute({ arguments: xfadeArgs });
+
+            if (xfadeRes.success) {
+              mergedPairs.set(i, xfadeOut);
+            } else {
+              console.warn(`Pairwise crossfade between segments ${i - 1} and ${i} failed (code ${xfadeRes.returnCode}), falling back to HARD_CUT:`, xfadeRes.output);
+            }
+          } catch (xfadeErr) {
+            console.warn(`Pairwise crossfade between segments ${i - 1} and ${i} threw error, falling back to HARD_CUT:`, xfadeErr);
+          }
+        }
+      }
+
       onProgress?.(65, 'Creating concatenation plan...');
       let concatData = '';
-      for (const p of segmentPaths) {
-        concatData += `file '${p}'\n`;
+      let k = 0;
+      while (k < totalSegments) {
+        if (mergedPairs.has(k + 1)) {
+          // Pair (k, k+1) was merged into a single transition clip
+          concatData += `file '${mergedPairs.get(k + 1)}'\n`;
+          k += 2;
+        } else {
+          concatData += `file '${segmentPaths[k]}'\n`;
+          k += 1;
+        }
       }
       await Filesystem.writeFile({
         directory: Directory.Cache,
@@ -147,7 +194,7 @@ export async function renderVideoNativeAndroid(
          }
       }
 
-      const totalDuration = project.timeline.reduce((acc, item) => acc + item.duration, 0);
+      const totalDuration = renderPlan.segments.reduce((acc, s) => acc + s.duration, 0);
 
       onProgress?.(70, 'Running final video assembly...');
       const concatCmd = buildConcatCommand({
@@ -208,6 +255,13 @@ export async function renderVideoNativeAndroid(
       };
     } finally {
       for (const tempFile of tempTypographyFiles) {
+        try {
+          await Filesystem.deleteFile({ directory: Directory.Cache, path: tempFile });
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+      for (const tempFile of tempTransitionFiles) {
         try {
           await Filesystem.deleteFile({ directory: Directory.Cache, path: tempFile });
         } catch {

@@ -372,3 +372,201 @@ describe('resolveRenderPlan (Stage 3C Typography Overlays)', () => {
     expect(plan.segments[1].typographyOverlay).toBeUndefined();
   });
 });
+
+describe('resolveRenderPlan (Stage 3D Transition Execution)', () => {
+  it('Test 1 — HARD_CUT identity: A normal HARD_CUT project produces no transition plan and no tail handle', () => {
+    const project = createBaseProject();
+    project.timeline = [
+      createMockTimelineItem('clip-1', 0, 4),
+      createMockTimelineItem('clip-2', 4, 5),
+    ];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-1': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'Cut 1' },
+        'clip-2': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'Cut 2' },
+      },
+      summary: { totalItems: 2, normalClips: 2, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 2, crossfades: 0 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments).toHaveLength(2);
+    expect(plan.segments[0].tailHandle).toBeUndefined();
+    expect(plan.segments[0].transitionPlan).toBeUndefined();
+    expect(plan.segments[1].tailHandle).toBeUndefined();
+    expect(plan.segments[1].transitionPlan).toBeUndefined();
+  });
+
+  it('Test 2 — valid CROSSFADE: A=4.0s, B=5.0s, B transition=CROSSFADE 0.5s resolves correctly', () => {
+    const project = createBaseProject();
+    project.timeline = [
+      createMockTimelineItem('clip-A', 0, 4.0),
+      createMockTimelineItem('clip-B', 4.0, 5.0),
+    ];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-A': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'A' },
+        'clip-B': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'B transition' },
+      },
+      summary: { totalItems: 2, normalClips: 2, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 1 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments).toHaveLength(2);
+
+    const segA = plan.segments[0];
+    const segB = plan.segments[1];
+
+    expect(segA.duration).toBe(4.0);
+    expect(segA.tailHandle).toBe(0.5);
+
+    expect(segB.duration).toBe(5.0);
+    expect(segB.transitionPlan).toBeDefined();
+    expect(segB.transitionPlan?.type).toBe('CROSSFADE');
+    expect(segB.transitionPlan?.duration).toBe(0.5);
+    expect(segB.transitionPlan?.offset).toBe(4.0);
+  });
+
+  it('Test 3 — first clip: CROSSFADE on clip 0 becomes HARD_CUT', () => {
+    const project = createBaseProject();
+    project.timeline = [createMockTimelineItem('clip-0', 0, 4.0)];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-0': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'Clip 0' },
+      },
+      summary: { totalItems: 1, normalClips: 1, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 0, crossfades: 1 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments).toHaveLength(1);
+    expect(plan.segments[0].tailHandle).toBeUndefined();
+    expect(plan.segments[0].transitionPlan).toBeUndefined();
+  });
+
+  it('Test 4 — gap: CROSSFADE adjacent to a gap becomes HARD_CUT', () => {
+    const project = createBaseProject();
+    // Injects gap between 3.0 and 5.0 (2.0s gap)
+    project.timeline = [
+      createMockTimelineItem('clip-A', 0, 3.0),
+      createMockTimelineItem('clip-B', 5.0, 4.0),
+    ];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-A': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'A' },
+        'clip-B': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'B' },
+      },
+      summary: { totalItems: 2, normalClips: 2, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 1 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments).toHaveLength(3); // seg0: clip-A, seg1: gap, seg2: clip-B
+    expect(plan.segments[0].isGap).toBe(false);
+    expect(plan.segments[1].isGap).toBe(true);
+    expect(plan.segments[2].isGap).toBe(false);
+
+    // Both gap and clip-B must have no transitionPlan or tailHandle
+    expect(plan.segments[0].tailHandle).toBeUndefined();
+    expect(plan.segments[1].tailHandle).toBeUndefined();
+    expect(plan.segments[1].transitionPlan).toBeUndefined();
+    expect(plan.segments[2].tailHandle).toBeUndefined();
+    expect(plan.segments[2].transitionPlan).toBeUndefined();
+  });
+
+  it('Test 5 — short clip: A clip below 1.0s causes HARD_CUT', () => {
+    const project = createBaseProject();
+    project.timeline = [
+      createMockTimelineItem('clip-A', 0, 0.8), // Short clip
+      createMockTimelineItem('clip-B', 0.8, 4.0),
+    ];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-A': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'A' },
+        'clip-B': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'B' },
+      },
+      summary: { totalItems: 2, normalClips: 2, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 1 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments[0].tailHandle).toBeUndefined();
+    expect(plan.segments[1].transitionPlan).toBeUndefined();
+  });
+
+  it('Test 6 — consecutive transitions: Unsafe consecutive crossfade topology is downgraded deterministically', () => {
+    const project = createBaseProject();
+    // Clip A (3s) -> Clip B (1.2s) -> Clip C (3s)
+    // If B has incoming crossfade 0.5s, remaining body is only 0.7s (< 1.0s), so outgoing crossfade on C is downgraded
+    project.timeline = [
+      createMockTimelineItem('clip-A', 0, 3.0),
+      createMockTimelineItem('clip-B', 3.0, 1.2),
+      createMockTimelineItem('clip-C', 4.2, 3.0),
+    ];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-A': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'A' },
+        'clip-B': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'B' },
+        'clip-C': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'C' },
+      },
+      summary: { totalItems: 3, normalClips: 3, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 2 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments).toHaveLength(3);
+
+    // A -> B is valid (A is 3s, B is 1.2s)
+    expect(plan.segments[0].tailHandle).toBe(0.5);
+    expect(plan.segments[1].transitionPlan?.type).toBe('CROSSFADE');
+
+    // B -> C is downgraded to HARD_CUT because B's body (1.2 - 0.5 = 0.7s) is too short to safely support a second transition
+    expect(plan.segments[1].tailHandle).toBeUndefined();
+    expect(plan.segments[2].transitionPlan).toBeUndefined();
+  });
+
+  it('Test 7 — immutability: resolveRenderPlan() must not mutate the original project/timeline objects', () => {
+    const project = createBaseProject();
+    const itemA = createMockTimelineItem('clip-A', 0, 4.0);
+    const itemB = createMockTimelineItem('clip-B', 4.0, 5.0);
+    project.timeline = [itemA, itemB];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-A': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'A' },
+        'clip-B': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'B' },
+      },
+      summary: { totalItems: 2, normalClips: 2, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 1 },
+    };
+
+    const frozenA = JSON.stringify(itemA);
+    const frozenB = JSON.stringify(itemB);
+
+    resolveRenderPlan(project);
+
+    expect(JSON.stringify(itemA)).toBe(frozenA);
+    expect(JSON.stringify(itemB)).toBe(frozenB);
+  });
+
+  it('Test 8 — deterministic output: Same input produces identical resolved transition plans', () => {
+    const project = createBaseProject();
+    project.timeline = [
+      createMockTimelineItem('clip-A', 0, 4.0),
+      createMockTimelineItem('clip-B', 4.0, 5.0),
+    ];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-A': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'HARD_CUT', reason: 'A' },
+        'clip-B': { motion: 'NORMAL_CLIP', typography: 'NONE', transition: 'CROSSFADE', transitionDuration: 0.5, reason: 'B' },
+      },
+      summary: { totalItems: 2, normalClips: 2, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 1 },
+    };
+
+    const plan1 = resolveRenderPlan(project);
+    const plan2 = resolveRenderPlan(project);
+
+    expect(plan1).toEqual(plan2);
+  });
+});
