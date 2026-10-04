@@ -199,4 +199,100 @@ describe('ffmpegBuilder', () => {
       '/tmp/final.mp4'
     ]);
   });
+
+  it('builds a SLOW_ZOOM segment safely', () => {
+    const item: TimelineItem = {
+      id: 'clip1',
+      mediaId: 'm1',
+      startTime: 0,
+      duration: 5,
+      sourceStart: 2.5,
+      transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } }
+    } as TimelineItem;
+
+    const cmd = buildSegmentCommand({
+      timelineItem: item,
+      mediaPath: '/tmp/test.mp4',
+      duration: 5.0,
+      outPath: '/tmp/out1.mp4',
+      width: 1920,
+      height: 1080,
+      treatment: { motion: 'SLOW_ZOOM', typography: 'NONE', transition: 'HARD_CUT', reason: '', motionParams: { startScale: 1.0, endScale: 1.1 } }
+    });
+
+    const filterIdx = cmd.indexOf('-filter_complex');
+    expect(filterIdx).toBeGreaterThan(-1);
+    const filter = cmd[filterIdx + 1];
+    expect(filter).toContain('scale=1920:1080');
+    expect(filter).toContain('setpts=PTS-STARTPTS[base];[base]zoompan=z=\'1+');
+    expect(filter).toContain('*(time/5)\':x=\'iw/2-(iw/zoom/2)\':y=\'ih/2-(ih/zoom/2)\':d=1:s=1920x1080:fps=30[outv]');
+  });
+
+  it('builds a PUNCH_ZOOM segment with safe trigger clamping', () => {
+    const item: TimelineItem = {
+      id: 'clip1',
+      mediaId: 'm1',
+      startTime: 0,
+      duration: 5,
+      sourceStart: 2.5,
+      transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } }
+    } as TimelineItem;
+
+    // triggerTime = 6 (greater than duration - ramp (4.7)), should clamp to 4.7
+    const cmd = buildSegmentCommand({
+      timelineItem: item,
+      mediaPath: '/tmp/test.mp4',
+      duration: 5.0,
+      outPath: '/tmp/out1.mp4',
+      width: 1920,
+      height: 1080,
+      treatment: { motion: 'PUNCH_ZOOM', typography: 'NONE', transition: 'HARD_CUT', reason: '', motionParams: { scale: 1.3, triggerTime: 6 } }
+    });
+
+    const filterIdx = cmd.indexOf('-filter_complex');
+    const filter = cmd[filterIdx + 1];
+    expect(filter).toContain('zoompan=z=\'1.0+(1.3-1.0)*min(max(time-4.7\\,0)/0.3\\,1.0)\'');
+  });
+
+  it('builds a fallback NORMAL_CLIP safely when treatment is missing or unrecognized', () => {
+    const item: TimelineItem = {
+      id: 'clip1',
+      mediaId: 'm1',
+      startTime: 0,
+      duration: 5,
+      sourceStart: 2.5,
+      transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } }
+    } as TimelineItem;
+
+    const cmd = buildSegmentCommand({
+      timelineItem: item,
+      mediaPath: '/tmp/test.mp4',
+      duration: 5.0,
+      outPath: '/tmp/out1.mp4',
+      width: 1920,
+      height: 1080,
+      treatment: { motion: 'FAKE_INVALID' as any, typography: 'NONE', transition: 'HARD_CUT', reason: '' }
+    });
+
+    const filterIdx = cmd.indexOf('-filter_complex');
+    const filter = cmd[filterIdx + 1];
+    expect(filter).toContain('setpts=PTS-STARTPTS[outv]');
+    expect(filter).not.toContain('zoompan');
+  });
+
+  it('generates an explicit black gap command when isGap is true', () => {
+    const cmd = buildSegmentCommand({
+      isGap: true,
+      duration: 2.5,
+      outPath: '/tmp/gap.mp4'
+    });
+
+    expect(cmd).toEqual([
+      'ffmpeg', '-y', '-f', 'lavfi',
+      '-i', 'color=c=black:s=1920x1080:r=30:d=2.5',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-r', '30',
+      '-avoid_negative_ts', 'make_zero', '-movflags', '+faststart',
+      '/tmp/gap.mp4'
+    ]);
+  });
 });

@@ -1,4 +1,5 @@
 import { TimelineItem, ProjectFrameConfig } from '../types/project';
+import { VisualTreatment } from './visualStoryDirector';
 
 const TARGET_WIDTH = 1920;
 const TARGET_HEIGHT = 1080;
@@ -12,6 +13,8 @@ export interface RenderSegmentPlan {
   outPath: string;
   width?: number;
   height?: number;
+  isGap?: boolean;
+  treatment?: VisualTreatment;
 }
 
 export interface RenderConcatPlan {
@@ -28,8 +31,8 @@ export interface RenderConcatPlan {
  * Does not execute anything. Produces string[] equivalent to Python render_engine.py.
  */
 export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
-  // If no media is provided, generate a black gap
-  if (!plan.timelineItem || !plan.mediaPath) {
+  // If no media is provided or is explicitly a gap, generate a black gap
+  if (plan.isGap || !plan.timelineItem || !plan.mediaPath) {
     return [
       "ffmpeg", "-y", "-f", "lavfi",
       "-i", `color=c=black:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:r=${TARGET_FPS}:d=${plan.duration}`,
@@ -70,9 +73,30 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
 
   let filter_str = "";
   if (scaled_w >= TARGET_WIDTH && scaled_h >= TARGET_HEIGHT) {
-    filter_str = `[0:v]scale=${scaled_w}:${scaled_h}:force_original_aspect_ratio=disable,crop=${TARGET_WIDTH}:${TARGET_HEIGHT}:${crop_x}:${crop_y},setsar=1,fps=${TARGET_FPS},setpts=PTS-STARTPTS[outv]`;
+    filter_str = `[0:v]scale=${scaled_w}:${scaled_h}:force_original_aspect_ratio=disable,crop=${TARGET_WIDTH}:${TARGET_HEIGHT}:${crop_x}:${crop_y},setsar=1,fps=${TARGET_FPS},setpts=PTS-STARTPTS[base]`;
   } else {
-    filter_str = `[0:v]scale=${scaled_w}:${scaled_h}:force_original_aspect_ratio=disable,pad=${TARGET_WIDTH}:${TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=${TARGET_FPS},setpts=PTS-STARTPTS[outv]`;
+    filter_str = `[0:v]scale=${scaled_w}:${scaled_h}:force_original_aspect_ratio=disable,pad=${TARGET_WIDTH}:${TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=${TARGET_FPS},setpts=PTS-STARTPTS[base]`;
+  }
+
+  const motion = plan.treatment?.motion || 'NORMAL_CLIP';
+  const params = plan.treatment?.motionParams || {};
+
+  if (motion === 'SLOW_ZOOM') {
+    const startScale = params.startScale ?? 1.0;
+    const endScale = params.endScale ?? 1.05;
+    filter_str += `;[base]zoompan=z='${startScale}+(${endScale}-${startScale})*(time/${dur})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}[outv]`;
+  } else if (motion === 'PUNCH_ZOOM') {
+    const targetScale = params.scale ?? 1.2;
+    const triggerTime = params.triggerTime ?? 0.0;
+    const ramp = 0.3;
+    const t0 = Math.min(Math.max(0, triggerTime), Math.max(0, dur - ramp));
+
+    // min(max(time-t0\,0)/ramp\,1.0)
+    filter_str += `;[base]zoompan=z='1.0+(${targetScale}-1.0)*min(max(time-${t0}\\,0)/${ramp}\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}[outv]`;
+  } else {
+    // NORMAL_CLIP or fallback
+    // Restore the output tag to [outv] since we aren't appending
+    filter_str = filter_str.replace('[base]', '[outv]');
   }
 
   const cmd: string[] = ["ffmpeg", "-y"];

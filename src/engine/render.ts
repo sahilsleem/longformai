@@ -5,6 +5,7 @@ import { getBollywoodFrameBlob } from './frameAsset';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import NativeFFmpeg from './NativeFFmpeg';
 import { buildSegmentCommand, buildConcatCommand } from './ffmpegBuilder';
+import { resolveRenderPlan } from './renderPlan';
 
 export const RENDER_WORKER_URL = getRenderWorkerUrl();
 
@@ -38,20 +39,28 @@ export async function renderVideoNativeAndroid(
     }
 
     const segmentPaths: string[] = [];
-    const totalItems = project.timeline.length;
+    const renderPlan = resolveRenderPlan(project);
+    const totalSegments = renderPlan.segments.length;
 
-    for (let i = 0; i < totalItems; i++) {
-      const item = project.timeline[i];
+    for (let i = 0; i < totalSegments; i++) {
+      const segment = renderPlan.segments[i];
       const segmentOut = `${cacheBase}/segment_${i}.mp4`;
       segmentPaths.push(segmentOut);
       
-      const mediaNativePath = mediaMap.get(item.mediaId);
-      const mediaDef = project.media.find(m => m.id === item.mediaId);
+      let mediaNativePath: string | undefined;
+      let mediaDef: any;
+
+      if (!segment.isGap && segment.timelineItem) {
+        mediaNativePath = mediaMap.get(segment.timelineItem.mediaId);
+        mediaDef = project.media.find(m => m.id === segment.timelineItem!.mediaId);
+      }
       
       const segCmd = buildSegmentCommand({
-        timelineItem: item as any,
+        isGap: segment.isGap,
+        timelineItem: segment.timelineItem,
+        treatment: segment.treatment,
         mediaPath: mediaNativePath,
-        duration: item.duration,
+        duration: segment.duration,
         outPath: segmentOut,
         isImage: mediaDef?.type === 'image',
         width: mediaDef?.width,
@@ -59,7 +68,7 @@ export async function renderVideoNativeAndroid(
       });
 
       const args = segCmd[0] === 'ffmpeg' ? segCmd.slice(1) : segCmd;
-      onProgress?.(10 + (i / totalItems) * 50, `Rendering segment ${i + 1}/${totalItems}...`);
+      onProgress?.(10 + (i / totalSegments) * 50, `Rendering segment ${i + 1}/${totalSegments}...`);
       
       const result = await NativeFFmpeg.execute({ arguments: args });
       if (!result.success) {
