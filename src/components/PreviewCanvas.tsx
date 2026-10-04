@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause } from 'lucide-react';
+
 import { TimelineItem, MediaAsset, TransformState } from '../types/project';
 import { calculatePanBounds, TARGET_ASPECT_RATIO, formatTimecode } from '../engine/schema';
 
@@ -8,7 +8,7 @@ interface PreviewCanvasProps {
   activeAsset: MediaAsset | null;
   currentTime: number;
   isPlaying: boolean;
-  onPlayPause: () => void;
+  
   onSeek: (time: number) => void;
   totalDuration: number;
   onUpdateTransform?: (transformUpdates: Partial<TimelineItem['transform']>) => void;
@@ -19,7 +19,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   activeAsset,
   currentTime,
   isPlaying,
-  onPlayPause,
+  
   totalDuration,
   onUpdateTransform,
 }) => {

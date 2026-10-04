@@ -150,7 +150,7 @@ export const App: React.FC = () => {
             activeAsset={effectiveMediaAsset}
             currentTime={currentTime}
             isPlaying={isPlaying}
-            onPlayPause={() => setIsPlaying(!isPlaying)}
+            
             onSeek={setCurrentTime}
             totalDuration={totalDuration}
             onUpdateTransform={effectiveTimelineItem ? ((u) => updateItemTransform(effectiveTimelineItem.id, u)) : undefined}
@@ -195,7 +195,7 @@ export const App: React.FC = () => {
               selectedItemId={effectiveTimelineItem?.id || null}
               currentTime={currentTime}
               totalDuration={totalDuration}
-              timelineScale={timelineScale}
+              timelineScale={timelineScale} isPlaying={isPlaying} onPlayPause={() => setIsPlaying(!isPlaying)} 
               onSelectClip={setSelectedItemId}
               onSeek={setCurrentTime}
               onRemoveClip={removeTimelineItem}

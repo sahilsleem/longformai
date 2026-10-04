@@ -26,6 +26,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   currentTime,
   totalDuration,
   timelineScale,
+  isPlaying,
+  onPlayPause,
   onSelectClip,
   onSeek,
   onRemoveClip,
