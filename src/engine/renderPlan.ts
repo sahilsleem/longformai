@@ -1,12 +1,20 @@
 import type { LongFormProject, TimelineItem } from '../types/project';
 import type { VisualTreatment, VisualMotionTreatment, VisualTypographyTreatment, VisualTransitionTreatment } from './visualStoryDirector';
 
+export interface ResolvedTypographyOverlay {
+  type: 'EMPHASIS_TEXT' | 'CONTEXT_LABEL';
+  text: string;
+  startTime: number;
+  endTime: number;
+}
+
 export interface ResolvedRenderSegment {
   isGap: boolean;
   startTime: number;
   duration: number;
   timelineItem?: TimelineItem;
   treatment?: VisualTreatment;
+  typographyOverlay?: ResolvedTypographyOverlay;
 }
 
 export interface ResolvedRenderPlan {
@@ -105,12 +113,47 @@ export function resolveRenderPlan(project: LongFormProject): ResolvedRenderPlan 
     const clonedItem = JSON.parse(JSON.stringify(item));
     const clonedTreatment = JSON.parse(JSON.stringify(treatment));
 
+    // Resolve typography overlay (Stage 3C: EMPHASIS_TEXT and CONTEXT_LABEL only)
+    let typographyOverlay: ResolvedTypographyOverlay | undefined;
+    const typoType = treatment.typography;
+    const rawText = (treatment.text || '').trim();
+
+    if ((typoType === 'EMPHASIS_TEXT' || typoType === 'CONTEXT_LABEL') && rawText.length > 0) {
+      let tStart: number;
+      let tEnd: number;
+
+      if (treatment.textTiming) {
+        const rawStart = treatment.textTiming.start !== undefined ? treatment.textTiming.start : 0;
+        const rawEnd = treatment.textTiming.end !== undefined ? treatment.textTiming.end : duration;
+        tStart = Math.max(0, Math.min(duration, rawStart));
+        tEnd = Math.max(tStart, Math.min(duration, rawEnd));
+      } else {
+        if (typoType === 'EMPHASIS_TEXT') {
+          tStart = 0;
+          tEnd = Math.min(duration, 1.0);
+        } else {
+          tStart = Math.min(0.3, duration);
+          tEnd = Math.min(duration, Math.max(tStart, 2.5));
+        }
+      }
+
+      if (tEnd > tStart) {
+        typographyOverlay = {
+          type: typoType,
+          text: rawText,
+          startTime: Number(tStart.toFixed(2)),
+          endTime: Number(tEnd.toFixed(2)),
+        };
+      }
+    }
+
     segments.push({
       isGap: false,
       startTime: startTime,
       duration: duration,
       timelineItem: clonedItem,
       treatment: clonedTreatment,
+      ...(typographyOverlay ? { typographyOverlay } : {}),
     });
     
     currentTime = startTime + duration;

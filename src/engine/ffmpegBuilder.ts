@@ -15,6 +15,9 @@ export interface RenderSegmentPlan {
   height?: number;
   isGap?: boolean;
   treatment?: VisualTreatment;
+  overlayPath?: string;
+  overlayStart?: number;
+  overlayEnd?: number;
 }
 
 export interface RenderConcatPlan {
@@ -78,13 +81,16 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
     filter_str = `[0:v]scale=${scaled_w}:${scaled_h}:force_original_aspect_ratio=disable,pad=${TARGET_WIDTH}:${TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=${TARGET_FPS},setpts=PTS-STARTPTS[base]`;
   }
 
+  const hasOverlay = !!plan.overlayPath;
+  const motionOutTag = hasOverlay ? '[motion_out]' : '[outv]';
+
   const motion = plan.treatment?.motion || 'NORMAL_CLIP';
   const params = plan.treatment?.motionParams || {};
 
   if (motion === 'SLOW_ZOOM') {
     const startScale = params.startScale ?? 1.0;
     const endScale = params.endScale ?? 1.05;
-    filter_str += `;[base]zoompan=z='${startScale}+(${endScale}-${startScale})*(time/${dur})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}[outv]`;
+    filter_str += `;[base]zoompan=z='${startScale}+(${endScale}-${startScale})*(time/${dur})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}${motionOutTag}`;
   } else if (motion === 'PUNCH_ZOOM') {
     const targetScale = params.scale ?? 1.2;
     const triggerTime = params.triggerTime ?? 0.0;
@@ -92,11 +98,16 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
     const t0 = Math.min(Math.max(0, triggerTime), Math.max(0, dur - ramp));
 
     // min(max(time-t0\,0)/ramp\,1.0)
-    filter_str += `;[base]zoompan=z='1.0+(${targetScale}-1.0)*min(max(time-${t0}\\,0)/${ramp}\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}[outv]`;
+    filter_str += `;[base]zoompan=z='1.0+(${targetScale}-1.0)*min(max(time-${t0}\\,0)/${ramp}\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${TARGET_WIDTH}x${TARGET_HEIGHT}:fps=${TARGET_FPS}${motionOutTag}`;
   } else {
     // NORMAL_CLIP or fallback
-    // Restore the output tag to [outv] since we aren't appending
-    filter_str = filter_str.replace('[base]', '[outv]');
+    filter_str = filter_str.replace('[base]', motionOutTag);
+  }
+
+  if (hasOverlay) {
+    const oStart = plan.overlayStart !== undefined ? Number(Math.max(0, plan.overlayStart).toFixed(2)) : 0;
+    const oEnd = plan.overlayEnd !== undefined ? Number(Math.min(dur, plan.overlayEnd).toFixed(2)) : dur;
+    filter_str += `;[1:v]fps=${TARGET_FPS},setpts=PTS-STARTPTS[ovl];[motion_out][ovl]overlay=0:0:enable='between(t,${oStart},${oEnd})':shortest=1[outv]`;
   }
 
   const cmd: string[] = ["ffmpeg", "-y"];
@@ -107,6 +118,10 @@ export function buildSegmentCommand(plan: RenderSegmentPlan): string[] {
       cmd.push("-ss", `${source_start}`);
     }
     cmd.push("-i", plan.mediaPath);
+  }
+
+  if (hasOverlay) {
+    cmd.push("-loop", "1", "-i", plan.overlayPath!);
   }
 
   cmd.push(

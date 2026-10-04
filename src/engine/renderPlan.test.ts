@@ -260,3 +260,115 @@ describe('resolveRenderPlan (Stage 3A)', () => {
     expect(plan.segments[1].timelineItem?.id).toBe('clip-C');
   });
 });
+
+describe('resolveRenderPlan (Stage 3C Typography Overlays)', () => {
+  it('1. Resolves EMPHASIS_TEXT overlay with explicit textTiming clamped to duration', () => {
+    const project = createBaseProject();
+    project.timeline = [createMockTimelineItem('clip-1', 0, 4)];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-1': {
+          motion: 'SLOW_ZOOM',
+          typography: 'EMPHASIS_TEXT',
+          transition: 'HARD_CUT',
+          reason: 'Impact beat',
+          text: 'CRITICAL MOMENT',
+          textTiming: { start: 0.5, end: 2.5 },
+        },
+      },
+      summary: { totalItems: 1, normalClips: 0, slowZooms: 1, punchZooms: 0, holds: 0, emphasisTexts: 1, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 0 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments).toHaveLength(1);
+    const seg = plan.segments[0];
+    expect(seg.typographyOverlay).toBeDefined();
+    expect(seg.typographyOverlay?.type).toBe('EMPHASIS_TEXT');
+    expect(seg.typographyOverlay?.text).toBe('CRITICAL MOMENT');
+    expect(seg.typographyOverlay?.startTime).toBe(0.5);
+    expect(seg.typographyOverlay?.endTime).toBe(2.5);
+  });
+
+  it('2. Resolves CONTEXT_LABEL overlay with default timing', () => {
+    const project = createBaseProject();
+    project.timeline = [createMockTimelineItem('clip-1', 0, 5)];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-1': {
+          motion: 'NORMAL_CLIP',
+          typography: 'CONTEXT_LABEL',
+          transition: 'HARD_CUT',
+          reason: 'Entity introduction',
+          text: 'Shah Rukh Khan',
+        },
+      },
+      summary: { totalItems: 1, normalClips: 1, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 0, contextLabels: 1, fullscreenTexts: 0, hardCuts: 1, crossfades: 0 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    const seg = plan.segments[0];
+    expect(seg.typographyOverlay).toBeDefined();
+    expect(seg.typographyOverlay?.type).toBe('CONTEXT_LABEL');
+    expect(seg.typographyOverlay?.text).toBe('Shah Rukh Khan');
+    expect(seg.typographyOverlay?.startTime).toBe(0.3);
+    expect(seg.typographyOverlay?.endTime).toBe(2.5);
+  });
+
+  it('3. Clamps out-of-bounds timing to segment duration', () => {
+    const project = createBaseProject();
+    project.timeline = [createMockTimelineItem('clip-1', 0, 3)];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-1': {
+          motion: 'PUNCH_ZOOM',
+          typography: 'EMPHASIS_TEXT',
+          transition: 'HARD_CUT',
+          reason: 'Impact beat',
+          text: 'WOW',
+          textTiming: { start: -1.0, end: 10.0 }, // Exceeds 3s duration
+        },
+      },
+      summary: { totalItems: 1, normalClips: 0, slowZooms: 0, punchZooms: 1, holds: 0, emphasisTexts: 1, contextLabels: 0, fullscreenTexts: 0, hardCuts: 1, crossfades: 0 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    const seg = plan.segments[0];
+    expect(seg.typographyOverlay?.startTime).toBe(0.0);
+    expect(seg.typographyOverlay?.endTime).toBe(3.0);
+  });
+
+  it('4. Ignores FULLSCREEN_TEXT and whitespace-only text', () => {
+    const project = createBaseProject();
+    project.timeline = [
+      createMockTimelineItem('clip-1', 0, 4),
+      createMockTimelineItem('clip-2', 4, 4),
+    ];
+    project.visualTreatmentPlan = {
+      version: '1.0',
+      treatments: {
+        'clip-1': {
+          motion: 'NORMAL_CLIP',
+          typography: 'FULLSCREEN_TEXT',
+          transition: 'HARD_CUT',
+          reason: 'Fullscreen text not active in Stage 3C',
+          text: 'Title Screen',
+        },
+        'clip-2': {
+          motion: 'NORMAL_CLIP',
+          typography: 'EMPHASIS_TEXT',
+          transition: 'HARD_CUT',
+          reason: 'Empty text',
+          text: '   ',
+        },
+      },
+      summary: { totalItems: 2, normalClips: 2, slowZooms: 0, punchZooms: 0, holds: 0, emphasisTexts: 1, contextLabels: 0, fullscreenTexts: 1, hardCuts: 2, crossfades: 0 },
+    };
+
+    const plan = resolveRenderPlan(project);
+    expect(plan.segments[0].typographyOverlay).toBeUndefined();
+    expect(plan.segments[1].typographyOverlay).toBeUndefined();
+  });
+});

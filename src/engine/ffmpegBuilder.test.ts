@@ -295,4 +295,158 @@ describe('ffmpegBuilder', () => {
       '/tmp/gap.mp4'
     ]);
   });
+
+  describe('Stage 3C Typography Overlay Execution', () => {
+    it('builds NORMAL_CLIP with typography overlay', () => {
+      const item: TimelineItem = {
+        id: 'clip1',
+        mediaId: 'm1',
+        startTime: 0,
+        duration: 4,
+        sourceStart: 0,
+        transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } },
+      } as TimelineItem;
+
+      const cmd = buildSegmentCommand({
+        timelineItem: item,
+        mediaPath: '/tmp/test.mp4',
+        duration: 4.0,
+        outPath: '/tmp/out_typo.mp4',
+        width: 1920,
+        height: 1080,
+        treatment: { motion: 'NORMAL_CLIP', typography: 'CONTEXT_LABEL', transition: 'HARD_CUT', reason: 'Entity' },
+        overlayPath: '/tmp/typo.png',
+        overlayStart: 0.3,
+        overlayEnd: 2.5,
+      });
+
+      expect(cmd).toContain('-loop');
+      expect(cmd).toContain('/tmp/typo.png');
+      const filterIdx = cmd.indexOf('-filter_complex');
+      const filter = cmd[filterIdx + 1];
+      expect(filter).toContain('setpts=PTS-STARTPTS[motion_out]');
+      expect(filter).toContain("[1:v]fps=30,setpts=PTS-STARTPTS[ovl];[motion_out][ovl]overlay=0:0:enable='between(t,0.3,2.5)':shortest=1[outv]");
+      expect(cmd).toContain('-map');
+      expect(cmd[cmd.indexOf('-map') + 1]).toBe('[outv]');
+    });
+
+    it('builds SLOW_ZOOM with typography overlay', () => {
+      const item: TimelineItem = {
+        id: 'clip1',
+        mediaId: 'm1',
+        startTime: 0,
+        duration: 5,
+        sourceStart: 0,
+        transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } },
+      } as TimelineItem;
+
+      const cmd = buildSegmentCommand({
+        timelineItem: item,
+        mediaPath: '/tmp/test.mp4',
+        duration: 5.0,
+        outPath: '/tmp/out_slow_typo.mp4',
+        width: 1920,
+        height: 1080,
+        treatment: { motion: 'SLOW_ZOOM', typography: 'EMPHASIS_TEXT', transition: 'HARD_CUT', reason: 'Impact' },
+        overlayPath: '/tmp/typo.png',
+        overlayStart: 0.5,
+        overlayEnd: 2.0,
+      });
+
+      const filterIdx = cmd.indexOf('-filter_complex');
+      const filter = cmd[filterIdx + 1];
+      expect(filter).toContain('zoompan=');
+      expect(filter).toContain('[motion_out]');
+      expect(filter).toContain("[1:v]fps=30,setpts=PTS-STARTPTS[ovl];[motion_out][ovl]overlay=0:0:enable='between(t,0.5,2)':shortest=1[outv]");
+    });
+
+    it('builds PUNCH_ZOOM with typography overlay', () => {
+      const item: TimelineItem = {
+        id: 'clip1',
+        mediaId: 'm1',
+        startTime: 0,
+        duration: 3,
+        sourceStart: 0,
+        transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } },
+      } as TimelineItem;
+
+      const cmd = buildSegmentCommand({
+        timelineItem: item,
+        mediaPath: '/tmp/test.mp4',
+        duration: 3.0,
+        outPath: '/tmp/out_punch_typo.mp4',
+        width: 1920,
+        height: 1080,
+        treatment: { motion: 'PUNCH_ZOOM', typography: 'EMPHASIS_TEXT', transition: 'HARD_CUT', reason: 'Impact' },
+        overlayPath: '/tmp/typo.png',
+        overlayStart: 0.0,
+        overlayEnd: 1.5,
+      });
+
+      const filterIdx = cmd.indexOf('-filter_complex');
+      const filter = cmd[filterIdx + 1];
+      expect(filter).toContain('zoompan=');
+      expect(filter).toContain('[motion_out]');
+      expect(filter).toContain("[1:v]fps=30,setpts=PTS-STARTPTS[ovl];[motion_out][ovl]overlay=0:0:enable='between(t,0,1.5)':shortest=1[outv]");
+    });
+
+    it('builds image asset with typography overlay', () => {
+      const item: TimelineItem = {
+        id: 'img1',
+        mediaId: 'm_img',
+        startTime: 0,
+        duration: 4,
+        sourceStart: 0,
+        transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } },
+      } as TimelineItem;
+
+      const cmd = buildSegmentCommand({
+        timelineItem: item,
+        mediaPath: '/tmp/photo.jpg',
+        isImage: true,
+        duration: 4.0,
+        outPath: '/tmp/out_img_typo.mp4',
+        width: 1920,
+        height: 1080,
+        treatment: { motion: 'SLOW_ZOOM', typography: 'CONTEXT_LABEL', transition: 'HARD_CUT', reason: 'Photo' },
+        overlayPath: '/tmp/label.png',
+        overlayStart: 0.3,
+        overlayEnd: 2.5,
+      });
+
+      // Both image and overlay have -loop 1
+      const loopIndices: number[] = [];
+      cmd.forEach((arg, idx) => {
+        if (arg === '-loop') loopIndices.push(idx);
+      });
+      expect(loopIndices).toHaveLength(2);
+    });
+
+    it('clamps overlayStart and overlayEnd safely to duration bounds', () => {
+      const item: TimelineItem = {
+        id: 'clip1',
+        mediaId: 'm1',
+        startTime: 0,
+        duration: 3,
+        sourceStart: 0,
+        transform: { scale: 1, x: 0, y: 0, fitMode: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } },
+      } as TimelineItem;
+
+      const cmd = buildSegmentCommand({
+        timelineItem: item,
+        mediaPath: '/tmp/test.mp4',
+        duration: 3.0,
+        outPath: '/tmp/out_clamped.mp4',
+        width: 1920,
+        height: 1080,
+        overlayPath: '/tmp/typo.png',
+        overlayStart: -2.0,
+        overlayEnd: 10.0,
+      });
+
+      const filterIdx = cmd.indexOf('-filter_complex');
+      const filter = cmd[filterIdx + 1];
+      expect(filter).toContain("enable='between(t,0,3)'");
+    });
+  });
 });
