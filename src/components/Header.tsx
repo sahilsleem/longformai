@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import {
   MoreVertical,
-  Undo2,
-  Redo2,
+  
+  
 } from 'lucide-react';
 import { LongFormProject } from '../types/project';
 import {
