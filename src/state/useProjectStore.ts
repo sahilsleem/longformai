@@ -1236,6 +1236,7 @@ export function useProject() {
         setProject((prev) => ({
           ...prev,
           timeline: result.timeline,
+          visualTreatmentPlan: result.treatmentPlan,
           updatedAt: new Date().toISOString(),
         }));
 

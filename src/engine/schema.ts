@@ -407,6 +407,7 @@ export function exportProjectToPortableJSON(project: LongFormProject): string {
       folders: project.folders || [],
       timeline: sanitizedTimeline,
       voiceover: sanitizedVoiceover,
+      visualTreatmentPlan: project.visualTreatmentPlan,
       frame: project.frame ? {
         enabled: typeof project.frame.enabled === 'boolean' ? project.frame.enabled : true,
         id: project.frame.id || DEFAULT_BOLLYWOOD_FRAME.id,
@@ -825,6 +826,13 @@ export function validateAndParseProjectJSON(jsonString: string): ParseProjectRes
     folders: parsedFolders,
     voiceover: parsedVoiceover,
     timeline: parsedTimeline,
+    visualTreatmentPlan:
+      proj.visualTreatmentPlan &&
+      typeof proj.visualTreatmentPlan === 'object' &&
+      proj.visualTreatmentPlan.treatments &&
+      typeof proj.visualTreatmentPlan.treatments === 'object'
+        ? proj.visualTreatmentPlan
+        : undefined,
     frame: proj.frame
       ? {
           enabled: typeof proj.frame.enabled === 'boolean' ? proj.frame.enabled : true,
