@@ -7,7 +7,6 @@ interface TimelineProps {
   mediaList: MediaAsset[];
   selectedItemId: string | null;
   currentTime: number;
-  totalDuration: number;
   timelineScale: number;
   onSelectClip: (id: string | null) => void;
   onSeek: (time: number) => void;
@@ -21,7 +20,6 @@ export const Timeline: React.FC<TimelineProps> = ({
   mediaList,
   selectedItemId,
   currentTime,
-  totalDuration,
   timelineScale,
   onSelectClip,
   onSeek,

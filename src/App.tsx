@@ -177,7 +177,6 @@ export const App: React.FC = () => {
               mediaList={project.media}
               selectedItemId={effectiveTimelineItem?.id || null}
               currentTime={currentTime}
-              totalDuration={totalDuration}
               timelineScale={timelineScale}
               onSelectClip={setSelectedItemId}
               onSeek={setCurrentTime}
