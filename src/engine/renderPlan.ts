@@ -2,7 +2,7 @@ import type { LongFormProject, TimelineItem } from '../types/project';
 import type { VisualTreatment, VisualMotionTreatment, VisualTypographyTreatment, VisualTransitionTreatment } from './visualStoryDirector';
 
 export interface ResolvedTypographyOverlay {
-  type: 'EMPHASIS_TEXT' | 'CONTEXT_LABEL';
+  type: 'EMPHASIS_TEXT' | 'CONTEXT_LABEL' | 'FULLSCREEN_TEXT';
   text: string;
   startTime: number;
   endTime: number;
@@ -121,12 +121,12 @@ export function resolveRenderPlan(project: LongFormProject): ResolvedRenderPlan 
     const clonedItem = JSON.parse(JSON.stringify(item));
     const clonedTreatment = JSON.parse(JSON.stringify(treatment));
 
-    // Resolve typography overlay (Stage 3C: EMPHASIS_TEXT and CONTEXT_LABEL only)
+    // Resolve typography overlay (Stage 3C: EMPHASIS_TEXT, CONTEXT_LABEL; Stage 4A: FULLSCREEN_TEXT)
     let typographyOverlay: ResolvedTypographyOverlay | undefined;
     const typoType = treatment.typography;
     const rawText = (treatment.text || '').trim();
 
-    if ((typoType === 'EMPHASIS_TEXT' || typoType === 'CONTEXT_LABEL') && rawText.length > 0) {
+    if ((typoType === 'EMPHASIS_TEXT' || typoType === 'CONTEXT_LABEL' || typoType === 'FULLSCREEN_TEXT') && rawText.length > 0) {
       let tStart: number;
       let tEnd: number;
 
@@ -139,9 +139,13 @@ export function resolveRenderPlan(project: LongFormProject): ResolvedRenderPlan 
         if (typoType === 'EMPHASIS_TEXT') {
           tStart = 0;
           tEnd = Math.min(duration, 1.0);
-        } else {
+        } else if (typoType === 'CONTEXT_LABEL') {
           tStart = Math.min(0.3, duration);
           tEnd = Math.min(duration, Math.max(tStart, 2.5));
+        } else {
+          // FULLSCREEN_TEXT spans the full segment duration by default
+          tStart = 0;
+          tEnd = duration;
         }
       }
 

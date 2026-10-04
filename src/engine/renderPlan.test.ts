@@ -340,7 +340,7 @@ describe('resolveRenderPlan (Stage 3C Typography Overlays)', () => {
     expect(seg.typographyOverlay?.endTime).toBe(3.0);
   });
 
-  it('4. Ignores FULLSCREEN_TEXT and whitespace-only text', () => {
+  it('4. Resolves FULLSCREEN_TEXT and ignores whitespace-only text', () => {
     const project = createBaseProject();
     project.timeline = [
       createMockTimelineItem('clip-1', 0, 4),
@@ -353,7 +353,7 @@ describe('resolveRenderPlan (Stage 3C Typography Overlays)', () => {
           motion: 'NORMAL_CLIP',
           typography: 'FULLSCREEN_TEXT',
           transition: 'HARD_CUT',
-          reason: 'Fullscreen text not active in Stage 3C',
+          reason: 'Fullscreen text active in Stage 4A',
           text: 'Title Screen',
         },
         'clip-2': {
@@ -368,7 +368,11 @@ describe('resolveRenderPlan (Stage 3C Typography Overlays)', () => {
     };
 
     const plan = resolveRenderPlan(project);
-    expect(plan.segments[0].typographyOverlay).toBeUndefined();
+    expect(plan.segments[0].typographyOverlay).toBeDefined();
+    expect(plan.segments[0].typographyOverlay?.type).toBe('FULLSCREEN_TEXT');
+    expect(plan.segments[0].typographyOverlay?.text).toBe('Title Screen');
+    expect(plan.segments[0].typographyOverlay?.startTime).toBe(0);
+    expect(plan.segments[0].typographyOverlay?.endTime).toBe(4);
     expect(plan.segments[1].typographyOverlay).toBeUndefined();
   });
 });

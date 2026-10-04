@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   generateVisualTreatmentPlan,
   resolveEntityForCandidate,
+  formatFullscreenCardText,
 } from './visualStoryDirector';
 import type {
   AudioSegment,
@@ -728,5 +729,183 @@ describe('Visual Story Director (Stage 1)', () => {
     const plan2 = generateVisualTreatmentPlan(items, { mediaAssets: [media], folders: [folder] });
 
     expect(plan1).toEqual(plan2);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Stage 4A: FULLSCREEN_TEXT Story Card Tests
+  // ---------------------------------------------------------------------------
+  describe('Stage 4A: FULLSCREEN_TEXT Story Card Execution', () => {
+    it('1. Triggers FULLSCREEN_TEXT on narrationRole: title with duration >= 2.5s', () => {
+      const item = createItem({
+        id: 'item-title-1',
+        startTime: 0,
+        duration: 3.5,
+        provenance: createProvenance({
+          narrationRole: 'title' as any,
+          candidateConfidenceLevel: 'HIGH',
+        }),
+      });
+      const seg = createSegment({
+        id: 'seg-1',
+        text: 'The Rise of Modern Cinema in India',
+      });
+
+      const plan = generateVisualTreatmentPlan([item], { segments: [seg] });
+      const treatment = plan.treatments[item.id];
+
+      expect(treatment).toBeDefined();
+      expect(treatment.typography).toBe('FULLSCREEN_TEXT');
+      expect(treatment.text).toBe('The Rise of Modern Cinema in India');
+      expect(treatment.textTiming).toEqual({ start: 0, end: 3.5 });
+      expect(plan.summary.fullscreenTexts).toBe(1);
+    });
+
+    it('2. Triggers FULLSCREEN_TEXT on narrationRole: chapter with entity priority', () => {
+      const folder: MediaFolder = { id: 'f-1', name: 'Tokyo Drift Chapter', createdAt: 100 };
+      const media = createMedia({ id: 'm-1', folderIds: ['f-1'] });
+      const item = createItem({
+        id: 'item-chap-1',
+        mediaId: 'm-1',
+        startTime: 10.0,
+        duration: 4.0,
+        provenance: createProvenance({
+          narrationRole: 'chapter' as any,
+          candidateConfidenceLevel: 'HIGH',
+        }),
+      });
+      const seg = createSegment({
+        id: 'seg-1',
+        text: 'And here begins the thrilling journey across neon streets.',
+      });
+
+      const plan = generateVisualTreatmentPlan([item], {
+        mediaAssets: [media],
+        folders: [folder],
+        segments: [seg],
+      });
+      const treatment = plan.treatments[item.id];
+
+      expect(treatment).toBeDefined();
+      expect(treatment.typography).toBe('FULLSCREEN_TEXT');
+      // Entity/folder name takes priority over segment text
+      expect(treatment.text).toBe('Tokyo Drift Chapter');
+      expect(treatment.textTiming).toEqual({ start: 0, end: 4.0 });
+    });
+
+    it('3. Triggers FULLSCREEN_TEXT on narrationRole: intro at opening (i === 0)', () => {
+      const item = createItem({
+        id: 'item-intro-0',
+        startTime: 0,
+        duration: 3.0,
+        provenance: createProvenance({
+          narrationRole: 'intro' as any,
+          beatPosition: 1,
+          candidateConfidenceLevel: 'HIGH',
+        }),
+      });
+      const seg = createSegment({
+        id: 'seg-1',
+        text: 'Welcome to this investigative documentary.',
+      });
+
+      const plan = generateVisualTreatmentPlan([item], { segments: [seg] });
+      const treatment = plan.treatments[item.id];
+
+      expect(treatment.typography).toBe('FULLSCREEN_TEXT');
+      expect(treatment.text).toBe('Welcome to this investigative documentary.');
+    });
+
+    it('4. Does NOT trigger FULLSCREEN_TEXT on ordinary narrative roles (action, context, etc.)', () => {
+      const item = createItem({
+        id: 'item-ordinary',
+        startTime: 0,
+        duration: 3.0,
+        provenance: createProvenance({
+          narrationRole: 'action',
+          candidateConfidenceLevel: 'HIGH',
+        }),
+      });
+      const seg = createSegment({ id: 'seg-1', text: 'Action beat text here' });
+
+      const plan = generateVisualTreatmentPlan([item], { segments: [seg] });
+      expect(plan.treatments[item.id].typography).not.toBe('FULLSCREEN_TEXT');
+    });
+
+    it('5. Does NOT trigger FULLSCREEN_TEXT if duration < 2.5s', () => {
+      const item = createItem({
+        id: 'item-short-title',
+        startTime: 0,
+        duration: 2.0,
+        provenance: createProvenance({
+          narrationRole: 'title' as any,
+          candidateConfidenceLevel: 'HIGH',
+        }),
+      });
+      const seg = createSegment({ id: 'seg-1', text: 'Short Title' });
+
+      const plan = generateVisualTreatmentPlan([item], { segments: [seg] });
+      expect(plan.treatments[item.id].typography).toBe('NONE');
+    });
+
+    it('6. Does NOT trigger FULLSCREEN_TEXT on low-confidence matches', () => {
+      const item = createItem({
+        id: 'item-low-conf-title',
+        startTime: 0,
+        duration: 3.5,
+        provenance: createProvenance({
+          narrationRole: 'title' as any,
+          candidateConfidenceLevel: 'LOW',
+        }),
+      });
+      const seg = createSegment({ id: 'seg-1', text: 'Low Confidence Title' });
+
+      const plan = generateVisualTreatmentPlan([item], { segments: [seg] });
+      expect(plan.treatments[item.id].typography).toBe('NONE');
+      expect(plan.treatments[item.id].motion).toBe('NORMAL_CLIP');
+    });
+
+    it('7. Enforces anti-consecutive FULLSCREEN_TEXT guardrail', () => {
+      const item1 = createItem({
+        id: 'item-title-1',
+        startTime: 0,
+        duration: 3.5,
+        provenance: createProvenance({
+          narrationRole: 'title' as any,
+          candidateConfidenceLevel: 'HIGH',
+        }),
+      });
+      const item2 = createItem({
+        id: 'item-title-2',
+        startTime: 3.5,
+        duration: 3.5,
+        provenance: createProvenance({
+          narrationRole: 'title' as any,
+          candidateConfidenceLevel: 'HIGH',
+        }),
+      });
+      const seg = createSegment({ id: 'seg-1', text: 'Consecutive Title Candidate' });
+
+      const plan = generateVisualTreatmentPlan([item1, item2], { segments: [seg] });
+      expect(plan.treatments[item1.id].typography).toBe('FULLSCREEN_TEXT');
+      // Second consecutive title item must NOT receive FULLSCREEN_TEXT
+      expect(plan.treatments[item2.id].typography).not.toBe('FULLSCREEN_TEXT');
+    });
+
+    it('8. formatFullscreenCardText clamps words and characters gracefully with Unicode support', () => {
+      // Short text
+      expect(formatFullscreenCardText('Short Title')).toBe('Short Title');
+
+      // More than 8 words
+      const longWords = 'One two three four five six seven eight nine ten';
+      const formattedWords = formatFullscreenCardText(longWords);
+      expect(formattedWords).toBe('One two three four five six seven eight...');
+
+      // Unicode / Multilingual (Hindi)
+      const hindi = 'सिनेमा का इतिहास और नई शुरुआत';
+      expect(formatFullscreenCardText(hindi)).toBe('सिनेमा का इतिहास और नई शुरुआत');
+
+      // Empty text
+      expect(formatFullscreenCardText('   ')).toBe('');
+    });
   });
 });

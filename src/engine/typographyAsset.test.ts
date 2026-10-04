@@ -43,4 +43,22 @@ describe('typographyAsset', () => {
       expect(canvas).toBeNull();
     }
   });
+
+  it('handles FULLSCREEN_TEXT in headless environment with base64 fallback', async () => {
+    const b64 = await generateTypographyOverlayBase64({
+      type: 'FULLSCREEN_TEXT',
+      text: 'The Epic Chapter',
+    });
+    expect(typeof b64).toBe('string');
+    expect(b64.length).toBeGreaterThan(0);
+  });
+
+  it('handles FULLSCREEN_TEXT blob generation in headless environment', async () => {
+    const blob = await generateTypographyOverlayBlob({
+      type: 'FULLSCREEN_TEXT',
+      text: 'सिनेमा का इतिहास',
+    });
+    expect(blob).toBeDefined();
+    expect(blob.type).toBe('image/png');
+  });
 });

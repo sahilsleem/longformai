@@ -176,6 +176,33 @@ export function findEmphasisKeyword(segment: AudioSegment): { text: string; star
   };
 }
 
+/**
+ * Formats transcript or section text into a concise story-card title.
+ * Preserves words, clamps to at most 8 words or 70 characters, and supports Unicode.
+ */
+export function formatFullscreenCardText(raw: string): string {
+  const cleaned = raw.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+
+  const words = cleaned.split(' ');
+  const maxWords = 8;
+  const maxChars = 70;
+
+  let truncated = words.slice(0, maxWords).join(' ');
+  if (words.length > maxWords || truncated.length > maxChars) {
+    if (truncated.length > maxChars) {
+      // Find safe word boundary within maxChars
+      const safe = truncated.slice(0, maxChars);
+      const lastSpace = safe.lastIndexOf(' ');
+      truncated = (lastSpace > 20 ? safe.slice(0, lastSpace) : safe).trim();
+    }
+    // Remove trailing punctuation before appending ellipsis
+    truncated = truncated.replace(/[,.;:!?—\s]+$/, '') + '...';
+  }
+
+  return truncated;
+}
+
 export function resolveEntityForCandidate(
   item: TimelineItem,
   asset?: MediaAsset,
@@ -276,6 +303,7 @@ export function generateVisualTreatmentPlan(
 
   const seenEntities = new Set<string>();
   let lastResolvedMotion: VisualMotionTreatment = 'NORMAL_CLIP';
+  let lastResolvedTypography: VisualTypographyTreatment = 'NONE';
   let consecutiveSlowZooms = 0;
   let lastTypographyIndex: number | undefined = undefined;
 
@@ -320,6 +348,40 @@ export function generateVisualTreatmentPlan(
         transition = 'CROSSFADE';
         transitionDuration = 0.5;
         reason = 'Structural transition between narrative sections.';
+      }
+
+      // ---------------------------------------------------------------------
+      // RULE 8: Story Card / Section Opening (Stage 4A: FULLSCREEN_TEXT)
+      // ---------------------------------------------------------------------
+      const roleStr = prov?.narrationRole as string | undefined;
+      const isCardRole =
+        roleStr === 'title' ||
+        roleStr === 'chapter' ||
+        (roleStr === 'intro' && (i === 0 || prov?.beatPosition === 1 || prov?.beatId === 'beat-0'));
+
+      if (isCardRole && item.duration >= 2.5 && lastResolvedTypography !== 'FULLSCREEN_TEXT') {
+        // Resolve card text: Priority 1 entity/folder name, Priority 2 formatted narration text
+        let cardText = resolveEntityForCandidate(item, asset, context?.folders);
+        if (!cardText) {
+          const matchingSegment = context?.segments?.find(
+            (s) =>
+              s.id === prov?.sourceSegmentId ||
+              (s.startTime <= item.startTime && s.endTime >= item.startTime)
+          );
+          if (matchingSegment?.text) {
+            cardText = formatFullscreenCardText(matchingSegment.text);
+          }
+        }
+
+        if (cardText && cardText.trim().length > 0) {
+          typography = 'FULLSCREEN_TEXT';
+          text = cardText.trim();
+          textTiming = {
+            start: 0,
+            end: item.duration,
+          };
+          reason = `Story card treatment for section opening (${prov?.narrationRole || 'opening'}).`;
+        }
       }
 
       // ---------------------------------------------------------------------
@@ -470,6 +532,7 @@ export function generateVisualTreatmentPlan(
     // State Tracking & Summary Updates
     // -----------------------------------------------------------------------
     lastResolvedMotion = motion;
+    lastResolvedTypography = typography;
     if (motion === 'SLOW_ZOOM') {
       consecutiveSlowZooms++;
     } else {

@@ -6,7 +6,7 @@
  */
 
 export interface TypographyOverlaySpec {
-  type: 'EMPHASIS_TEXT' | 'CONTEXT_LABEL';
+  type: 'EMPHASIS_TEXT' | 'CONTEXT_LABEL' | 'FULLSCREEN_TEXT';
   text: string;
 }
 
@@ -134,6 +134,100 @@ export function renderTypographyCanvas(spec: TypographyOverlaySpec): HTMLCanvasE
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#F8FAFC';
     ctx.fillText(rawText, startX + padX, startY + pillHeight / 2);
+  } else if (spec.type === 'FULLSCREEN_TEXT') {
+    // FULLSCREEN_TEXT: broadcast/documentary-style fullscreen story-card treatment
+    // Card backdrop
+    const cardX = 120;
+    const cardY = 160;
+    const cardW = 1680;
+    const cardH = 760;
+    const cardRadius = 24;
+
+    // Card drop shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    ctx.shadowBlur = 32;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 12;
+
+    drawRoundedRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
+    ctx.fillStyle = 'rgba(10, 15, 26, 0.92)';
+    ctx.fill();
+
+    // Subtle card border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Reset shadow
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Text formatting and layout
+    ctx.font = '800 64px sans-serif';
+    const maxLineWidth = 1500;
+    const words = rawText.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const candidate = currentLine ? `${currentLine} ${word}` : word;
+      if (ctx.measureText(candidate).width <= maxLineWidth) {
+        currentLine = candidate;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        currentLine = word;
+      }
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    // Limit to max 3 lines with ellipsis if necessary
+    const maxLines = 3;
+    let finalLines = lines;
+    if (lines.length > maxLines) {
+      finalLines = lines.slice(0, maxLines);
+      let last = finalLines[maxLines - 1];
+      while (last.length > 0 && ctx.measureText(`${last}...`).width > maxLineWidth) {
+        last = last.slice(0, -1).trim();
+      }
+      finalLines[maxLines - 1] = `${last}...`;
+    }
+
+    // Fallback if empty
+    if (finalLines.length === 0) {
+      finalLines = [rawText];
+    }
+
+    const lineHeight = 84;
+    const totalTextHeight = finalLines.length * lineHeight;
+    const cardCenterY = cardY + cardH / 2;
+
+    // Decorative accent line above title
+    const accentW = 72;
+    const accentH = 3;
+    const accentGap = 40;
+    const accentY = cardCenterY - totalTextHeight / 2 - accentGap;
+    const accentX = CANVAS_WIDTH / 2 - accentW / 2;
+
+    ctx.fillStyle = '#FFE600';
+    ctx.fillRect(accentX, accentY, accentW, accentH);
+
+    // Title rendering
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#F8FAFC';
+
+    // Start Y for the first line
+    const textStartY = cardCenterY - totalTextHeight / 2 + lineHeight / 2;
+    for (let i = 0; i < finalLines.length; i++) {
+      const lineY = textStartY + i * lineHeight;
+      ctx.fillText(finalLines[i], CANVAS_WIDTH / 2, lineY);
+    }
   }
 
   return canvas;
