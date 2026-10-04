@@ -9945,9 +9945,9 @@ export function detectEntityInText(text: string, folders: MediaFolder[] = []): s
 }
 
 /**
- * Splits a single over-long AudioSegment (> 8.0s) at natural sentence, clause, or word boundaries.
+ * Splits a single over-long AudioSegment (> 3.5s) at natural sentence, clause, or word boundaries.
  */
-export function splitLongAudioSegment(segment: AudioSegment, maxDuration: number = 8.0): AudioSegment[] {
+export function splitLongAudioSegment(segment: AudioSegment, maxDuration: number = 3.5): AudioSegment[] {
   const segDur = segment.endTime - segment.startTime;
   if (segDur <= maxDuration || !segment.text || !segment.text.trim()) {
     return [segment];
@@ -10063,12 +10063,12 @@ export function groupAudioSegmentsIntoVisualBeats(
 ): AudioSegment[] {
   if (!inputSegments || inputSegments.length === 0) return [];
 
-  // Pass 1: Split any single raw segments exceeding 8.0 seconds
+  // Pass 1: Split any single raw segments exceeding 3.5 seconds
   const normalizedSegments: AudioSegment[] = [];
   for (const seg of inputSegments) {
     const dur = seg.endTime - seg.startTime;
-    if (dur > 8.0) {
-      normalizedSegments.push(...splitLongAudioSegment(seg, 8.0));
+    if (dur > 3.5) {
+      normalizedSegments.push(...splitLongAudioSegment(seg, 3.5));
     } else {
       normalizedSegments.push(seg);
     }
@@ -10111,8 +10111,8 @@ export function groupAudioSegmentsIntoVisualBeats(
     // Explicit transition marker starting next segment (when current beat is at least 1.5s)
     const hasTransition = TRANSITION_START_REGEX.test(nextSeg.text.trim()) && currentBeatDuration >= 1.5;
 
-    // Duration limit: adding next segment would exceed 8.0s
-    const exceedsMaxDuration = projectedDuration > 8.0 && currentBeatDuration >= 1.0;
+    // Duration limit: adding next segment would exceed 4.5s
+    const exceedsMaxDuration = projectedDuration > 4.5 && currentBeatDuration >= 1.0;
 
     // Decide whether to cut
     if (
