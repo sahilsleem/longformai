@@ -121,7 +121,7 @@ export const MediaInspector: React.FC<MediaInspectorProps> = ({
                 Visual analysis complete
               </span>
             ) : isAnalyzed && !semantic?.analyzed ? (
-              <span className="text-[9px] bg-amber-950/60 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800/40 font-mono">
+              <span className="text-[9px] bg-slate-800/60 text-slate-300 px-1.5 py-0.5 rounded border border-slate-600/40 font-mono">
                 Semantic analysis unavailable
               </span>
             ) : null}
@@ -156,8 +156,8 @@ export const MediaInspector: React.FC<MediaInspectorProps> = ({
 
         {/* Error banner if any */}
         {analysis?.error && (
-          <div className="p-2.5 rounded bg-amber-950/40 border border-amber-800/40 text-[10px] text-amber-300 flex items-start gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="p-2.5 rounded bg-slate-800/40 border border-slate-600/40 text-[10px] text-slate-300 flex items-start gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-white shrink-0 mt-0.5" />
             <span>{analysis.error}</span>
           </div>
         )}

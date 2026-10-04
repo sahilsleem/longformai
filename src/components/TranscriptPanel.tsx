@@ -357,8 +357,8 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({
                             )}
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1 text-amber-400/80 font-mono text-[9px] truncate">
-                            <span className="px-1 py-0.2 rounded bg-amber-950/40 border border-dashed border-amber-800/40">
+                          <div className="flex items-center gap-1 text-white/80 font-mono text-[9px] truncate">
+                            <span className="px-1 py-0.2 rounded bg-slate-800/40 border border-dashed border-slate-600/40">
                               Uncovered Gap
                             </span>
                             <span className="text-slate-500 truncate">{gapReason || 'No match >= threshold'}</span>

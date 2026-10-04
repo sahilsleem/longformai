@@ -87,7 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsMenuOpen(false);
                 }}
                 disabled={project.timeline.length === 0}
-                className="w-full text-left px-4 py-3 text-sm font-semibold text-amber-400 hover:bg-editor-surface disabled:opacity-50 transition-colors"
+                className="w-full text-left px-4 py-3 text-sm font-semibold text-white hover:bg-editor-surface disabled:opacity-50 transition-colors"
               >
                 Export Video
               </button>

@@ -161,7 +161,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                   onClick={() => onSelectClip(item.id)}
                   style={{ width: `${widthPx}px` }}
                   className={`relative h-full shrink-0 overflow-hidden flex flex-col justify-between transition-all select-none cursor-pointer border-y-2 border-l border-r border-r-black ${
-                    isSelected ? 'border-amber-400 z-20 shadow-[0_0_15px_rgba(251,191,36,0.3)]' : 'border-y-transparent border-l-transparent opacity-80 hover:opacity-100 z-10'
+                    isSelected ? 'border-white z-20 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'border-y-transparent border-l-transparent opacity-80 hover:opacity-100 z-10'
                   }`}
                 >
                 {asset && (
@@ -181,7 +181,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                     onPointerDown={(e) => handleStartResize(e, item)}
                     className="absolute top-0 right-0 bottom-0 w-6 cursor-ew-resize flex items-center justify-center transition-colors z-30 bg-black/40"
                   >
-                    <div className="w-1 h-6 rounded-full bg-amber-400 pointer-events-none" />
+                    <div className="w-1 h-6 rounded-full bg-white pointer-events-none" />
                   </div>
                 )}
               </div>
@@ -192,8 +192,8 @@ export const Timeline: React.FC<TimelineProps> = ({
       </div>
       
       {/* Fixed Playhead */}
-      <div className="absolute top-0 left-1/2 w-[2px] h-[116px] bg-amber-400 z-30 pointer-events-none -translate-x-1/2">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[6px] border-transparent border-t-amber-400" />
+      <div className="absolute top-0 left-1/2 w-[2px] h-[116px] bg-white z-30 pointer-events-none -translate-x-1/2">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[6px] border-transparent border-t-white" />
       </div>
       
       {/* Action Toolbar */}
@@ -222,9 +222,9 @@ export const Timeline: React.FC<TimelineProps> = ({
         {/* Play/Pause */}
         <button 
           onClick={onPlayPause}
-          className="flex flex-col items-center gap-1.5 text-white hover:text-amber-400 -mt-1 mx-2"
+          className="flex flex-col items-center gap-1.5 text-white hover:text-white -mt-1 mx-2"
         >
-          <div className="w-16 h-16 rounded-full bg-amber-400 text-black flex items-center justify-center shadow-lg border border-amber-500/30 pl-1">
+          <div className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center shadow-lg border border-slate-300/30 pl-1">
             {isPlaying ? <Pause className="w-7 h-7 ml-[-4px]" /> : <Play className="w-7 h-7" />}
           </div>
           <span className="text-[11px] font-medium tracking-wide">{isPlaying ? 'Pause' : 'Play'}</span>

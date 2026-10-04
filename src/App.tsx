@@ -164,22 +164,22 @@ export const App: React.FC = () => {
                 onClick={handleBuildVideo}
                 className="bg-white/10 backdrop-blur-md border border-white/20 text-white font-bold py-3 px-6 rounded-full flex items-center gap-2 shadow-xl hover:bg-white/20 active:scale-95 transition-all"
               >
-                <Sparkles className="w-5 h-5 text-amber-400" />
+                <Sparkles className="w-5 h-5 text-white" />
                 Build my video
               </button>
             </div>
           )}
           {(isPreparing || isGeneratingDraft) && (
             <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 backdrop-blur-md">
-              <Loader2 className="w-10 h-10 text-amber-400 animate-spin mb-4" />
+              <Loader2 className="w-10 h-10 text-white animate-spin mb-4" />
               
-              <div className="text-amber-400 font-bold text-3xl mb-4 font-mono">
+              <div className="text-white font-bold text-3xl mb-4 font-mono">
                 {Math.round(displayProgress)}%
               </div>
               {/* Progress bar */}
               <div className="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
                 <div 
-                  className="h-full bg-amber-400 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+                  className="h-full bg-white transition-all duration-300 ease-out shadow-[0_0_10px_rgba(255,255,255,0.5)]"
                   style={{ width: `${displayProgress}%` }}
                 />
               </div>
@@ -253,7 +253,7 @@ export const App: React.FC = () => {
                   setFolderPrompt({ isOpen: true, initialName: '', onSubmit: (name) => { if (name.trim()) createFolder(name.trim()); } });
                   
                 }}
-                className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-3 py-1.5 rounded-full"
+                className="text-xs font-semibold text-white bg-white/10 px-3 py-1.5 rounded-full"
               >
                 + New Folder
               </button>
@@ -379,7 +379,7 @@ export const App: React.FC = () => {
                 disabled={isGeneratingDraft || isPreparing}
                 className="w-full py-4 bg-editor-panel border border-editor-panelBorder text-slate-300 rounded-xl font-semibold flex items-center justify-center gap-2 active:bg-slate-800 transition-colors disabled:opacity-50"
               >
-                <Sparkles className="w-4 h-4 text-amber-400" />
+                <Sparkles className="w-4 h-4 text-white" />
                 {isPreparing || isGeneratingDraft ? 'Rebuilding...' : 'Rebuild video'}
               </button>
             </section>
@@ -414,7 +414,7 @@ export const App: React.FC = () => {
             <input 
               type="text"
               autoFocus
-              className="bg-editor-bg border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-amber-400 font-medium"
+              className="bg-editor-bg border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-white font-medium"
               placeholder="e.g. B-Roll"
               defaultValue={folderPrompt.initialName || ''}
               onKeyDown={(e) => {
@@ -441,7 +441,7 @@ export const App: React.FC = () => {
                   setFolderPrompt({ isOpen: false });
                   if (folderPrompt.onSubmit) folderPrompt.onSubmit(el?.value || '');
                 }}
-                className="px-6 py-2 bg-amber-400 text-black font-bold rounded-lg hover:bg-amber-300 transition-colors"
+                className="px-6 py-2 bg-white text-black font-bold rounded-lg hover:bg-slate-300 transition-colors"
               >
                 Create
               </button>

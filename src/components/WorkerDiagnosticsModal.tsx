@@ -124,7 +124,7 @@ export const WorkerDiagnosticsModal: React.FC<WorkerDiagnosticsModalProps> = ({
                           isReady
                             ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
                             : isMissingModel
-                            ? 'bg-amber-400'
+                            ? 'bg-white'
                             : 'bg-rose-400'
                         }`}
                       />
@@ -139,7 +139,7 @@ export const WorkerDiagnosticsModal: React.FC<WorkerDiagnosticsModalProps> = ({
                         isReady
                           ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/40'
                           : isMissingModel
-                          ? 'bg-amber-950/60 text-amber-300 border border-amber-800/40'
+                          ? 'bg-slate-800/60 text-slate-300 border border-slate-600/40'
                           : 'bg-rose-950/60 text-rose-300 border border-rose-800/40'
                       }`}
                     >

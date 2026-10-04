@@ -91,7 +91,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
               <span className="text-sm font-medium text-slate-200">Broadcast frame</span>
               <button 
                 onClick={onToggleFrame}
-                className={`w-12 h-6 rounded-full transition-colors relative ${isFrameEnabled ? 'bg-amber-400' : 'bg-slate-600'}`}
+                className={`w-12 h-6 rounded-full transition-colors relative ${isFrameEnabled ? 'bg-white' : 'bg-slate-600'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${isFrameEnabled ? 'left-7' : 'left-1'}`} />
               </button>
@@ -102,9 +102,9 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             </div>
 
             {missingFiles > 0 ? (
-              <div className="w-full flex items-center justify-between bg-amber-950/40 p-4 rounded-xl border border-amber-800/40">
-                <span className="text-amber-200 text-sm">{missingFiles} clips are missing files</span>
-                <button onClick={() => { onClose(); onRelink(); }} className="text-sm text-black font-semibold bg-amber-400 px-4 py-1.5 rounded-full">Fix</button>
+              <div className="w-full flex items-center justify-between bg-slate-800/40 p-4 rounded-xl border border-slate-600/40">
+                <span className="text-slate-200 text-sm">{missingFiles} clips are missing files</span>
+                <button onClick={() => { onClose(); onRelink(); }} className="text-sm text-black font-semibold bg-white px-4 py-1.5 rounded-full">Fix</button>
               </div>
             ) : (
               <button 
@@ -127,11 +127,11 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             
             <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                className="h-full bg-white rounded-full transition-all duration-300"
                 style={{ width: `${Math.max(5, progress)}%` }}
               />
             </div>
-            <div className="mt-4 text-2xl font-bold text-amber-400 font-mono">{progress.toFixed(0)}%</div>
+            <div className="mt-4 text-2xl font-bold text-white font-mono">{progress.toFixed(0)}%</div>
           </div>
         )}
 
@@ -173,7 +173,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             <div className="flex flex-col w-full gap-3">
               <button 
                 onClick={handleStartRender}
-                className="w-full py-4 bg-amber-400 text-black rounded-xl font-semibold text-[15px] active:scale-[0.98] transition-transform"
+                className="w-full py-4 bg-white text-black rounded-xl font-semibold text-[15px] active:scale-[0.98] transition-transform"
               >
                 Try again
               </button>

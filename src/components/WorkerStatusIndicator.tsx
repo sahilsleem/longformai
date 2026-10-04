@@ -113,7 +113,7 @@ export const WorkerStatusIndicator: React.FC = () => {
   } else if (activeCount === totalCount) {
     indicatorColor = 'bg-emerald-500'; // Active/reachable
   } else if (activeCount > 0) {
-    indicatorColor = 'bg-amber-500'; // Partial
+    indicatorColor = 'bg-slate-300'; // Partial
   } else {
     indicatorColor = 'bg-red-500'; // Offline/unreachable
   }

@@ -148,14 +148,14 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
         <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           {/* Status Alert */}
           {totalUnlinkedCount > 0 ? (
-            <div className="p-3.5 bg-amber-950/40 border border-amber-800/40 rounded-lg flex items-start justify-between gap-3 text-xs text-amber-300">
+            <div className="p-3.5 bg-slate-800/40 border border-slate-600/40 rounded-lg flex items-start justify-between gap-3 text-xs text-slate-300">
               <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-white shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-semibold text-amber-200">
+                  <span className="font-semibold text-slate-200">
                     {totalUnlinkedCount} Local Media File{totalUnlinkedCount === 1 ? '' : 's'} Unlinked
                   </span>
-                  <p className="mt-0.5 text-amber-300/80 leading-relaxed">
+                  <p className="mt-0.5 text-slate-300/80 leading-relaxed">
                     This project was imported from portable JSON. Select your local folder or files to reconnect them.
                     All transcripts, clip timings, and 16:9 framing transforms will be preserved exactly.
                   </p>
@@ -164,7 +164,7 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
 
               <button
                 onClick={() => batchInputRef.current?.click()}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium text-xs shrink-0 transition-colors shadow-sm flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-slate-400 hover:bg-slate-300 text-white rounded font-medium text-xs shrink-0 transition-colors shadow-sm flex items-center gap-1.5"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>Locate Files</span>
@@ -200,7 +200,7 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
               <div
                 className={`p-3 rounded-lg border flex items-center justify-between text-xs ${
                   isVoiceoverUnlinked
-                    ? 'bg-amber-950/20 border-amber-800/50'
+                    ? 'bg-slate-800/20 border-slate-600/50'
                     : 'bg-editor-surface border-editor-panelBorder'
                 }`}
               >
@@ -216,7 +216,7 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
                       <span
                         className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
                           isVoiceoverUnlinked
-                            ? 'bg-amber-900/60 text-amber-200 border border-amber-700/50'
+                            ? 'bg-slate-700/60 text-slate-200 border border-slate-500/50'
                             : 'bg-emerald-900/60 text-emerald-200 border border-emerald-700/50'
                         }`}
                       >
@@ -265,7 +265,7 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
                     key={asset.id}
                     className={`p-2.5 rounded-lg border flex items-center justify-between text-xs gap-3 ${
                       isUnlinked
-                        ? 'bg-amber-950/15 border-amber-800/40'
+                        ? 'bg-slate-800/15 border-slate-600/40'
                         : 'bg-editor-surface border-editor-panelBorder'
                     }`}
                   >
@@ -286,7 +286,7 @@ export const RelinkModal: React.FC<RelinkModalProps> = ({
                           <span
                             className={`text-[9px] font-medium px-1.5 py-0.2 rounded font-mono ${
                               isUnlinked
-                                ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                ? 'bg-slate-800 text-slate-300 border border-slate-600'
                                 : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                             }`}
                           >
