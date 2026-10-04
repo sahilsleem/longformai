@@ -29,7 +29,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   project,
   onImportProject,
-  onSetProjectName,
+
   onOpenRenderModal,
   onResetProject,
 }) => {

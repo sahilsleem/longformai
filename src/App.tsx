@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Header } from './components/Header';
 import { PreviewCanvas } from './components/PreviewCanvas';
 import { Timeline } from './components/Timeline';
@@ -57,6 +57,29 @@ export const App: React.FC = () => {
 
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
   const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
+  const [displayProgress, setDisplayProgress] = useState(0);
+
+  useEffect(() => {
+    let target = 0;
+    if (isPreparing && preparationProgress) {
+      target = preparationProgress.percent;
+    } else if (isGeneratingDraft) {
+      target = 99;
+    }
+
+    if (target > displayProgress) {
+      const timer = setInterval(() => {
+        setDisplayProgress(p => {
+          if (p < target) return Math.min(target, p + 1);
+          clearInterval(timer);
+          return p;
+        });
+      }, 50);
+      return () => clearInterval(timer);
+    } else if (target === 0 && !isPreparing && !isGeneratingDraft) {
+      setDisplayProgress(0);
+    }
+  }, [isPreparing, preparationProgress?.percent, isGeneratingDraft, displayProgress]);
 
   
   const footageRef = useRef<HTMLDivElement>(null);
@@ -147,25 +170,16 @@ export const App: React.FC = () => {
             <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 backdrop-blur-md">
               <Loader2 className="w-10 h-10 text-amber-400 animate-spin mb-4" />
               
-              {isPreparing && preparationProgress ? (
-                <>
-                  <div className="text-amber-400 font-bold text-2xl mb-1">
-                    {Math.round(preparationProgress.percent)}%
-                  </div>
-                  <div className="text-slate-300 font-medium text-sm text-center px-6">
-                    {preparationProgress.message}
-                  </div>
-                  {/* Progress bar */}
-                  <div className="w-48 h-1.5 bg-slate-800 rounded-full mt-4 overflow-hidden">
-                    <div 
-                      className="h-full bg-amber-400 transition-all duration-300 ease-out"
-                      style={{ width: `${preparationProgress.percent}%` }}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="text-white font-semibold text-lg">Building timeline...</div>
-              )}
+              <div className="text-amber-400 font-bold text-3xl mb-4 font-mono">
+                {Math.round(displayProgress)}%
+              </div>
+              {/* Progress bar */}
+              <div className="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className="h-full bg-amber-400 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+                  style={{ width: `${displayProgress}%` }}
+                />
+              </div>
             </div>
           )}
         </div>

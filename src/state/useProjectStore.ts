@@ -1394,6 +1394,11 @@ export function useProject() {
 
       if (!result.success && result.errors.length > 0) {
         setPreparationError(result.errors.join(' • '));
+      } else if (result.success) {
+        // Automatically generate draft timeline if preparation succeeded
+        if (project.timeline.length === 0) {
+          generateAIDraft();
+        }
       }
     } catch (err: any) {
       const msg = err.message || 'Preparation pipeline failed';
@@ -1401,7 +1406,7 @@ export function useProject() {
     } finally {
       setIsPreparing(false);
     }
-  }, [project]);
+  }, [project, generateAIDraft]);
 
   // Relink a specific single Media Asset with a replacement file
   const relinkSingleMediaAsset = useCallback((mediaId: string, file: File) => {

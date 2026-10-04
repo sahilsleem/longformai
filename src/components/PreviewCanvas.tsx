@@ -50,9 +50,15 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !activeAsset || activeAsset.type !== 'video') return;
-    if (Math.abs(video.currentTime - clipTime) > 0.12) {
+    const drift = Math.abs(video.currentTime - clipTime);
+    
+    // Smooth playback: don't aggressively seek while playing unless drifting a lot
+    if (!isPlaying && drift > 0.05) {
+      video.currentTime = clipTime;
+    } else if (isPlaying && drift > 0.35) {
       video.currentTime = clipTime;
     }
+
     if (isPlaying && video.paused) {
       video.play().catch(() => {});
     } else if (!isPlaying && !video.paused) {

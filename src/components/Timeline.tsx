@@ -42,7 +42,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   useEffect(() => {
     if (scrollContainerRef.current && !isScrubbingRef.current) {
       const container = scrollContainerRef.current;
-      const centerOffset = container.clientWidth / 2;
+
       container.scrollLeft = currentTime * timelineScale;
     }
   }, [currentTime, timelineScale]);
