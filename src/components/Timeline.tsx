@@ -7,12 +7,14 @@ interface TimelineProps {
   mediaList: MediaAsset[];
   selectedItemId: string | null;
   currentTime: number;
+  totalDuration: number;
   timelineScale: number;
   onSelectClip: (id: string | null) => void;
   onSeek: (time: number) => void;
   onRemoveClip: (id: string) => void;
   onReplaceClipMedia: (id: string) => void;
   onUpdateDuration: (id: string, duration: number) => void;
+  onZoom?: (scale: number) => void;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -20,33 +22,35 @@ export const Timeline: React.FC<TimelineProps> = ({
   mediaList,
   selectedItemId,
   currentTime,
+  totalDuration,
   timelineScale,
   onSelectClip,
   onSeek,
   onRemoveClip,
   onReplaceClipMedia,
   onUpdateDuration,
+  onZoom,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isScrubbingRef = useRef(false);
   const resizingItemIdRef = useRef<string | null>(null);
   const resizeStartXRef = useRef<number>(0);
   const initialDurationRef = useRef<number>(0);
+  const touchPinchRef = useRef<{ initialDist: number; initialScale: number } | null>(null);
 
   // Sync scroll position with playhead so playhead stays centered
   useEffect(() => {
     if (scrollContainerRef.current && !isScrubbingRef.current) {
       const container = scrollContainerRef.current;
       const centerOffset = container.clientWidth / 2;
-      container.scrollLeft = currentTime * timelineScale - centerOffset;
+      container.scrollLeft = currentTime * timelineScale;
     }
   }, [currentTime, timelineScale]);
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
       const container = scrollContainerRef.current;
-      const centerOffset = container.clientWidth / 2;
-      const newTime = (container.scrollLeft + centerOffset) / timelineScale;
+      const newTime = container.scrollLeft / timelineScale;
       if (Math.abs(newTime - currentTime) > 0.1 && isScrubbingRef.current) {
         onSeek(Math.max(0, newTime));
       }
@@ -59,6 +63,22 @@ export const Timeline: React.FC<TimelineProps> = ({
 
   const handlePointerUp = () => {
     isScrubbingRef.current = false;
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && onZoom) {
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      touchPinchRef.current = { initialDist: dist, initialScale: timelineScale };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchPinchRef.current && onZoom) {
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const ratio = dist / Math.max(1, touchPinchRef.current.initialDist);
+      const newScale = Math.min(200, Math.max(20, touchPinchRef.current.initialScale * ratio));
+      onZoom(newScale);
+    }
   };
 
   useEffect(() => {
@@ -107,26 +127,39 @@ export const Timeline: React.FC<TimelineProps> = ({
         ref={scrollContainerRef}
         onScroll={handleScroll}
         onPointerDown={handlePointerDown}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         className="overflow-x-auto overflow-y-hidden scrollbar-none touch-pan-x w-full"
       >
         <div 
-          className="flex items-center h-24 relative"
-          style={{ paddingLeft: `${padOffset}px`, paddingRight: `${padOffset}px` }}
+          className="flex flex-col relative w-max"
+          style={{ paddingLeft: `${padOffset}px`, paddingRight: `${padOffset}px`, paddingTop: '8px', paddingBottom: '8px' }}
         >
-          {timeline.map((item) => {
-            const asset = mediaList.find(m => m.id === item.mediaId);
-            const isSelected = selectedItemId === item.id;
-            const widthPx = Math.max(32, item.duration * timelineScale);
+          {/* Time Ruler */}
+          <div className="h-4 relative w-full mb-1">
+            {Array.from({ length: Math.ceil(totalDuration) + 1 }).map((_, i) => (
+              <div key={i} className="absolute top-0 bottom-0 border-l border-slate-700 flex items-end pb-0.5" style={{ left: i * timelineScale }}>
+                <span className="text-[9px] text-slate-500 ml-1 font-mono leading-none">{i}s</span>
+              </div>
+            ))}
+          </div>
 
-            return (
-              <div
-                key={item.id}
-                onClick={() => onSelectClip(item.id)}
-                style={{ width: `${widthPx}px` }}
-                className={`relative h-20 shrink-0 rounded-lg overflow-hidden flex flex-col justify-between transition-all select-none cursor-pointer border-2 ${
-                  isSelected ? 'border-amber-400 z-20 shadow-lg scale-105' : 'border-transparent opacity-80 hover:opacity-100 z-10 mx-[1px]'
-                }`}
-              >
+          {/* Clips Row */}
+          <div className="flex items-center h-20">
+            {timeline.map((item) => {
+              const asset = mediaList.find(m => m.id === item.mediaId);
+              const isSelected = selectedItemId === item.id;
+              const widthPx = Math.max(24, item.duration * timelineScale);
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => onSelectClip(item.id)}
+                  style={{ width: `${widthPx}px` }}
+                  className={`relative h-full shrink-0 overflow-hidden flex flex-col justify-between transition-all select-none cursor-pointer border-y-2 border-l border-r border-r-black ${
+                    isSelected ? 'border-amber-400 z-20 shadow-[0_0_15px_rgba(251,191,36,0.3)]' : 'border-y-transparent border-l-transparent opacity-80 hover:opacity-100 z-10'
+                  }`}
+                >
                 {asset && (
                   <>
                     {asset.type === 'video' ? (
@@ -150,6 +183,7 @@ export const Timeline: React.FC<TimelineProps> = ({
               </div>
             );
           })}
+          </div>
         </div>
       </div>
       

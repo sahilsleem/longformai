@@ -28,6 +28,7 @@ export const App: React.FC = () => {
     generateAIDraft,
     relinkSingleMediaAsset,
     relinkVoiceover,
+    setTimelineScale,
     relinkMediaFiles,
     setSelectedItemId,
     setCurrentTime,
@@ -177,12 +178,14 @@ export const App: React.FC = () => {
               mediaList={project.media}
               selectedItemId={effectiveTimelineItem?.id || null}
               currentTime={currentTime}
+              totalDuration={totalDuration}
               timelineScale={timelineScale}
               onSelectClip={setSelectedItemId}
               onSeek={setCurrentTime}
               onRemoveClip={removeTimelineItem}
               onReplaceClipMedia={handleReplaceClip}
               onUpdateDuration={(id, d) => updateTimelineItem(id, { duration: d })}
+              onZoom={setTimelineScale}
             />
           </div>
         )}
