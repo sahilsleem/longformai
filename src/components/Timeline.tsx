@@ -17,7 +17,11 @@ interface TimelineProps {
   onReplaceClipMedia: (id: string) => void;
   onUpdateDuration: (id: string, duration: number) => void;
   onZoom?: (scale: number) => void;
-}
+    onUndo?: () => void;
+    onRedo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
+  }
 
 export const Timeline: React.FC<TimelineProps> = ({
   timeline,
@@ -33,8 +37,12 @@ export const Timeline: React.FC<TimelineProps> = ({
   onRemoveClip,
   onReplaceClipMedia,
   onUpdateDuration,
-  onZoom,
-}) => {
+    onZoom,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
+  }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isScrubbingRef = useRef(false);
   const resizingItemIdRef = useRef<string | null>(null);
@@ -200,12 +208,12 @@ export const Timeline: React.FC<TimelineProps> = ({
       <div className="flex justify-center gap-4 mt-2 mb-2 animate-in fade-in slide-in-from-top-2 duration-150">
         
         {/* Undo */}
-        <button className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition-colors">
-          <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
-            <Undo2 className="w-5 h-5" />
-          </div>
-          <span className="text-[11px] font-medium tracking-wide">Undo</span>
-        </button>
+        <button onClick={onUndo} disabled={!canUndo} className={`flex flex-col items-center gap-1.5 transition-colors ${canUndo ? 'text-slate-300 hover:text-white' : 'text-slate-600 opacity-50 cursor-not-allowed'}`}>
+            <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
+              <Undo2 className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-medium tracking-wide">Undo</span>
+          </button>
 
         {/* Replace */}
         <button 
@@ -243,12 +251,12 @@ export const Timeline: React.FC<TimelineProps> = ({
         </button>
 
         {/* Redo */}
-        <button className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition-colors">
-          <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
-            <Redo2 className="w-5 h-5" />
-          </div>
-          <span className="text-[11px] font-medium tracking-wide">Redo</span>
-        </button>
+        <button onClick={onRedo} disabled={!canRedo} className={`flex flex-col items-center gap-1.5 transition-colors ${canRedo ? 'text-slate-300 hover:text-white' : 'text-slate-600 opacity-50 cursor-not-allowed'}`}>
+            <div className="w-12 h-12 rounded-full bg-editor-surface flex items-center justify-center shadow-lg border border-editor-panelBorder">
+              <Redo2 className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-medium tracking-wide">Redo</span>
+          </button>
 
       </div>
     </div>

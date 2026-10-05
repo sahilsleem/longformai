@@ -53,6 +53,11 @@ export const App: React.FC = () => {
     setActiveFolderId,
     createFolder,
     deleteFolder,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+
   } = useProject();
 
   const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
@@ -201,6 +206,10 @@ export const App: React.FC = () => {
               onSelectClip={setSelectedItemId}
               onSeek={setCurrentTime}
               onRemoveClip={removeTimelineItem}
+                onUndo={undo}
+                onRedo={redo}
+                canUndo={canUndo}
+                canRedo={canRedo}
               onReplaceClipMedia={handleReplaceClip}
               onUpdateDuration={(id, d) => updateTimelineItem(id, { duration: d })}
               onZoom={setTimelineScale}

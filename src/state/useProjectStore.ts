@@ -44,6 +44,8 @@ export function useProject() {
     return createInitialProject();
   });
 
+  const [past, setPast] = useState<LongFormProject[]>([]);
+  const [future, setFuture] = useState<LongFormProject[]>([]);
   const [isHydrating, setIsHydrating] = useState<boolean>(true);
   const [isSavingLocal, setIsSavingLocal] = useState<boolean>(false);
   const [lastSavedTime, setLastSavedTime] = useState<number | null>(null);
@@ -946,6 +948,7 @@ export function useProject() {
   }, []);
 
   const deleteFolder = useCallback((folderId: string) => {
+    saveHistory();
     setProject((prev) => ({
       ...prev,
       folders: deleteMediaFolder(prev.folders || [], folderId),
@@ -984,6 +987,7 @@ export function useProject() {
   }, []);
 
   const removeMediaAsset = useCallback((mediaId: string) => {
+    saveHistory();
     setProject((prev) => {
       const target = prev.media.find((m) => m.id === mediaId);
       if (target) {
@@ -1008,6 +1012,7 @@ export function useProject() {
 
   // Add media to timeline with safe duration clamping
   const addMediaToTimeline = useCallback((mediaId: string) => {
+    saveHistory();
     setProject((prev) => {
       const asset = prev.media.find((m) => m.id === mediaId);
       if (!asset) return prev;
@@ -1042,6 +1047,7 @@ export function useProject() {
 
   // Remove single clip (preserves individual clip positions)
   const removeTimelineItem = useCallback((itemId: string) => {
+    saveHistory();
     setProject((prev) => ({
       ...prev,
       timeline: prev.timeline.filter((item) => item.id !== itemId),
@@ -1052,6 +1058,7 @@ export function useProject() {
 
   // Update item duration or sourceStart with strict safety clamping
   const updateTimelineItem = useCallback((itemId: string, updates: Partial<TimelineItem>) => {
+    saveHistory();
     setProject((prev) => {
       const index = prev.timeline.findIndex((item) => item.id === itemId);
       if (index === -1) return prev;
@@ -1112,6 +1119,7 @@ export function useProject() {
 
   // Replace Media Asset for a specific visual timeline clip (preserves timing, transform, ordering, and voiceover)
   const replaceTimelineItemMedia = useCallback((timelineItemId: string, newMediaId: string) => {
+    saveHistory();
     if (isPlaying) {
       setIsPlaying(false);
     }
@@ -1209,7 +1217,8 @@ export function useProject() {
 
   // Generate AI Draft Timeline (Step 7)
   const generateAIDraft = useCallback(
-    async (options: DraftOptions = {}) => {
+      async (options: DraftOptions = {}) => {
+        saveHistory();
       if (!project.voiceover || !project.voiceover.segments || project.voiceover.segments.length === 0) {
         setDraftError('Transcript segments are required to generate an AI draft. Please transcribe your voiceover first.');
         return;
@@ -1256,6 +1265,7 @@ export function useProject() {
 
   // Clear all timeline clips
   const clearTimeline = useCallback(() => {
+    saveHistory();
     setProject((prev) => ({
       ...prev,
       timeline: [],
@@ -1328,6 +1338,7 @@ export function useProject() {
   }, []);
 
   const reorderTimelineItems = useCallback((newItems: TimelineItem[]) => {
+    saveHistory();
     const sanitized = newItems.map((item) => ({
       ...item,
       startTime: Math.max(0, item.startTime),
@@ -1581,6 +1592,34 @@ export function useProject() {
     setIsDirty(false);
   }, []);
 
+  
+  const saveHistory = useCallback(() => {
+    setPast((p) => {
+      const pNew = [...p, JSON.parse(JSON.stringify(project))];
+      if (pNew.length > 30) return pNew.slice(pNew.length - 30);
+      return pNew;
+    });
+    setFuture([]);
+  }, [project]);
+
+  const undo = useCallback(() => {
+    if (past.length === 0) return;
+    setFuture((f) => [...f, JSON.parse(JSON.stringify(project))]);
+    const previous = past[past.length - 1];
+    setPast((p) => p.slice(0, -1));
+    setProject(previous);
+    setIsDirty(true);
+  }, [past, project]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    setPast((p) => [...p, JSON.parse(JSON.stringify(project))]);
+    const next = future[future.length - 1];
+    setFuture((f) => f.slice(0, -1));
+    setProject(next);
+    setIsDirty(true);
+  }, [future, project]);
+
   const resetProject = useCallback(() => {
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
@@ -1644,6 +1683,11 @@ export function useProject() {
   }, []);
 
   return {
+    undo,
+    redo,
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
+    saveHistory,
     project,
     frame: project.frame || DEFAULT_BOLLYWOOD_FRAME,
     isFrameEnabled: project.frame?.enabled ?? true,
