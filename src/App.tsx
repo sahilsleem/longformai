@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import LongFormEditor from './LongFormEditor';
+import ShortsEditor from './ShortsEditor';
 import { PlaySquare, Smartphone } from 'lucide-react';
 
 export default function App() {
@@ -10,18 +11,7 @@ export default function App() {
   }
 
   if (mode === 'shorts') {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-black text-white">
-        <h1 className="text-2xl font-bold mb-4">ShortsAI Editor</h1>
-        <p className="text-slate-400 mb-8">Coming Soon...</p>
-        <button 
-          onClick={() => setMode('home')}
-          className="px-6 py-2 bg-slate-800 rounded-full hover:bg-slate-700 transition"
-        >
-          Back to Home
-        </button>
-      </div>
-    );
+    return <ShortsEditor onBack={() => setMode('home')} />;
   }
 
   return (
