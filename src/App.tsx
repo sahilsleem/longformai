@@ -60,6 +60,7 @@ export const App: React.FC = () => {
   const [displayProgress, setDisplayProgress] = useState(0);
   const [replaceModeItemId, setReplaceModeItemId] = useState<string | null>(null);
   const [folderPrompt, setFolderPrompt] = useState<{ isOpen: boolean; initialName?: string; onSubmit?: (name: string) => void }>({ isOpen: false });
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   useEffect(() => {
     let target = 0;
@@ -268,9 +269,7 @@ export const App: React.FC = () => {
                       <span className="text-sm font-medium text-slate-300">{folder.name} <span className="text-slate-500 text-xs">({folderMedia.length})</span></span>
                       <div className="flex items-center gap-2">
                         <button onClick={() => {
-                          if (window.confirm(`Delete folder "${folder.name}"? Media will remain in project.`)) {
-                            deleteFolder(folder.id);
-                          }
+                          setConfirmDialog({ message: `Delete folder "${folder.name}"? Media will remain in project.`, onConfirm: () => { deleteFolder(folder.id); setConfirmDialog(null); } });
                         }} className="text-slate-500 hover:text-red-400 p-1 transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
@@ -407,6 +406,18 @@ export const App: React.FC = () => {
         onRelinkVoiceover={relinkVoiceover}
       />
 
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-editor-panel border border-editor-panelBorder rounded-2xl w-full max-w-sm shadow-2xl p-6 flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-white">Confirm</h2>
+            <p className="text-slate-300">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3 mt-2">
+              <button onClick={() => setConfirmDialog(null)} className="px-4 py-2 text-slate-400 font-medium hover:text-white transition-colors">Cancel</button>
+              <button onClick={confirmDialog.onConfirm} className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-400 transition-colors">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
       {folderPrompt.isOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-editor-panel border border-editor-panelBorder rounded-2xl w-full max-w-sm shadow-2xl p-6 flex flex-col gap-4">

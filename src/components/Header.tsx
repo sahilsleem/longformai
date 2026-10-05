@@ -31,11 +31,12 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   project,
   onImportProject,
-
   onOpenRenderModal,
   onResetProject,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [alertMessage, setAlertMessage] = React.useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = React.useState<{ message: string; onConfirm: () => void } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleOpenProject = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
       const parseResult = validateAndParseProjectJSON(content);
 
       if (!parseResult.isValid || !parseResult.project) {
-        alert('Failed to load project.');
+        setAlertMessage('Failed to load project.');
         return;
       }
       onImportProject(parseResult.project);
@@ -118,10 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="h-px w-full bg-editor-panelBorder my-1" />
               <button
                 onClick={() => {
-                  if (window.confirm('Are you sure you want to reset the project? All media and edits will be lost.')) {
-                    onResetProject();
-                    setIsMenuOpen(false);
-                  }
+                  setConfirmDialog({ message: 'Are you sure you want to reset the project? All media and edits will be lost.', onConfirm: () => { onResetProject(); setIsMenuOpen(false); setConfirmDialog(null); } });
                 }}
                 className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-400/10 transition-colors font-medium"
               >
@@ -139,6 +137,29 @@ export const Header: React.FC<HeaderProps> = ({
         accept=".json,.longform.json"
         className="hidden"
       />
+          {alertMessage && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-editor-panel border border-editor-panelBorder rounded-2xl w-full max-w-sm shadow-2xl p-6 flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-white">Notice</h2>
+            <p className="text-slate-300">{alertMessage}</p>
+            <div className="flex justify-end mt-2">
+              <button onClick={() => setAlertMessage(null)} className="px-6 py-2 bg-white text-black font-bold rounded-lg hover:bg-slate-300 transition-colors">OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-editor-panel border border-editor-panelBorder rounded-2xl w-full max-w-sm shadow-2xl p-6 flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-white">Confirm</h2>
+            <p className="text-slate-300">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3 mt-2">
+              <button onClick={() => setConfirmDialog(null)} className="px-4 py-2 text-slate-400 font-medium hover:text-white transition-colors">Cancel</button>
+              <button onClick={confirmDialog.onConfirm} className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-400 transition-colors">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
