@@ -1058,8 +1058,8 @@ export function useProject() {
 
   // Update item duration or sourceStart with strict safety clamping
   const updateTimelineItem = useCallback((itemId: string, updates: Partial<TimelineItem>) => {
-    saveHistory();
-    setProject((prev) => {
+      // NOTE: History is saved explicitly by the caller (e.g. on pointer down) to avoid continuous snapshots during drag
+      setProject((prev) => {
       const index = prev.timeline.findIndex((item) => item.id === itemId);
       if (index === -1) return prev;
 

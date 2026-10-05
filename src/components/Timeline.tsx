@@ -16,6 +16,7 @@ interface TimelineProps {
   onRemoveClip: (id: string) => void;
   onReplaceClipMedia: (id: string) => void;
   onUpdateDuration: (id: string, duration: number) => void;
+    onResizeStart?: () => void;
   onZoom?: (scale: number) => void;
     onUndo?: () => void;
     onRedo?: () => void;
@@ -37,7 +38,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   onRemoveClip,
   onReplaceClipMedia,
   onUpdateDuration,
-    onZoom,
+      onResizeStart,
+      onZoom,
     onUndo,
     onRedo,
     canUndo,
@@ -101,6 +103,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   const padOffset = (scrollContainerRef.current?.clientWidth || 0) / 2;
 
   const handleStartResize = (e: React.PointerEvent, item: TimelineItem) => {
+      if (onResizeStart) onResizeStart();
     e.stopPropagation();
     resizingItemIdRef.current = item.id;
     resizeStartXRef.current = e.clientX;

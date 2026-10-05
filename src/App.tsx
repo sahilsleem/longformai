@@ -57,6 +57,7 @@ export const App: React.FC = () => {
     redo,
     canUndo,
     canRedo,
+    saveHistory,
 
   } = useProject();
 
@@ -212,6 +213,7 @@ export const App: React.FC = () => {
                 canRedo={canRedo}
               onReplaceClipMedia={handleReplaceClip}
               onUpdateDuration={(id, d) => updateTimelineItem(id, { duration: d })}
+                onResizeStart={saveHistory}
               onZoom={setTimelineScale}
             />
           </div>
