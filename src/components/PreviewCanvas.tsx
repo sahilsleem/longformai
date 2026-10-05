@@ -14,7 +14,7 @@ interface PreviewCanvasProps {
   onUpdateTransform?: (transformUpdates: Partial<TimelineItem['transform']>) => void;
 }
 
-export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
+export const PreviewCanvas: React.FC<PreviewCanvasProps> = React.memo(({
   activeItem,
   activeAsset,
   currentTime,
@@ -204,4 +204,4 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       )}
     </div>
   );
-};
+});
