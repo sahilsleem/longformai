@@ -177,21 +177,37 @@ export const App: React.FC = () => {
             </div>
           )}
           {(isPreparing || isGeneratingDraft) && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 backdrop-blur-md">
-              <Loader2 className="w-10 h-10 text-white animate-spin mb-4" />
-              
-              <div className="text-white font-bold text-3xl mb-4 font-mono">
-                {Math.round(displayProgress)}%
+              <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-20 backdrop-blur-xl transition-all duration-500">
+                <div className="relative mb-6">
+                  {/* Glowing rings */}
+                  <div className="absolute inset-0 bg-white/20 blur-xl rounded-full animate-pulse"></div>
+                  <div className="w-16 h-16 rounded-full border-t-2 border-l-2 border-white animate-spin flex items-center justify-center bg-black/50 shadow-[0_0_15px_rgba(255,255,255,0.4)]">
+                    <Sparkles className="w-6 h-6 text-white animate-pulse" />
+                  </div>
+                </div>
+                
+                <div className="text-white text-xl font-bold tracking-widest mb-1 shadow-sm">
+                  Niggachu is preparing your video
+                </div>
+                
+                <div className="text-slate-400 text-xs uppercase tracking-[0.2em] mb-8 font-medium">
+                  {isPreparing ? 'Analyzing assets' : 'Syncing timeline'}
+                </div>
+                
+                <div className="flex flex-col items-center w-full max-w-[240px]">
+                  <div className="text-white font-bold text-4xl mb-3 font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]">
+                    {Math.round(displayProgress)}<span className="text-2xl text-white/70">%</span>
+                  </div>
+                  {/* Modern glowing progress bar */}
+                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden shadow-inner relative">
+                    <div 
+                      className="absolute top-0 left-0 bottom-0 bg-white transition-all duration-300 ease-out shadow-[0_0_12px_rgba(255,255,255,1)]"
+                      style={{ width: `${displayProgress}%` }}
+                    />
+                  </div>
+                </div>
               </div>
-              {/* Progress bar */}
-              <div className="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
-                <div 
-                  className="h-full bg-white transition-all duration-300 ease-out shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-                  style={{ width: `${displayProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
+            )}
         </div>
 
         {/* Timeline */}

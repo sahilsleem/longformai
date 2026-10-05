@@ -9,7 +9,8 @@ export interface DraftOptions {
   continuityPreference?: number;    // default: 0.03 (range 0.00 to 0.10)
   preferVideoOverImage?: boolean;   // default: true (gives +0.03 bonus to video footage)
   workerUrl?: string;
-  folders?: MediaFolder[];          // User-created media folders for explicit identity matching
+  folders?: MediaFolder[];
+  totalAudioDuration?: number;
 }
 
 export interface MediaUsageItem {
@@ -10242,10 +10243,28 @@ export async function generateDraftTimeline(
   const visualBeats = groupAudioSegmentsIntoVisualBeats(segments, folders);
 
   const totalSegments = visualBeats.length;
-  const totalDuration = segments.reduce(
-    (acc, seg) => Math.max(acc, seg.endTime),
-    0
-  );
+  // FIX: Use totalAudioDuration from options to ensure gaps at the end of the audio are filled
+    const rawTotalDuration = segments.reduce(
+      (acc, seg) => Math.max(acc, seg.endTime),
+      0
+    );
+    const totalDuration = options.totalAudioDuration ? Math.max(rawTotalDuration, options.totalAudioDuration) : rawTotalDuration;
+    
+    // Pass 5: Bridge gaps in visualBeats to ensure contiguous timeline
+    for (let i = 0; i < visualBeats.length; i++) {
+       if (i < visualBeats.length - 1) {
+          const gap = visualBeats[i + 1].startTime - visualBeats[i].endTime;
+          if (gap > 0) {
+             visualBeats[i].endTime = visualBeats[i + 1].startTime;
+          }
+       } else {
+          // Last segment stretches to the end of the total duration
+          if (visualBeats[i].endTime < totalDuration) {
+             visualBeats[i].endTime = totalDuration;
+          }
+       }
+    }
+    
 
   if (totalSegments === 0 || mediaAssets.length === 0) {
     return {
