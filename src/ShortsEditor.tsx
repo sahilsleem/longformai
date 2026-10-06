@@ -344,11 +344,52 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
     }
   };
 
-  // Frame stepping helper
-  const stepFrame = (forward: boolean) => {
+  // Continuous Frame Scrubbing
+  const scrubReqRef = useRef<number | null>(null);
+  const scrubStartRef = useRef<number>(0);
+
+  const startScrub = (forward: boolean) => {
     if (!videoRef.current) return;
-    const delta = forward ? 1 / 30 : -1 / 30;
-    videoRef.current.currentTime = Math.max(0, Math.min(videoDuration, videoRef.current.currentTime + delta));
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+    
+    scrubStartRef.current = performance.now();
+    let lastTime = performance.now();
+    let currentVideoTime = videoRef.current.currentTime;
+    
+    // Initial 1-frame step
+    currentVideoTime = Math.max(0, Math.min(videoDuration, currentVideoTime + (forward ? 1/30 : -1/30)));
+    videoRef.current.currentTime = currentVideoTime;
+
+    const tick = (now: number) => {
+      if (!videoRef.current) return;
+      const holdDuration = now - scrubStartRef.current;
+      
+      // Delay continuous seek slightly to allow single taps
+      if (holdDuration > 300) {
+        const dt = now - lastTime;
+        // speed ramps up from 1x to 5x over 2 seconds
+        let speedMult = 1.0 + Math.min((holdDuration - 300) / 2000, 1.0) * 4.0;
+        const deltaSec = (dt / 1000) * speedMult * (forward ? 1 : -1);
+        
+        currentVideoTime = Math.max(0, Math.min(videoDuration, currentVideoTime + deltaSec));
+        videoRef.current.currentTime = currentVideoTime;
+      }
+      
+      lastTime = now;
+      scrubReqRef.current = requestAnimationFrame(tick);
+    };
+    
+    scrubReqRef.current = requestAnimationFrame(tick);
+  };
+
+  const stopScrub = () => {
+    if (scrubReqRef.current !== null) {
+      cancelAnimationFrame(scrubReqRef.current);
+      scrubReqRef.current = null;
+    }
   };
 
   // Timeline handle drag handler
@@ -363,6 +404,15 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
       origStart: activeSeg.start,
       origEnd: activeSeg.end,
     };
+
+    if (handleType === 'playhead' && timelineTrackRef.current && videoDuration > 0) {
+      const rect = timelineTrackRef.current.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const t = pct * videoDuration;
+      if (videoRef.current) {
+        videoRef.current.currentTime = t;
+      }
+    }
   };
 
   useEffect(() => {
@@ -679,8 +729,11 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
               {/* Segment Actions (Split, Delete, Frame Step, Play Selection) */}
               <div className="flex items-center gap-2 mt-1">
                 <button 
-                  onClick={() => stepFrame(false)}
-                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center justify-center text-xs active:scale-95 transition"
+                  onPointerDown={(e) => { e.preventDefault(); startScrub(false); }}
+                  onPointerUp={stopScrub}
+                  onPointerLeave={stopScrub}
+                  onPointerCancel={stopScrub}
+                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center justify-center text-xs active:scale-95 transition touch-none"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
@@ -694,8 +747,11 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
                 </button>
 
                 <button 
-                  onClick={() => stepFrame(true)}
-                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center justify-center text-xs active:scale-95 transition"
+                  onPointerDown={(e) => { e.preventDefault(); startScrub(true); }}
+                  onPointerUp={stopScrub}
+                  onPointerLeave={stopScrub}
+                  onPointerCancel={stopScrub}
+                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center justify-center text-xs active:scale-95 transition touch-none"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
