@@ -24,10 +24,8 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'curiosity'>('main');
   const [mainCaption, setMainCaption] = useState('');
-  const [mainEmoji, setMainEmoji] = useState('');
   const [mainFont, setMainFont] = useState('Calistoga');
   const [curiosityCaption, setCuriosityCaption] = useState('');
-  const [curiosityEmoji, setCuriosityEmoji] = useState('');
   const [curiosityFont, setCuriosityFont] = useState('Calistoga');
 
   // Settings state
@@ -173,10 +171,10 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
         videoPath,
         isCuriosity: activeTab === 'curiosity',
         mainCaption,
-        mainEmoji,
+        mainEmoji: '',
         mainFont,
         curiosityCaption,
-        curiosityEmoji,
+        curiosityEmoji: '',
         curiosityFont,
         enhance: false,
         audioMode: 'original',
@@ -528,26 +526,6 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
               >
                 {/* Final 9:16 WYSIWYG Composition */}
                 
-                {/* Curiosity Overlay (Optional) */}
-                {activeTab === 'curiosity' && curiosityCaption && (
-                  <div className="absolute left-0 right-0 bottom-0 h-[25.9375%] flex flex-col justify-center items-center z-30 px-4">
-                    <span className="text-[#ef4444] font-bold text-center leading-tight drop-shadow-md" style={{ fontFamily: curiosityFont || 'Alike', fontSize: '6cqw' }}>
-                      {curiosityCaption} {curiosityEmoji}
-                    </span>
-                  </div>
-                )}
-                
-                {/* Main Overlay */}
-                <div className="absolute left-0 right-0 top-0 h-[21.875%] flex flex-col justify-center items-center z-30 px-4">
-                  <span className="text-black font-bold text-center leading-tight drop-shadow-md whitespace-pre-wrap break-words" style={{ fontFamily: mainFont || 'Alike', fontSize: '6cqw' }}>
-                    {mainCaption.split(' ').map((w, i) => {
-                      const match = w.match(/[a-zA-Z]/); const isRed = match ? match[0] === match[0].toUpperCase() : false;
-                      return <span key={i} className={isRed ? 'text-[#ef4444]' : 'text-black'}>{w} </span>;
-                    })}
-                    {mainEmoji}
-                  </span>
-                </div>
-                
                 {/* The 1002x1002 Cropped Video Square (y=420 out of 1920 -> 21.875%, width=1002/1080 -> 92.77%) */}
                 <div 
                   ref={previewContainerRef}
@@ -769,15 +747,6 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
                   <option value="Calistoga">Calistoga</option>
                     </select>
                   </div>
-                  <div className="w-20 flex flex-col gap-1">
-                    <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Emoji <span className="text-[8px] bg-slate-800 px-1 rounded ml-1">OPT</span></label>
-                    <input 
-                      type="text" 
-                      value={mainEmoji}
-                      onChange={e => setMainEmoji(e.target.value)}
-                      className="w-full bg-slate-950 border border-editor-panelBorder rounded px-2 py-1.5 text-sm text-center text-white focus:outline-none"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -806,15 +775,6 @@ export default function ShortsEditor({ onBack }: ShortsEditorProps) {
                         <option value="Alike">Alike</option>
                   <option value="Calistoga">Calistoga</option>
                       </select>
-                    </div>
-                    <div className="w-20 flex flex-col gap-1">
-                      <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Emoji <span className="text-[8px] bg-slate-800 px-1 rounded ml-1">OPT</span></label>
-                      <input 
-                        type="text" 
-                        value={curiosityEmoji}
-                        onChange={e => setCuriosityEmoji(e.target.value)}
-                        className="w-full bg-slate-950 border border-editor-panelBorder rounded px-2 py-1.5 text-sm text-center text-white focus:outline-none"
-                      />
                     </div>
                   </div>
                 </div>
