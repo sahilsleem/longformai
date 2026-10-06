@@ -162,28 +162,6 @@ const LongFormEditor: React.FC<{onBack?: () => void}> = ({onBack}) => {
             totalDuration={totalDuration}
             onUpdateTransform={effectiveTimelineItem ? ((u) => updateItemTransform(effectiveTimelineItem.id, u)) : undefined}
           />
-          {/* Build Overlay */}
-          {(isGeneratingDraft || isPreparing) && (
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-300">
-              <div className="relative mb-2">
-                <Loader2 className="w-8 h-8 text-white animate-spin opacity-50 absolute inset-0 m-auto" />
-                <Sparkles className="w-4 h-4 text-white absolute inset-0 m-auto animate-pulse" />
-              </div>
-              <h3 className="text-base font-bold tracking-tight mt-6 mb-1 drop-shadow-xl text-white">
-                {isGeneratingDraft ? 'Preparing your edit' : 'Analysing assets'}
-              </h3>
-              <div className="flex items-center gap-2 text-white/90 bg-black/50 px-3 py-1 rounded-full mt-1 font-mono text-xs border border-white/20 shadow-lg backdrop-blur-sm">
-                <div className="flex items-center gap-1 overflow-hidden">
-                  <div className="truncate max-w-[120px]">
-                    {isGeneratingDraft ? 'Applying AI edits' : preparationProgress?.message || 'Processing...'}
-                  </div>
-                </div>
-                <div className="text-white font-bold text-sm ml-2">
-                  {Math.round(displayProgress)}<span className="text-[10px] text-white/70">%</span>
-                </div>
-              </div>
-            </div>
-          )}
           
           {/* Build My Video Overlay */}
           {!hasDraft && canBuild && !isGeneratingDraft && !isPreparing && (
