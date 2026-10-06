@@ -9,7 +9,7 @@ import { Music, Plus, Sparkles, Loader2, Folder } from 'lucide-react';
 import { pickAndroidMedia, pickAndroidVoiceover, isNativeAndroid } from './platform/androidMedia';
 import { formatSecondsToMinutes } from './engine/schema';
 
-const LongFormEditor: React.FC = () => {
+const LongFormEditor: React.FC<{onBack?: () => void}> = ({onBack}) => {
   const {
     project,
     voiceover,
@@ -137,8 +137,7 @@ const LongFormEditor: React.FC = () => {
   return (
     <div className="min-h-screen bg-editor-bg text-slate-100 flex flex-col overflow-x-hidden overflow-y-auto">
       
-      <Header
-        project={project}
+      <Header onBack={onBack} project={project}
         currentTime={currentTime}
         totalDuration={totalDuration}
         isDirty={isDirty}
@@ -514,6 +513,7 @@ const LongFormEditor: React.FC = () => {
 };
 
 export default LongFormEditor;
+
 
 
 

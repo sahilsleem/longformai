@@ -1,7 +1,6 @@
 import { AutoCutLogo } from './AutoCutLogo';
 import React, { useRef } from 'react';
-import {
-  MoreVertical,
+import { ArrowLeft, MoreVertical,
   
   
 } from 'lucide-react';
@@ -12,6 +11,7 @@ import {
 } from '../engine/schema';
 
 interface HeaderProps {
+  onBack?: () => void;
   project: LongFormProject;
   currentTime: number;
   totalDuration: number;
@@ -29,7 +29,7 @@ interface HeaderProps {
   onToggleFrame?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+export const Header: React.FC<HeaderProps> = ({ onBack,
   project,
   onImportProject,
   onOpenRenderModal,
@@ -63,8 +63,13 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="relative h-14 bg-editor-bg border-b border-editor-panelBorder px-4 flex items-center justify-between select-none z-30">
       <div className="flex items-center gap-2">
-        {/* Placeholder for left side to keep title centered */}
-        <div className="w-8 h-8" />
+        {onBack ? (
+          <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-white transition-colors active:scale-95">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+        ) : (
+          <div className="w-8 h-8" />
+        )}
       </div>
 
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5"><div className="w-5 h-5 text-white"><AutoCutLogo className="w-full h-full" /></div><h1 className="text-lg font-black tracking-wider uppercase">AutoCut</h1></div>
@@ -162,5 +167,6 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+
 
 

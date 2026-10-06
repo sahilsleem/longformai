@@ -9,7 +9,7 @@ export default function App() {
   const [mode, setMode] = useState<'home' | 'longform' | 'shorts'>('home');
 
   if (mode === 'longform') {
-    return <LongFormEditor />;
+    return <LongFormEditor onBack={() => setMode('home')} />;
   }
 
   if (mode === 'shorts') {
