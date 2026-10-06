@@ -54,10 +54,21 @@ export default function App() {
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <Smartphone className="w-12 h-12 text-slate-300 group-hover:text-white group-hover:scale-110 transition-all duration-300" />
             <div className="text-center z-10">
-              <h2 className="text-xl font-bold mb-1">YouTube Short</h2>
-              <p className="text-xs text-slate-400 font-medium tracking-wide">Vertical • Fast-paced • 60s</p>
+              <h2 className="text-xl font-bold mb-1">Vertical Video</h2>
+              <p className="text-xs text-slate-400 font-medium tracking-wide">Vertical • Fast-paced • 60 seconds</p>
             </div>
           </button>
+        </div>
+
+        {/* Creator Row */}
+        <div className="mt-4 text-center text-[11px] text-slate-500 font-medium tracking-wide flex items-center justify-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
+          <span>Built by Sahil</span>
+          <span>&middot;</span>
+          <a href="https://instagram.com/sahilsleem" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Instagram</a>
+          <span>&middot;</span>
+          <a href="https://github.com/sahilsleem" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
+          <span>&middot;</span>
+          <a href="mailto:isahilsaleem@gmail.com" className="hover:text-white transition-colors">Email</a>
         </div>
 
       </div>
