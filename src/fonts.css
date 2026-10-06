@@ -1,0 +1,13 @@
+@font-face {
+  font-family: 'Alike';
+  src: url('./assets/fonts/alike/Alike-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Calistoga';
+  src: url('./assets/fonts/calistoga/Calistoga-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}

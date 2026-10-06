@@ -52,7 +52,7 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
     // Android native FFmpeg for local video rendering (GPL, includes libx264)
-    implementation 'dev.ffmpegkit-maintained:ffmpeg-kit-min-gpl:8.1.8'
+    implementation 'dev.ffmpegkit-maintained:ffmpeg-kit-full-gpl:8.1.8'
     // Android native ONNX Runtime for local semantic matching (all-MiniLM-L6-v2)
     implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.18.0'
 }

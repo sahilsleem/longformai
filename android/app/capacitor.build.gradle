@@ -12,6 +12,7 @@ dependencies {
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-splash-screen')
     implementation project(':capawesome-capacitor-file-picker')
+    implementation project(':richardaware74-capacitor-ffmpeg-kit')
 
 }
 

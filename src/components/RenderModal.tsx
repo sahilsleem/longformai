@@ -7,15 +7,15 @@ import {
 import { formatTimecode } from '../engine/schema';
 import { validateProjectForRender } from '../engine/validation';
 import { isNativeAndroid } from '../platform/androidMedia';
-import { getBollywoodFrameDataUrl } from '../engine/frameAsset';
+
 
 interface RenderModalProps {
   isOpen: boolean;
   onClose: () => void;
   project: LongFormProject;
   totalDuration: number;
-  isFrameEnabled: boolean;
-  onToggleFrame: () => void;
+  
+  
   onRelink: () => void;
 }
 
@@ -24,8 +24,8 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   onClose,
   project,
   totalDuration,
-  isFrameEnabled,
-  onToggleFrame,
+  
+  
   onRelink
 }) => {
   const [isRendering, setIsRendering] = useState(false);
@@ -79,23 +79,9 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         {/* State 1: Ready to Export */}
         {!isRendering && !result && !error && (
           <div className="flex flex-col items-center">
-            {/* Thumbnail preview with optional broadcast frame */}
-            <div className="w-40 aspect-video bg-slate-900 rounded-lg border border-slate-700 relative overflow-hidden mb-6 flex items-center justify-center">
-               <span className="text-slate-500 text-xs">Preview</span>
-               {isFrameEnabled && (
-                 <img src={getBollywoodFrameDataUrl()} className="absolute inset-0 w-full h-full object-fill pointer-events-none" />
-               )}
-            </div>
 
-            <div className="flex items-center justify-between w-full bg-editor-surface p-3 rounded-xl mb-4 border border-editor-panelBorder">
-              <span className="text-sm font-medium text-slate-200">Broadcast frame</span>
-              <button 
-                onClick={onToggleFrame}
-                className={`w-12 h-6 rounded-full transition-colors relative ${isFrameEnabled ? 'bg-white' : 'bg-slate-600'}`}
-              >
-                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${isFrameEnabled ? 'left-7' : 'left-1'}`} />
-              </button>
-            </div>
+
+            
 
             <div className="text-slate-400 text-sm mb-6 font-mono">
               {formatTimecode(totalDuration)} · {clipCount} clips · 1080p
@@ -123,7 +109,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         {isRendering && (
           <div className="flex flex-col items-center py-8">
             <h2 className="text-lg font-semibold text-white mb-2">Exporting your video…</h2>
-            <p className="text-sm text-slate-400 mb-8">Keep Niggachu open.</p>
+            <p className="text-sm text-slate-400 mb-8">Keep AutoCut open.</p>
             
             <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
               <div 
@@ -191,3 +177,9 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     </div>
   );
 };
+
+
+
+
+
+

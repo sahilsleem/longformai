@@ -1,3 +1,4 @@
+import { AutoCutLogo } from './AutoCutLogo';
 import React, { useRef } from 'react';
 import {
   MoreVertical,
@@ -66,9 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="w-8 h-8" />
       </div>
 
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <h1 className="text-xl text-white tracking-wide" style={{ fontFamily: "'Grand Hotel', cursive" }}>Niggachu</h1>
-      </div>
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5"><div className="w-5 h-5 text-white"><AutoCutLogo className="w-full h-full" /></div><h1 className="text-lg font-black tracking-wider uppercase">AutoCut</h1></div>
       
       <div className="relative">
         <button
@@ -163,3 +162,5 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+
+

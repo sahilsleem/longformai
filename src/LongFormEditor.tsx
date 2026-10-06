@@ -43,8 +43,8 @@ const LongFormEditor: React.FC = () => {
     updateTimelineItem,
     replaceTimelineItemMedia,
     updateItemTransform,
-    isFrameEnabled,
-    toggleProjectFrame,
+    
+    
     importProject,
     resetProject,
     setProjectName,
@@ -163,6 +163,28 @@ const LongFormEditor: React.FC = () => {
             totalDuration={totalDuration}
             onUpdateTransform={effectiveTimelineItem ? ((u) => updateItemTransform(effectiveTimelineItem.id, u)) : undefined}
           />
+          {/* Build Overlay */}
+          {(isGeneratingDraft || isPreparing) && (
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-300">
+              <div className="relative mb-2">
+                <Loader2 className="w-8 h-8 text-white animate-spin opacity-50 absolute inset-0 m-auto" />
+                <Sparkles className="w-4 h-4 text-white absolute inset-0 m-auto animate-pulse" />
+              </div>
+              <h3 className="text-base font-bold tracking-tight mt-6 mb-1 drop-shadow-xl text-white">
+                {isGeneratingDraft ? 'Preparing your edit' : 'Analysing assets'}
+              </h3>
+              <div className="flex items-center gap-2 text-white/90 bg-black/50 px-3 py-1 rounded-full mt-1 font-mono text-xs border border-white/20 shadow-lg backdrop-blur-sm">
+                <div className="flex items-center gap-1 overflow-hidden">
+                  <div className="truncate max-w-[120px]">
+                    {isGeneratingDraft ? 'Applying AI edits' : preparationProgress?.message || 'Processing...'}
+                  </div>
+                </div>
+                <div className="text-white font-bold text-sm ml-2">
+                  {Math.round(displayProgress)}<span className="text-[10px] text-white/70">%</span>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Build My Video Overlay */}
           {!hasDraft && canBuild && !isGeneratingDraft && !isPreparing && (
@@ -177,34 +199,30 @@ const LongFormEditor: React.FC = () => {
             </div>
           )}
           {(isPreparing || isGeneratingDraft) && (
-              <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-20 backdrop-blur-xl transition-all duration-500">
-                <div className="relative mb-6">
-                  {/* Glowing rings */}
-                  <div className="absolute inset-0 bg-white/20 blur-xl rounded-full animate-pulse"></div>
-                  <div className="w-16 h-16 rounded-full border-t-2 border-l-2 border-white animate-spin flex items-center justify-center bg-black/50 shadow-[0_0_15px_rgba(255,255,255,0.4)]">
-                    <Sparkles className="w-6 h-6 text-white animate-pulse" />
+              <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-20 backdrop-blur-md transition-all duration-500 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-8 h-8 rounded-full border-t-2 border-l-2 border-white animate-spin flex items-center justify-center bg-black/50 shadow-[0_0_10px_rgba(255,255,255,0.4)]">
+                      <Sparkles className="w-3 h-3 text-white animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="text-white text-sm font-bold tracking-widest shadow-sm">
+                      Rendering your video
+                    </div>
+                    <div className="text-slate-400 text-[9px] uppercase tracking-[0.1em] font-medium">
+                      {isPreparing ? 'Analyzing assets' : 'Syncing timeline'}
+                    </div>
+                  </div>
+                  <div className="text-white font-bold text-lg font-mono ml-4">
+                    {Math.round(displayProgress)}<span className="text-sm text-white/70">%</span>
                   </div>
                 </div>
-                
-                <div className="text-white text-xl font-bold tracking-widest mb-1 shadow-sm">
-                  Niggachu is preparing your video
-                </div>
-                
-                <div className="text-slate-400 text-xs uppercase tracking-[0.2em] mb-8 font-medium">
-                  {isPreparing ? 'Analyzing assets' : 'Syncing timeline'}
-                </div>
-                
-                <div className="flex flex-col items-center w-full max-w-[240px]">
-                  <div className="text-white font-bold text-4xl mb-3 font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]">
-                    {Math.round(displayProgress)}<span className="text-2xl text-white/70">%</span>
-                  </div>
-                  {/* Modern glowing progress bar */}
-                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden shadow-inner relative">
-                    <div 
-                      className="absolute top-0 left-0 bottom-0 bg-white transition-all duration-300 ease-out shadow-[0_0_12px_rgba(255,255,255,1)]"
-                      style={{ width: `${displayProgress}%` }}
-                    />
-                  </div>
+                <div className="w-full max-w-[200px] h-1 bg-white/10 rounded-full overflow-hidden shadow-inner mt-4">
+                  <div 
+                    className="h-full bg-white transition-all duration-300 ease-out shadow-[0_0_12px_rgba(255,255,255,1)]"
+                    style={{ width: `${displayProgress}%` }}
+                  />
                 </div>
               </div>
             )}
@@ -419,8 +437,8 @@ const LongFormEditor: React.FC = () => {
         onClose={() => setIsRenderModalOpen(false)}
         project={project}
         totalDuration={totalDuration}
-        isFrameEnabled={isFrameEnabled}
-        onToggleFrame={toggleProjectFrame}
+        
+        
         onRelink={() => setIsRelinkModalOpen(true)}
       />
 
@@ -496,3 +514,10 @@ const LongFormEditor: React.FC = () => {
 };
 
 export default LongFormEditor;
+
+
+
+
+
+
+

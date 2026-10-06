@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.longformai.app',
-  appName: 'Niggachu',
+  appName: 'AutoCut',
   webDir: 'dist',
   plugins: {
     SplashScreen: {
@@ -16,3 +16,4 @@ const config: CapacitorConfig = {
 };
 
 export default config;
+

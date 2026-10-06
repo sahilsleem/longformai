@@ -3,6 +3,8 @@ import LongFormEditor from './LongFormEditor';
 import ShortsEditor from './ShortsEditor';
 import { PlaySquare, Smartphone } from 'lucide-react';
 
+import { AutoCutLogo } from './components/AutoCutLogo';
+
 export default function App() {
   const [mode, setMode] = useState<'home' | 'longform' | 'shorts'>('home');
 
@@ -18,13 +20,18 @@ export default function App() {
     <div className="min-h-[100dvh] bg-black text-white flex flex-col items-center justify-center p-6 select-none font-sans">
       <div className="w-full max-w-sm flex flex-col gap-8">
         
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-black tracking-wider uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-            Niggachu
-          </h1>
-          <p className="text-slate-400 text-sm font-medium tracking-widest uppercase">
-            Create Masterpieces
-          </p>
+        <div className="text-center space-y-4 flex flex-col items-center">
+          <div className="w-16 h-16 drop-shadow-[0_0_15px_rgba(255,255,255,0.15)] text-white">
+            <AutoCutLogo className="w-full h-full" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black tracking-wider uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+              AutoCut
+            </h1>
+            <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase mt-1">
+              Turn clips into videos.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-col gap-4">
