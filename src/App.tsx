@@ -62,7 +62,7 @@ export default function App() {
 
         {/* Creator Row */}
         <div className="mt-4 text-center text-[11px] text-slate-500 font-medium tracking-wide flex items-center justify-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
-          <span>Built by Sahil</span>
+          <span>By Sahil</span>
           <span>&middot;</span>
           <a href="https://instagram.com/sahilsleem" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Instagram</a>
           <span>&middot;</span>
@@ -75,3 +75,4 @@ export default function App() {
     </div>
   );
 }
+
